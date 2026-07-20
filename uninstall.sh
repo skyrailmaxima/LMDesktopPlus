@@ -49,8 +49,8 @@ BACKUP_PARENT="$HOME/.lmdesktopplus-backup"
 
 # Known paths that install.sh may have created/linked/replaced. Restoring
 # walks this list and, for each, restores the newest backup copy if one
-# exists; entries with no backup are left untouched (they were likely
-# created fresh by install.sh, not replacing anything).
+# exists; entries with no backup are removed if they are LMDesktopPlus-owned
+# symlinks (see remove_owned_symlink), otherwise left untouched.
 KNOWN_PATHS=(
   "$HOME/.config/kitty/kitty.conf"
   "$HOME/.config/rofi/config.rasi"
@@ -76,24 +76,65 @@ find_newest_backup() {
   ls -1dt "$BACKUP_PARENT"/*/ 2>/dev/null | head -1 | sed 's:/$::'
 }
 
+is_lmdesktopplus_symlink() {
+  local path="$1"
+  [[ -L "$path" ]] || return 1
+  local target
+  target="$(readlink "$path")"
+  case "$target" in
+    "$REPO_ROOT"/*) return 0 ;;
+    "$HOME/.local/share/lmdesktopplus"/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+remove_owned_symlink() {
+  local path="$1"
+
+  if ! is_lmdesktopplus_symlink "$path"; then
+    return 0
+  fi
+
+  local target
+  target="$(readlink "$path")"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log_info "[dry-run] would remove LMDesktopPlus symlink $path -> $target"
+    return 0
+  fi
+
+  rm -f "$path"
+  log_info "Removed LMDesktopPlus symlink $path -> $target"
+}
+
 restore_from_backup() {
   local newest="$1" path="$2"
   local rel="${path#"$HOME"/}"
-  local backed_up="$newest/$rel"
+  local backed_up=""
 
-  if [[ ! -e "$backed_up" && ! -L "$backed_up" ]]; then
+  if [[ -n "$newest" ]]; then
+    backed_up="$newest/$rel"
+  fi
+
+  if [[ -n "$backed_up" && ( -e "$backed_up" || -L "$backed_up" ) ]]; then
+    if [[ "$DRY_RUN" == "1" ]]; then
+      log_info "[dry-run] would restore $backed_up -> $path"
+      return 0
+    fi
+
+    ensure_dir "$(dirname "$path")"
+    rm -rf "$path"
+    cp -a "$backed_up" "$path"
+    log_info "Restored $path from backup"
     return 0
   fi
 
-  if [[ "$DRY_RUN" == "1" ]]; then
-    log_info "[dry-run] would restore $backed_up -> $path"
-    return 0
-  fi
-
-  ensure_dir "$(dirname "$path")"
-  rm -rf "$path"
-  cp -a "$backed_up" "$path"
-  log_info "Restored $path from backup"
+  # No backup for this path: it was likely created fresh by install.sh
+  # (e.g. a symlink on a clean install with nothing to replace). Remove it
+  # if — and only if — it's a symlink owned by LMDesktopPlus, so we don't
+  # leave every shared/hypr/waybar link behind on a clean-install uninstall.
+  # Unrelated user files/symlinks are left untouched.
+  remove_owned_symlink "$path"
 }
 
 remove_wayland_session() {
@@ -126,6 +167,19 @@ strip_bashrc_markers() {
     return 0
   fi
 
+  # Require both the begin and end markers, with begin before end, before
+  # rewriting the file. A begin-only (or out-of-order) marker pair is
+  # malformed; rewriting in that case would risk stripping everything from
+  # the begin marker through EOF, deleting unrelated user configuration.
+  local begin_line end_line
+  begin_line="$(grep -nF "$marker_begin" "$bashrc" 2>/dev/null | head -1 | cut -d: -f1 || true)"
+  end_line="$(grep -nF "$marker_end" "$bashrc" 2>/dev/null | head -1 | cut -d: -f1 || true)"
+
+  if [[ -z "$begin_line" || -z "$end_line" || "$end_line" -le "$begin_line" ]]; then
+    log_warn "Found $marker_begin in $bashrc without a matching $marker_end after it (malformed block); leaving $bashrc untouched"
+    return 0
+  fi
+
   if [[ "$DRY_RUN" == "1" ]]; then
     log_info "[dry-run] would strip $marker_begin...$marker_end block from $bashrc"
     return 0
@@ -147,13 +201,14 @@ NEWEST_BACKUP="$(find_newest_backup || true)"
 
 if [[ -z "${NEWEST_BACKUP:-}" ]]; then
   log_warn "No backup directory found under $BACKUP_PARENT; skipping file restore."
-  log_warn "(Files that were symlinked fresh by install.sh, with nothing to back up, are left in place; remove them manually if desired.)"
+  log_warn "(Files with nothing to restore from will be removed if they are LMDesktopPlus-owned symlinks.)"
 else
   log_info "Restoring from $NEWEST_BACKUP"
-  for path in "${KNOWN_PATHS[@]}"; do
-    restore_from_backup "$NEWEST_BACKUP" "$path"
-  done
 fi
+
+for path in "${KNOWN_PATHS[@]}"; do
+  restore_from_backup "${NEWEST_BACKUP:-}" "$path"
+done
 
 log_info "Stripping bashrc markers"
 strip_bashrc_markers

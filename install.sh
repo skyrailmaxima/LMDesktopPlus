@@ -94,17 +94,42 @@ materialize_wallpaper() {
   cp -a "$WALLPAPER_SRC_SVG" "$WALLPAPER_DEST_SVG"
   cp -a "$PALETTE_SRC" "$PALETTE_DEST"
 
-  if command -v convert >/dev/null 2>&1; then
-    convert -background none "$WALLPAPER_SRC_SVG" "$WALLPAPER_DEST_PNG" \
-      && log_info "Rasterized wallpaper -> $WALLPAPER_DEST_PNG (imagemagick)"
-  elif command -v rsvg-convert >/dev/null 2>&1; then
-    rsvg-convert -o "$WALLPAPER_DEST_PNG" "$WALLPAPER_SRC_SVG" \
-      && log_info "Rasterized wallpaper -> $WALLPAPER_DEST_PNG (rsvg-convert)"
-  elif command -v inkscape >/dev/null 2>&1; then
-    inkscape "$WALLPAPER_SRC_SVG" --export-type=png --export-filename="$WALLPAPER_DEST_PNG" >/dev/null 2>&1 \
-      && log_info "Rasterized wallpaper -> $WALLPAPER_DEST_PNG (inkscape)"
-  else
-    log_warn "No SVG rasterizer found (convert/rsvg-convert/inkscape)."
+  # Try each available rasterizer in turn; a converter being present is no
+  # guarantee it will succeed (e.g. a broken ImageMagick policy.xml), so a
+  # failed attempt falls through to the next converter instead of silently
+  # leaving no PNG behind.
+  local rasterized=0
+
+  if [[ "$rasterized" == "0" ]] && command -v convert >/dev/null 2>&1; then
+    if convert -background none "$WALLPAPER_SRC_SVG" "$WALLPAPER_DEST_PNG"; then
+      log_info "Rasterized wallpaper -> $WALLPAPER_DEST_PNG (imagemagick)"
+      rasterized=1
+    else
+      log_warn "convert (imagemagick) failed to rasterize the wallpaper; trying next converter"
+    fi
+  fi
+
+  if [[ "$rasterized" == "0" ]] && command -v rsvg-convert >/dev/null 2>&1; then
+    if rsvg-convert -o "$WALLPAPER_DEST_PNG" "$WALLPAPER_SRC_SVG"; then
+      log_info "Rasterized wallpaper -> $WALLPAPER_DEST_PNG (rsvg-convert)"
+      rasterized=1
+    else
+      log_warn "rsvg-convert failed to rasterize the wallpaper; trying next converter"
+    fi
+  fi
+
+  if [[ "$rasterized" == "0" ]] && command -v inkscape >/dev/null 2>&1; then
+    if inkscape "$WALLPAPER_SRC_SVG" --export-type=png --export-filename="$WALLPAPER_DEST_PNG" >/dev/null 2>&1; then
+      log_info "Rasterized wallpaper -> $WALLPAPER_DEST_PNG (inkscape)"
+      rasterized=1
+    else
+      log_warn "inkscape failed to rasterize the wallpaper"
+    fi
+  fi
+
+  if [[ "$rasterized" == "0" ]]; then
+    rm -f "$WALLPAPER_DEST_PNG" 2>/dev/null || true
+    log_warn "No SVG rasterizer produced a PNG (convert/rsvg-convert/inkscape missing or all failed)."
     log_warn "hyprpaper.conf expects a PNG at $WALLPAPER_DEST_PNG; it will not find one."
     log_warn "Falling back: use swaybg with the SVG directly. In packages/hyprland/hypr/hyprland.conf,"
     log_warn "comment out 'exec-once = hyprpaper' and uncomment the 'exec-once = swaybg ...' line."
