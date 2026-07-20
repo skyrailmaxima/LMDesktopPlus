@@ -13,12 +13,8 @@
   "modules-right": ["cpu", "memory", "network", "tray"],
 
   "hyprland/workspaces": {
-    "format": "{icon}",
+    "format": "{name}",
     "on-click": "activate",
-    "format-icons": {
-      "active": "",
-      "default": ""
-    },
     "persistent-workspaces": {
       "1": [],
       "2": [],
