@@ -1,0 +1,5 @@
+_extracted/
+_extracted_template.html
+*.swp
+.DS_Store
+.superpowers/
