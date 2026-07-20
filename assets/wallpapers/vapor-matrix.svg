@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <title>vapor-matrix wallpaper</title>
+  <defs>
+    <radialGradient id="skyGlow" cx="50%" cy="59.3%" r="75%">
+      <stop offset="0%" stop-color="#0b0817"/>
+      <stop offset="45%" stop-color="#05060a"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+    <linearGradient id="groundGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0b0817"/>
+      <stop offset="100%" stop-color="#05060a"/>
+    </linearGradient>
+    <linearGradient id="sunGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ff2e97"/>
+      <stop offset="55%" stop-color="#ff71ce"/>
+      <stop offset="100%" stop-color="#01cdfe"/>
+    </linearGradient>
+    <linearGradient id="horizonGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#01cdfe" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#ff2e97" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#01cdfe" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glowSoft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <filter id="glowTight" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+    <clipPath id="sunClip">
+      <circle cx="960" cy="640" r="260"/>
+    </clipPath>
+  </defs>
+
+  <rect x="0" y="0" width="1920" height="1080" fill="url(#skyGlow)"/>
+
+  <circle cx="960" cy="640" r="320" fill="#ff2e97" opacity="0.16" filter="url(#glowSoft)"/>
+
+  <circle cx="960" cy="640" r="260" fill="url(#sunGrad)"/>
+  <g clip-path="url(#sunClip)">
+        <rect x="690" y="406.0" width="540" height="5.4" fill="#05060a"/>
+    <rect x="690" y="418.5" width="540" height="6.1" fill="#05060a"/>
+    <rect x="690" y="433.0" width="540" height="6.9" fill="#05060a"/>
+    <rect x="690" y="449.7" width="540" height="7.8" fill="#05060a"/>
+    <rect x="690" y="469.0" width="540" height="8.8" fill="#05060a"/>
+    <rect x="690" y="491.1" width="540" height="10.0" fill="#05060a"/>
+    <rect x="690" y="516.5" width="540" height="11.3" fill="#05060a"/>
+    <rect x="690" y="545.6" width="540" height="12.9" fill="#05060a"/>
+    <rect x="690" y="579.1" width="540" height="14.7" fill="#05060a"/>
+    <rect x="690" y="617.4" width="540" height="16.8" fill="#05060a"/>
+  </g>
+
+  <rect x="0" y="640" width="1920" height="440" fill="url(#groundGrad)"/>
+
+  <rect x="0" y="637" width="1920" height="6" fill="url(#horizonGrad)" filter="url(#glowTight)"/>
+  <rect x="0" y="639" width="1920" height="2" fill="#05ffa1" opacity="0.55"/>
+
+  <g>
+        <line x1="960.0" y1="640.0" x2="-480.0" y2="1080.0" stroke="#ff2e97" stroke-opacity="0.55" stroke-width="1.60"/>
+    <line x1="960.0" y1="640.0" x2="-240.0" y2="1080.0" stroke="#01cdfe" stroke-opacity="0.45" stroke-width="1.60"/>
+    <line x1="960.0" y1="640.0" x2="0.0" y2="1080.0" stroke="#01cdfe" stroke-opacity="0.45" stroke-width="1.60"/>
+    <line x1="960.0" y1="640.0" x2="240.0" y2="1080.0" stroke="#01cdfe" stroke-opacity="0.45" stroke-width="1.60"/>
+    <line x1="960.0" y1="640.0" x2="480.0" y2="1080.0" stroke="#ff2e97" stroke-opacity="0.55" stroke-width="1.60"/>
+    <line x1="960.0" y1="640.0" x2="720.0" y2="1080.0" stroke="#01cdfe" stroke-opacity="0.45" stroke-width="1.60"/>
+    <line x1="960.0" y1="640.0" x2="960.0" y2="1080.0" stroke="#01cdfe" stroke-opacity="0.45" stroke-width="1.60"/>
+    <line x1="960.0" y1="640.0" x2="1200.0" y2="1080.0" stroke="#01cdfe" stroke-opacity="0.45" stroke-width="1.60"/>
+    <line x1="960.0" y1="640.0" x2="1440.0" y2="1080.0" stroke="#ff2e97" stroke-opacity="0.55" stroke-width="1.60"/>
+    <line x1="960.0" y1="640.0" x2="1680.0" y2="1080.0" stroke="#01cdfe" stroke-opacity="0.45" stroke-width="1.60"/>
+    <line x1="960.0" y1="640.0" x2="1920.0" y2="1080.0" stroke="#01cdfe" stroke-opacity="0.45" stroke-width="1.60"/>
+    <line x1="960.0" y1="640.0" x2="2160.0" y2="1080.0" stroke="#01cdfe" stroke-opacity="0.45" stroke-width="1.60"/>
+    <line x1="960.0" y1="640.0" x2="2400.0" y2="1080.0" stroke="#ff2e97" stroke-opacity="0.55" stroke-width="1.60"/>
+  </g>
+  <g>
+        <line x1="0.0" y1="1080.0" x2="1920.0" y2="1080.0" stroke="#01cdfe" stroke-opacity="0.80" stroke-width="2.48"/>
+    <line x1="0.0" y1="860.0" x2="1920.0" y2="860.0" stroke="#ff2e97" stroke-opacity="0.76" stroke-width="2.36"/>
+    <line x1="0.0" y1="786.7" x2="1920.0" y2="786.7" stroke="#01cdfe" stroke-opacity="0.71" stroke-width="2.24"/>
+    <line x1="0.0" y1="750.0" x2="1920.0" y2="750.0" stroke="#ff2e97" stroke-opacity="0.67" stroke-width="2.12"/>
+    <line x1="0.0" y1="728.0" x2="1920.0" y2="728.0" stroke="#01cdfe" stroke-opacity="0.62" stroke-width="2.00"/>
+    <line x1="0.0" y1="713.3" x2="1920.0" y2="713.3" stroke="#ff2e97" stroke-opacity="0.58" stroke-width="1.88"/>
+    <line x1="0.0" y1="702.9" x2="1920.0" y2="702.9" stroke="#01cdfe" stroke-opacity="0.53" stroke-width="1.76"/>
+    <line x1="0.0" y1="695.0" x2="1920.0" y2="695.0" stroke="#ff2e97" stroke-opacity="0.49" stroke-width="1.64"/>
+    <line x1="0.0" y1="688.9" x2="1920.0" y2="688.9" stroke="#01cdfe" stroke-opacity="0.45" stroke-width="1.52"/>
+    <line x1="0.0" y1="684.0" x2="1920.0" y2="684.0" stroke="#ff2e97" stroke-opacity="0.40" stroke-width="1.40"/>
+    <line x1="0.0" y1="680.0" x2="1920.0" y2="680.0" stroke="#01cdfe" stroke-opacity="0.35" stroke-width="1.28"/>
+    <line x1="0.0" y1="676.7" x2="1920.0" y2="676.7" stroke="#ff2e97" stroke-opacity="0.31" stroke-width="1.16"/>
+    <line x1="0.0" y1="673.8" x2="1920.0" y2="673.8" stroke="#01cdfe" stroke-opacity="0.27" stroke-width="1.04"/>
+    <line x1="0.0" y1="671.4" x2="1920.0" y2="671.4" stroke="#ff2e97" stroke-opacity="0.22" stroke-width="0.92"/>
+    <line x1="0.0" y1="669.3" x2="1920.0" y2="669.3" stroke="#01cdfe" stroke-opacity="0.18" stroke-width="0.80"/>
+    <line x1="0.0" y1="667.5" x2="1920.0" y2="667.5" stroke="#ff2e97" stroke-opacity="0.13" stroke-width="0.68"/>
+  </g>
+
+  <rect x="0" y="0" width="1920" height="1080" fill="#000000" opacity="0.04"/>
+</svg>
