@@ -63,8 +63,13 @@ PALETTE_SRC="$REPO_ROOT/palette/vapor-matrix.theme"
 PALETTE_DEST="$SHARE_DIR/palette/vapor-matrix.theme"
 
 HYPR_AVAILABLE=0
-if command -v Hyprland >/dev/null 2>&1 || command -v hyprland >/dev/null 2>&1; then
+HYPR_BIN=""
+if command -v Hyprland >/dev/null 2>&1; then
   HYPR_AVAILABLE=1
+  HYPR_BIN="Hyprland"
+elif command -v hyprland >/dev/null 2>&1; then
+  HYPR_AVAILABLE=1
+  HYPR_BIN="hyprland"
 fi
 
 ### 1. apt packages ##########################################################
@@ -192,15 +197,25 @@ link_hypr_assets() {
 
 install_session_desktop() {
   local dest="/usr/share/wayland-sessions/lmdesktopplus-hyprland.desktop"
+  # Substitute the detected binary name (Hyprland vs hyprland) into Exec=/
+  # TryExec= so the installed session always launches the binary that's
+  # actually on PATH, even if it differs from the template default.
+  local bin="${HYPR_BIN:-Hyprland}"
   if [[ "$DRY_RUN" == "1" ]]; then
-    log_info "[dry-run] would sudo install wayland session -> $dest"
+    log_info "[dry-run] would sudo install wayland session -> $dest (Exec=$bin, TryExec=$bin)"
     return 0
   fi
-  if sudo cp "$REPO_ROOT/packages/hyprland/sessions/lmdesktopplus-hyprland.desktop" "$dest"; then
-    log_info "Installed Hyprland wayland session -> $dest"
+  local tmp_desktop
+  tmp_desktop="$(mktemp)"
+  sed -e "s/^TryExec=.*/TryExec=$bin/" \
+      -e "s/^Exec=.*/Exec=$bin/" \
+      "$REPO_ROOT/packages/hyprland/sessions/lmdesktopplus-hyprland.desktop" > "$tmp_desktop"
+  if sudo cp "$tmp_desktop" "$dest"; then
+    log_info "Installed Hyprland wayland session -> $dest (Exec=$bin, TryExec=$bin)"
   else
     log_warn "Could not install wayland session file (sudo failed/unavailable); see docs/install-notes.md"
   fi
+  rm -f "$tmp_desktop"
 }
 
 if [[ "$CINNAMON_ONLY" == "1" ]]; then

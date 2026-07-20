@@ -1,6 +1,10 @@
 [Desktop Entry]
 Name=LMDesktopPlus Hyprland
 Comment=Vapor//matrix Hyprland session (LMDesktopPlus)
+# Exec/TryExec below are placeholders: install.sh rewrites both to the
+# detected binary name (Hyprland vs hyprland) when installing this file to
+# /usr/share/wayland-sessions/. Default here is the upstream-common casing.
+TryExec=Hyprland
 Exec=Hyprland
 Type=Application
 DesktopNames=Hyprland

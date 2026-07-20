@@ -9,11 +9,6 @@
 @define-color error_color #ff2e97;
 @define-color success_color #00ff70;
 
-* {
-  background-color: @bg_color;
-  color: @fg_color;
-}
-
 window,
 .background {
   background-color: @bg_color;
