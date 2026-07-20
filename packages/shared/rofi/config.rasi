@@ -1,0 +1,6 @@
+configuration {
+  modi: "drun,run,window";
+  show-icons: true;
+  font: "JetBrains Mono 11";
+}
+@theme "themes/matrix"

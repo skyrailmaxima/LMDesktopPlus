@@ -1,0 +1,37 @@
+"$schema" = "https://starship.rs/config-schema.json"
+
+# LMDesktopPlus vapor//matrix
+format = """
+[](bold #01cdfe)$directory[](bold #ff2e97 dimmed #01cdfe)$git_branch$git_status[](bold #b967ff dimmed #ff2e97)$character
+"""
+
+add_newline = true
+
+[character]
+success_symbol = "[❯](bold #00ff70)"
+error_symbol = "[❯](bold #ff2e97)"
+vimcmd_symbol = "[❮](bold #01cdfe)"
+
+[directory]
+style = "fg:#05060a bg:#01cdfe bold"
+format = "[ $path ]($style)"
+truncation_length = 3
+truncate_to_repo = true
+
+[git_branch]
+style = "fg:#ffffff bg:#ff2e97 bold"
+format = "[ $symbol$branch ]($style)"
+symbol = " "
+
+[git_status]
+style = "fg:#ffffff bg:#ff2e97 bold"
+format = "[$all_status$ahead_behind ]($style)"
+
+[cmd_duration]
+style = "fg:#ffcc44 bold"
+format = "took [$duration]($style) "
+
+[username]
+style_user = "fg:#8dffbe bold"
+style_root = "fg:#ff2e97 bold"
+format = "[$user]($style) "
