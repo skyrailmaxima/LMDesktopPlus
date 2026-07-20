@@ -1,0 +1,221 @@
+#!/usr/bin/env bash
+# LMDesktopPlus installer — Linux Mint Cinnamon + optional Hyprland hybrid rice.
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=/dev/null
+source "$REPO_ROOT/lib/common.sh"
+# shellcheck source=/dev/null
+source "$REPO_ROOT/lib/detect.sh"
+# shellcheck source=/dev/null
+source "$REPO_ROOT/lib/packages-apt.sh"
+
+DRY_RUN="${DRY_RUN:-0}"
+FORCE="${FORCE:-0}"
+CINNAMON_ONLY=0
+
+usage() {
+  cat <<'EOF'
+Usage: install.sh [--dry-run] [--cinnamon-only] [--force]
+
+  --dry-run        Print planned actions without changing the system.
+  --cinnamon-only   Skip Hyprland/waybar setup, even if Hyprland is installed.
+  --force           Continue on unsupported OS (same as FORCE=1).
+
+Env: DRY_RUN=1, FORCE=1 are equivalent to the flags above.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run) DRY_RUN=1 ;;
+    --cinnamon-only) CINNAMON_ONLY=1 ;;
+    --force) FORCE=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) log_err "Unknown flag: $1"; usage; exit 1 ;;
+  esac
+  shift
+done
+
+export DRY_RUN FORCE
+
+# Runs "$@" unless DRY_RUN=1, in which case it just logs the intent.
+maybe() {
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log_info "[dry-run] $*"
+    return 0
+  fi
+  "$@"
+}
+
+require_mint_or_warn || exit 1
+
+BACKUP_ROOT="$HOME/.lmdesktopplus-backup/$(date +%Y%m%d-%H%M%S)"
+export BACKUP_ROOT
+log_info "Backups (if any existing files are replaced) go to $BACKUP_ROOT"
+
+SHARE_DIR="$HOME/.local/share/lmdesktopplus"
+WALLPAPER_SRC_SVG="$REPO_ROOT/assets/wallpapers/vapor-matrix.svg"
+WALLPAPER_DEST_SVG="$SHARE_DIR/wallpapers/vapor-matrix.svg"
+WALLPAPER_DEST_PNG="$SHARE_DIR/wallpapers/vapor-matrix.png"
+PALETTE_SRC="$REPO_ROOT/palette/vapor-matrix.theme"
+PALETTE_DEST="$SHARE_DIR/palette/vapor-matrix.theme"
+
+HYPR_AVAILABLE=0
+if command -v Hyprland >/dev/null 2>&1 || command -v hyprland >/dev/null 2>&1; then
+  HYPR_AVAILABLE=1
+fi
+
+### 1. apt packages ##########################################################
+log_info "Installing apt packages"
+if [[ "$CINNAMON_ONLY" == "1" ]]; then
+  install_apt_packages
+else
+  install_apt_packages "${APT_HYPR_OPTIONAL[@]}"
+fi
+
+### 2. fonts ##################################################################
+log_info "Fetching display fonts"
+bash "$REPO_ROOT/scripts/fetch-fonts.sh" || log_warn "Font fetch script exited non-zero; continuing"
+
+### 3. materialize ~/.local/share/lmdesktopplus ##############################
+materialize_wallpaper() {
+  maybe ensure_dir "$SHARE_DIR/wallpapers"
+  maybe ensure_dir "$SHARE_DIR/palette"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log_info "[dry-run] would copy $WALLPAPER_SRC_SVG -> $WALLPAPER_DEST_SVG"
+    log_info "[dry-run] would rasterize SVG -> $WALLPAPER_DEST_PNG (convert/rsvg-convert/inkscape) or fall back to swaybg+SVG"
+    log_info "[dry-run] would copy $PALETTE_SRC -> $PALETTE_DEST"
+    return 0
+  fi
+
+  cp -a "$WALLPAPER_SRC_SVG" "$WALLPAPER_DEST_SVG"
+  cp -a "$PALETTE_SRC" "$PALETTE_DEST"
+
+  if command -v convert >/dev/null 2>&1; then
+    convert -background none "$WALLPAPER_SRC_SVG" "$WALLPAPER_DEST_PNG" \
+      && log_info "Rasterized wallpaper -> $WALLPAPER_DEST_PNG (imagemagick)"
+  elif command -v rsvg-convert >/dev/null 2>&1; then
+    rsvg-convert -o "$WALLPAPER_DEST_PNG" "$WALLPAPER_SRC_SVG" \
+      && log_info "Rasterized wallpaper -> $WALLPAPER_DEST_PNG (rsvg-convert)"
+  elif command -v inkscape >/dev/null 2>&1; then
+    inkscape "$WALLPAPER_SRC_SVG" --export-type=png --export-filename="$WALLPAPER_DEST_PNG" >/dev/null 2>&1 \
+      && log_info "Rasterized wallpaper -> $WALLPAPER_DEST_PNG (inkscape)"
+  else
+    log_warn "No SVG rasterizer found (convert/rsvg-convert/inkscape)."
+    log_warn "hyprpaper.conf expects a PNG at $WALLPAPER_DEST_PNG; it will not find one."
+    log_warn "Falling back: use swaybg with the SVG directly. In packages/hyprland/hypr/hyprland.conf,"
+    log_warn "comment out 'exec-once = hyprpaper' and uncomment the 'exec-once = swaybg ...' line."
+    log_warn "See docs/install-notes.md for details."
+  fi
+}
+log_info "Materializing wallpaper + palette under $SHARE_DIR"
+materialize_wallpaper
+
+### 4. link shared configs ####################################################
+link_shared_configs() {
+  maybe link_file "$REPO_ROOT/packages/shared/kitty/kitty.conf" "$HOME/.config/kitty/kitty.conf"
+  maybe link_file "$REPO_ROOT/packages/shared/rofi/config.rasi" "$HOME/.config/rofi/config.rasi"
+  maybe link_file "$REPO_ROOT/packages/shared/rofi/themes/matrix.rasi" "$HOME/.config/rofi/themes/matrix.rasi"
+
+  local tmux_dest="$HOME/.tmux.conf"
+  if [[ -d "$HOME/.config/tmux" ]]; then
+    tmux_dest="$HOME/.config/tmux/tmux.conf"
+  elif command -v tmux >/dev/null 2>&1; then
+    local tmux_ver smallest
+    tmux_ver="$(tmux -V 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)"
+    if [[ -n "$tmux_ver" ]]; then
+      # tmux >= 3.1 supports the XDG path ~/.config/tmux/tmux.conf.
+      smallest="$(printf '%s\n%s\n' "$tmux_ver" "3.1" | sort -V | head -1)"
+      [[ "$smallest" == "3.1" ]] && tmux_dest="$HOME/.config/tmux/tmux.conf"
+    fi
+  fi
+  maybe link_file "$REPO_ROOT/packages/shared/tmux/tmux.conf" "$tmux_dest"
+
+  maybe link_file "$REPO_ROOT/packages/shared/starship/starship.toml" "$HOME/.config/starship.toml"
+  maybe link_file "$REPO_ROOT/packages/shared/gtk-3.0/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
+  maybe link_file "$REPO_ROOT/packages/shared/gtk-4.0/gtk.css" "$HOME/.config/gtk-4.0/gtk.css"
+  maybe link_file "$PALETTE_SRC" "$HOME/.config/vapor-matrix.theme"
+}
+log_info "Linking shared configs (kitty, rofi, tmux, starship, gtk, palette)"
+link_shared_configs
+
+### 5. cinnamon assets ########################################################
+# v1 packages/cinnamon ships docs only (no theme tarball yet, see packages/cinnamon/README.md);
+# the wallpaper + gtk-theme/icon-theme hints are applied via gsettings below.
+log_info "Cinnamon package is docs-only in v1; nothing extra to link"
+
+### 6. apply cinnamon gsettings ###############################################
+# Cinnamon/GTK can render SVG backgrounds; prefer the rasterized PNG when it
+# exists (matches what hyprpaper needs), else fall back to the SVG copy.
+GSETTINGS_WALLPAPER="$WALLPAPER_DEST_PNG"
+if [[ "$DRY_RUN" != "1" && ! -f "$WALLPAPER_DEST_PNG" ]]; then
+  GSETTINGS_WALLPAPER="$WALLPAPER_DEST_SVG"
+fi
+log_info "Applying Cinnamon gsettings (wallpaper, gtk-theme, icon-theme)"
+bash "$REPO_ROOT/scripts/apply-cinnamon-gsettings.sh" "$GSETTINGS_WALLPAPER" || log_warn "gsettings apply script exited non-zero; continuing"
+
+### 7. Hyprland (optional) ####################################################
+link_hypr_assets() {
+  maybe link_file "$REPO_ROOT/packages/hyprland/hypr/hyprland.conf" "$HOME/.config/hypr/hyprland.conf"
+  maybe link_file "$REPO_ROOT/packages/hyprland/hypr/hyprpaper.conf" "$HOME/.config/hypr/hyprpaper.conf"
+  maybe link_file "$REPO_ROOT/packages/hyprland/waybar/config.jsonc" "$HOME/.config/waybar/config.jsonc"
+  maybe link_file "$REPO_ROOT/packages/hyprland/waybar/style.css" "$HOME/.config/waybar/style.css"
+}
+
+install_session_desktop() {
+  local dest="/usr/share/wayland-sessions/lmdesktopplus-hyprland.desktop"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log_info "[dry-run] would sudo install wayland session -> $dest"
+    return 0
+  fi
+  if sudo cp "$REPO_ROOT/packages/hyprland/sessions/lmdesktopplus-hyprland.desktop" "$dest"; then
+    log_info "Installed Hyprland wayland session -> $dest"
+  else
+    log_warn "Could not install wayland session file (sudo failed/unavailable); see docs/install-notes.md"
+  fi
+}
+
+if [[ "$CINNAMON_ONLY" == "1" ]]; then
+  log_info "--cinnamon-only: skipping Hyprland/waybar setup"
+elif [[ "$HYPR_AVAILABLE" == "1" ]]; then
+  log_info "Hyprland detected; linking hypr/waybar configs and registering wayland session"
+  link_hypr_assets
+  install_session_desktop
+else
+  log_warn "Hyprland not found on PATH; skipping Hyprland/waybar setup."
+  log_warn "See docs/install-notes.md to install Hyprland and re-run install.sh (or install.sh --force)."
+fi
+
+### 8. bashrc snippet ##########################################################
+append_bashrc_snippet() {
+  local bashrc="$HOME/.bashrc"
+  local marker="# LMDesktopPlus begin"
+
+  if [[ -f "$bashrc" ]] && grep -qF "$marker" "$bashrc" 2>/dev/null; then
+    log_info "bashrc already has LMDesktopPlus markers; skipping append"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log_info "[dry-run] would append packages/shared/bash/bashrc.snippet to $bashrc"
+    return 0
+  fi
+
+  backup_path "$bashrc"
+  {
+    echo ""
+    cat "$REPO_ROOT/packages/shared/bash/bashrc.snippet"
+  } >> "$bashrc"
+  log_info "Appended LMDesktopPlus snippet to $bashrc"
+}
+log_info "Updating ~/.bashrc"
+append_bashrc_snippet
+
+log_info "LMDesktopPlus install complete."
+if [[ "$DRY_RUN" == "1" ]]; then
+  log_info "This was a dry run; no changes were made."
+fi
+exit 0
