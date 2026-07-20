@@ -1,0 +1,92 @@
+/* LMDesktopPlus vapor//matrix waybar style */
+* {
+  font-family: "JetBrains Mono", "DotGothic16", monospace;
+  font-size: 13px;
+  min-height: 0;
+}
+
+window#waybar {
+  background-color: #05060a;
+  color: #8dffbe;
+  border-radius: 10px;
+  border: 2px solid #01cdfe;
+}
+
+#workspaces {
+  background-color: #0b0817;
+  border-radius: 8px;
+  margin: 4px 4px 4px 6px;
+  padding: 0 4px;
+}
+
+#workspaces button {
+  color: #8dffbe;
+  padding: 0 8px;
+  border-radius: 6px;
+  background-color: transparent;
+}
+
+#workspaces button.active {
+  color: #05060a;
+  background-color: #01cdfe;
+}
+
+#workspaces button.persistent {
+  color: #b967ff;
+}
+
+#workspaces button:hover {
+  background-color: #ff2e97;
+  color: #ffffff;
+}
+
+#clock {
+  color: #ff71ce;
+  font-weight: bold;
+  padding: 0 12px;
+}
+
+#cpu,
+#memory,
+#network,
+#tray {
+  background-color: #0b0817;
+  color: #8dffbe;
+  padding: 0 10px;
+  margin: 4px 2px;
+  border-radius: 8px;
+}
+
+#cpu {
+  color: #00ff70;
+  border: 1px solid #00ff70;
+}
+
+#memory {
+  color: #ffcc44;
+  border: 1px solid #ffcc44;
+}
+
+#network {
+  color: #01cdfe;
+  border: 1px solid #01cdfe;
+  margin-right: 6px;
+}
+
+#network.disconnected {
+  color: #ff2e97;
+  border-color: #ff2e97;
+}
+
+#tray {
+  border: 1px solid #b967ff;
+}
+
+#tray > .passive {
+  -gtk-icon-effect: dim;
+}
+
+#tray > .needs-attention {
+  -gtk-icon-effect: highlight;
+  background-color: #ff2e97;
+}

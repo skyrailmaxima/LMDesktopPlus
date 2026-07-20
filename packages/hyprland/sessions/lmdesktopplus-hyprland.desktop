@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=LMDesktopPlus Hyprland
+Comment=Vapor//matrix Hyprland session (LMDesktopPlus)
+Exec=Hyprland
+Type=Application
+DesktopNames=Hyprland
