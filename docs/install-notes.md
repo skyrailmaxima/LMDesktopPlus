@@ -156,7 +156,8 @@ and won't fail the install; pick any dark GTK/icon theme manually in
 - **Want to preview without changing anything?** `./install.sh --dry-run`
   logs every planned action (apt packages, symlinks, gsettings, bashrc
   append, session registration) without touching the system.
-- **Rolling back**: run `./uninstall.sh` to restore backed-up files and
-  strip the bashrc snippet. Backups under `~/.lmdesktopplus-backup/` are
-  never deleted automatically, so nothing is lost even if you skip
-  uninstalling.
+- **Rolling back**: run `./uninstall.sh` to restore backed-up config targets,
+  strip the bashrc snippet, and remove the owned session file when possible.
+  The backup tree under `~/.lmdesktopplus-backup/` is kept. Apt packages,
+  fonts, share-dir assets, and Cinnamon gsettings are not rolled back
+  automatically.
