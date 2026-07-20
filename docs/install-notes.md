@@ -74,8 +74,14 @@ Hyprland
 ```
 
 `hyprland.conf` expects `waybar` and either `hyprpaper` or `swaybg` to be on
-`PATH`; install them via apt (`sudo apt install waybar swaybg`) if
-`install.sh` skipped them because Hyprland wasn't detected at install time.
+`PATH`. `install.sh` installs `waybar` and `swaybg` via apt unless you passed
+`--cinnamon-only` (that flag skips the optional Hyprland apt packages
+entirely, independent of whether Hyprland is on `PATH`). If you used
+`--cinnamon-only`, install them manually:
+
+```bash
+sudo apt install waybar swaybg
+```
 
 ### Wallpaper: PNG vs SVG fallback
 

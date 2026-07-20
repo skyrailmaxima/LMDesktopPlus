@@ -46,14 +46,16 @@ Then log out and back in:
 - Pick **Hyprland** at the login greeter if it was detected and registered.
 
 Re-running `./install.sh` is idempotent — existing correct symlinks are left
-alone, and anything that would be overwritten is backed up first (see
-[Backups](#backups) below).
+alone. Existing **config targets** that would be replaced are backed up first
+(see [Backups](#backups) below).
 
-To remove everything this installer changed:
+To roll back config changes made by this installer:
 
 ```bash
 ./uninstall.sh
 ```
+
+See [Uninstall](#uninstall) for what is and is not removed.
 
 ## Flags
 
@@ -98,16 +100,46 @@ FORCE=1 ./install.sh                # override the Mint/Debian-family check
 
 ## Backups
 
-Any existing file that would be replaced is copied first to:
+Before replacing an existing **config target** (a file under `~/.config/...`,
+`~/.tmux.conf`, or `~/.bashrc` when appending the snippet), `install.sh`
+copies it to:
 
 ```
 ~/.lmdesktopplus-backup/<timestamp>/
 ```
 
-`uninstall.sh` restores from the newest backup directory it can find,
-removes the Hyprland wayland-session file if it was installed by this repo,
-and strips the `# LMDesktopPlus begin/end` block from `~/.bashrc`. It never
-deletes the backup tree itself.
+Paths are preserved under that directory (for example,
+`~/.config/kitty/kitty.conf` is backed up as
+`~/.lmdesktopplus-backup/<timestamp>/.config/kitty/kitty.conf`).
+
+**Not backed up:** wallpaper and palette copies under
+`~/.local/share/lmdesktopplus/` are overwritten on each install; the Hyprland
+wayland-session `.desktop` file under `/usr/share/wayland-sessions/` is
+replaced without a home-directory backup.
+
+Apt packages, fonts, and Cinnamon `gsettings` are applied during install;
+those changes are outside the backup tree (see [Uninstall](#uninstall)).
+
+## Uninstall
+
+`./uninstall.sh` does **not** undo everything `install.sh` did. It:
+
+- Restores known config paths from the **newest** backup under
+  `~/.lmdesktopplus-backup/` (kitty, rofi, tmux, starship, GTK CSS, palette
+  symlink, hypr/waybar configs, and `.bashrc` if one was backed up)
+- Strips the `# LMDesktopPlus begin` / `# LMDesktopPlus end` block from
+  `~/.bashrc`
+- Removes LMDesktopPlus-owned config symlinks when there is no backup to
+  restore
+- Removes the Hyprland wayland-session file if it mentions LMDesktopPlus
+
+It **leaves in place:**
+
+- Apt packages installed by `install.sh` (including optional `waybar`/`swaybg`)
+- Fonts under `~/.local/share/fonts/lmdesktopplus/`
+- Wallpaper/palette under `~/.local/share/lmdesktopplus/`
+- Cinnamon `gsettings` changes (wallpaper, GTK/icon theme hints)
+- The backup tree under `~/.lmdesktopplus-backup/` (never deleted automatically)
 
 ## Repository layout
 
