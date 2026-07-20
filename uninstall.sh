@@ -167,16 +167,24 @@ strip_bashrc_markers() {
     return 0
   fi
 
-  # Require both the begin and end markers, with begin before end, before
-  # rewriting the file. A begin-only (or out-of-order) marker pair is
-  # malformed; rewriting in that case would risk stripping everything from
-  # the begin marker through EOF, deleting unrelated user configuration.
-  local begin_line end_line
-  begin_line="$(grep -nF "$marker_begin" "$bashrc" 2>/dev/null | head -1 | cut -d: -f1 || true)"
-  end_line="$(grep -nF "$marker_end" "$bashrc" 2>/dev/null | head -1 | cut -d: -f1 || true)"
+  # Require exactly one begin and one end marker, in order, before rewriting.
+  # Multiple markers (or begin-only / out-of-order pairs) are malformed; a
+  # stateful awk strip would delete everything from any second begin through
+  # EOF, removing unrelated user configuration after a valid block.
+  local begin_count end_count begin_line end_line
+  begin_count="$(grep -cF "$marker_begin" "$bashrc" 2>/dev/null || true)"
+  end_count="$(grep -cF "$marker_end" "$bashrc" 2>/dev/null || true)"
+
+  if [[ "$begin_count" -ne 1 || "$end_count" -ne 1 ]]; then
+    log_warn "Found $begin_count begin and $end_count end LMDesktopPlus markers in $bashrc (expected exactly one each); leaving $bashrc untouched"
+    return 0
+  fi
+
+  begin_line="$(grep -nF "$marker_begin" "$bashrc" | cut -d: -f1)"
+  end_line="$(grep -nF "$marker_end" "$bashrc" | cut -d: -f1)"
 
   if [[ -z "$begin_line" || -z "$end_line" || "$end_line" -le "$begin_line" ]]; then
-    log_warn "Found $marker_begin in $bashrc without a matching $marker_end after it (malformed block); leaving $bashrc untouched"
+    log_warn "LMDesktopPlus markers in $bashrc are out of order; leaving $bashrc untouched"
     return 0
   fi
 
@@ -187,10 +195,9 @@ strip_bashrc_markers() {
 
   local tmp
   tmp="$(mktemp)"
-  awk -v begin="$marker_begin" -v end="$marker_end" '
-    $0 == begin { skip = 1; next }
-    $0 == end   { skip = 0; next }
-    !skip       { print }
+  awk -v begin="$begin_line" -v end="$end_line" '
+    NR >= begin && NR <= end { next }
+    { print }
   ' "$bashrc" > "$tmp"
   mv "$tmp" "$bashrc"
   log_info "Stripped LMDesktopPlus markers from $bashrc"
