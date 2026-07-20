@@ -7,7 +7,7 @@ sessions share the same palette, kitty/rofi/tmux/starship configs, and
 wallpaper, so switching sessions at the login screen never feels like
 switching themes.
 
-![screenshot placeholder](assets/preview/NeonRice-Vaporwave-Matrix-Rice.html)
+[Original mockup preview](assets/preview/NeonRice-Vaporwave-Matrix-Rice.html)
 
 > Screenshot/GIF coming soon — see `assets/preview/` for the original mockup
 > this rice is based on.
@@ -21,8 +21,9 @@ switching themes.
 
 Both sessions consume:
 
-- `palette/vapor-matrix.theme` — the single source of truth for every hex
-  value used across kitty, rofi, tmux, starship, GTK, and Hyprland/waybar.
+- `palette/vapor-matrix.theme` — canonical palette/reference; app configs
+  currently hard-code matching hex values across kitty, rofi, tmux, starship,
+  GTK, and Hyprland/waybar.
 - `packages/shared/` — kitty, rofi, tmux, starship, bash snippet, and GTK CSS
   configs, symlinked into `~/.config/...` (or `~/.tmux.conf`) so edits to the
   repo are picked up immediately without re-running the installer.
@@ -113,7 +114,7 @@ deletes the backup tree itself.
 ```
 install.sh / uninstall.sh   Entrypoints
 lib/                         common.sh, detect.sh, packages-apt.sh
-palette/                     vapor-matrix.theme (single source of truth)
+palette/                     vapor-matrix.theme (canonical palette/reference)
 packages/shared/             kitty, rofi, tmux, starship, bash, gtk-3.0/4.0
 packages/cinnamon/           Cinnamon package README (docs-only in v1)
 packages/hyprland/           hypr, waybar, wayland session .desktop

@@ -125,8 +125,8 @@ in `install.sh`.
   step with a warning; install one of them (`sudo apt install curl`) and
   re-run.
 - **Corporate proxy / blocked GitHub raw content**: the font URLs point at
-  `raw.githubusercontent.com` (mirrored from `google/fonts`). If that host
-  is blocked, download the fonts manually from
+  `github.com/google/fonts/raw/...` (OFL sources from the `google/fonts`
+  repo). If that host is blocked, download the fonts manually from
   [Google Fonts](https://fonts.google.com/specimen/DotGothic16) and
   [Zen Dots](https://fonts.google.com/specimen/Zen+Dots), then drop the
   `.ttf` files into `~/.local/share/fonts/lmdesktopplus/` and run
