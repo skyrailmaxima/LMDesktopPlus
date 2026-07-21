@@ -14,7 +14,9 @@ from urllib.parse import urlparse
 
 from . import __version__
 from .actions import ActionRunner
+from .adapters import AdapterRegistry
 from .agents import AgentRegistry
+from .assets import AssetCatalog
 from .config import ACCENTS, SettingsStore
 from . import media, network, theme
 from .system_info import SystemSampler
@@ -26,6 +28,8 @@ class ApplicationState:
     def __init__(self) -> None:
         self.settings = SettingsStore()
         self.agents = AgentRegistry()
+        self.adapters = AdapterRegistry()
+        self.assets = AssetCatalog()
         self.system = SystemSampler()
         self.actions = ActionRunner(self.settings.get)
         self.started = time.time()
@@ -42,6 +46,9 @@ class ApplicationState:
         self._cache[key] = (now, value)
         return value
 
+    def adapters_snapshot(self) -> dict[str, dict[str, Any]]:
+        return self.adapters.as_dict()
+
     def snapshot(self) -> dict[str, Any]:
         return {
             "version": __version__,
@@ -51,6 +58,8 @@ class ApplicationState:
             "settings": self.settings.get(),
             "accents": ACCENTS,
             "agents": self.agents.list(),
+            "adapters": self.adapters_snapshot(),
+            "assets": self.assets.as_dict(),
             "capabilities": self.actions.capabilities(),
             "network": self.cached("network-current", 5.0, network.current),
             "media": self.cached("media", 1.5, media.status),

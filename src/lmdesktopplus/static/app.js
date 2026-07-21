@@ -15,11 +15,47 @@ const scenes = [
   {id:"kit", num:"K", jp:"部", label:"UI Kit", title:"ui kit — components"},
 ];
 
+const DEV_MODE = document.documentElement.dataset.dev === "true";
+
+class AssetMap {
+  constructor() {
+    this.icons = new Map();
+    this.revision = null;
+    this.initialized = false;
+  }
+
+  update(assets={}, revision=null) {
+    if (this.initialized && (revision === null || revision === this.revision)) return;
+    this.icons = new Map(Object.entries(assets.icons || {}));
+    this.revision = revision;
+    this.initialized = true;
+  }
+}
+
+class LiveStore {
+  constructor({debug=false}={}) {
+    this.lastSnapshot = null;
+    this.debug = debug;
+  }
+
+  update(snapshot) {
+    const previous = this.lastSnapshot || {};
+    const current = snapshot || {};
+    const keys = new Set([...Object.keys(previous), ...Object.keys(current)]);
+    const changedKeys = [...keys].filter(key => !Object.is(previous[key], current[key]));
+    this.lastSnapshot = current;
+    if (this.debug && changedKeys.length) console.debug("[LMDesktopPlus] state keys changed:", changedKeys);
+    return changedKeys;
+  }
+}
+
 const app = {
   locked: true,
   scene: "desktop",
   settingsTab: "appearance",
   state: null,
+  assets: new AssetMap(),
+  store: new LiveStore({debug: DEV_MODE}),
   networkScan: null,
   history: {cpu:[], ram:[], gpu:[], down:[], up:[]},
   pollTimer: null,
@@ -184,7 +220,9 @@ function applyAppearance() {
 async function poll() {
   try {
     const state = await api("/api/v1/state");
-    app.state = state;
+    app.store.update(state);
+    app.assets.update(state.assets, state.assets_revision ?? null);
+    app.state = app.store.lastSnapshot;
     updateHistory(state.metrics || {});
     applyAppearance();
     updateStatus();
