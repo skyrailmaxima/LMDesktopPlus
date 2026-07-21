@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=LMDesktopPlus Machine UI
+Comment=Vapor//matrix Linux Mint control center and agent launcher
+Exec=lmdesktopplus
+TryExec=lmdesktopplus
+Icon=lmdesktopplus
+Terminal=false
+Categories=System;Settings;Utility;
+Keywords=Linux Mint;Cinnamon;Hyprland;Agents;System Monitor;
+StartupNotify=true

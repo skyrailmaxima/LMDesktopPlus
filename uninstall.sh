@@ -204,6 +204,26 @@ strip_bashrc_markers() {
   log_info "Stripped LMDesktopPlus markers from $bashrc"
 }
 
+
+remove_machine_ui() {
+  local paths=(
+    "$HOME/.local/bin/lmdesktopplus"
+    "$HOME/.local/share/applications/lmdesktopplus.desktop"
+    "$HOME/.local/share/icons/hicolor/scalable/apps/lmdesktopplus.svg"
+    "$HOME/.local/share/lmdesktopplus/app"
+  )
+  for path in "${paths[@]}"; do
+    if [[ -e "$path" || -L "$path" ]]; then
+      if [[ "$DRY_RUN" == "1" ]]; then
+        log_info "[dry-run] would remove machine UI path $path"
+      else
+        rm -rf "$path"
+        log_info "Removed machine UI path $path"
+      fi
+    fi
+  done
+}
+
 log_info "Looking for the newest LMDesktopPlus backup under $BACKUP_PARENT"
 NEWEST_BACKUP="$(find_newest_backup || true)"
 
@@ -223,6 +243,9 @@ strip_bashrc_markers
 
 log_info "Removing LMDesktopPlus wayland session (if present)"
 remove_wayland_session
+
+log_info "Removing user-local machine UI files"
+remove_machine_ui
 
 log_info "LMDesktopPlus uninstall complete. Backup tree(s) under $BACKUP_PARENT were left in place."
 if [[ "$DRY_RUN" == "1" ]]; then

@@ -15,15 +15,17 @@ DRY_RUN="${DRY_RUN:-0}"
 FORCE="${FORCE:-0}"
 CINNAMON_ONLY=0
 WITH_HYPRLAND=0
+NO_UI=0
 
 usage() {
   cat <<'EOF'
-Usage: install.sh [--dry-run] [--cinnamon-only] [--with-hyprland] [--force]
+Usage: install.sh [--dry-run] [--cinnamon-only] [--with-hyprland] [--no-ui] [--force]
 
   --dry-run         Print planned actions without changing the system.
   --cinnamon-only   Skip Hyprland/waybar setup, even if Hyprland is installed.
   --with-hyprland   Best-effort install Hyprland (distro package, then
                     ppa:cppiber/hyprland) before linking configs / session.
+  --no-ui           Install only the rice/configs; skip the machine UI.
   --force           Continue on unsupported OS (same as FORCE=1).
 
 Env: DRY_RUN=1, FORCE=1 are equivalent to the flags above.
@@ -35,6 +37,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1 ;;
     --cinnamon-only) CINNAMON_ONLY=1 ;;
     --with-hyprland) WITH_HYPRLAND=1 ;;
+    --no-ui) NO_UI=1 ;;
     --force) FORCE=1 ;;
     -h|--help) usage; exit 0 ;;
     *) log_err "Unknown flag: $1"; usage; exit 1 ;;
@@ -176,7 +179,15 @@ materialize_wallpaper() {
 log_info "Materializing wallpaper + palette under $SHARE_DIR"
 materialize_wallpaper
 
-### 4. link shared configs ####################################################
+### 4. machine UI #############################################################
+if [[ "$NO_UI" == "1" ]]; then
+  log_info "--no-ui: skipping LMDesktopPlus machine UI"
+else
+  log_info "Installing LMDesktopPlus machine UI"
+  bash "$REPO_ROOT/scripts/install-ui.sh"
+fi
+
+### 5. link shared configs ####################################################
 link_shared_configs() {
   maybe link_file "$REPO_ROOT/packages/shared/kitty/kitty.conf" "$HOME/.config/kitty/kitty.conf"
   maybe link_file "$REPO_ROOT/packages/shared/rofi/config.rasi" "$HOME/.config/rofi/config.rasi"
@@ -204,12 +215,12 @@ link_shared_configs() {
 log_info "Linking shared configs (kitty, rofi, tmux, starship, gtk, palette)"
 link_shared_configs
 
-### 5. cinnamon assets ########################################################
+### 6. cinnamon assets ########################################################
 # v1 packages/cinnamon ships docs only (no theme tarball yet, see packages/cinnamon/README.md);
 # the wallpaper + gtk-theme/icon-theme hints are applied via gsettings below.
 log_info "Cinnamon package is docs-only in v1; nothing extra to link"
 
-### 6. apply cinnamon gsettings ###############################################
+### 7. apply cinnamon gsettings ###############################################
 # Cinnamon/GTK can render SVG backgrounds; prefer the rasterized PNG when it
 # exists (matches what hyprpaper needs), else fall back to the SVG copy.
 GSETTINGS_WALLPAPER="$WALLPAPER_DEST_PNG"
@@ -219,7 +230,7 @@ fi
 log_info "Applying Cinnamon gsettings (wallpaper, gtk-theme, icon-theme)"
 bash "$REPO_ROOT/scripts/apply-cinnamon-gsettings.sh" "$GSETTINGS_WALLPAPER" || log_warn "gsettings apply script exited non-zero; continuing"
 
-### 7. Hyprland (optional) ####################################################
+### 8. Hyprland (optional) ####################################################
 link_hypr_assets() {
   maybe link_file "$REPO_ROOT/packages/hyprland/hypr/hyprland.conf" "$HOME/.config/hypr/hyprland.conf"
   maybe link_file "$REPO_ROOT/packages/hyprland/hypr/hyprpaper.conf" "$HOME/.config/hypr/hyprpaper.conf"
@@ -270,7 +281,7 @@ if [[ "$HYPR_AVAILABLE" == "1" && "$CINNAMON_ONLY" != "1" ]]; then
   log_info "start from a TTY: $REPO_ROOT/scripts/start-hyprland-tty.sh"
 fi
 
-### 8. bashrc snippet ##########################################################
+### 9. bashrc snippet ##########################################################
 append_bashrc_snippet() {
   local bashrc="$HOME/.bashrc"
   local begin="# LMDesktopPlus begin"
@@ -321,6 +332,9 @@ append_bashrc_snippet() {
 log_info "Updating ~/.bashrc"
 append_bashrc_snippet
 
+if [[ "$NO_UI" != "1" ]]; then
+  log_info "Launch the machine UI with: $HOME/.local/bin/lmdesktopplus"
+fi
 log_info "LMDesktopPlus install complete."
 if [[ "$DRY_RUN" == "1" ]]; then
   log_info "This was a dry run; no changes were made."
