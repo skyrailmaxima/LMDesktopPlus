@@ -6,6 +6,7 @@ APP_ROOT="$HOME/.local/share/lmdesktopplus/app"
 BIN_DIR="$HOME/.local/bin"
 DESKTOP_DIR="$HOME/.local/share/applications"
 ICON_DIR="$HOME/.local/share/icons/hicolor/scalable/apps"
+PACKAGE_WALLPAPER_DIR="$HOME/.local/share/lmdesktopplus/assets/wallpapers"
 
 log(){ printf '==> %s\n' "$*" >&2; }
 run(){ if [[ "$DRY_RUN" == "1" ]]; then log "[dry-run] $*"; else "$@"; fi; }
@@ -17,9 +18,11 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 
-mkdir -p "$APP_ROOT" "$BIN_DIR" "$DESKTOP_DIR" "$ICON_DIR"
+mkdir -p "$APP_ROOT" "$BIN_DIR" "$DESKTOP_DIR" "$ICON_DIR" "$PACKAGE_WALLPAPER_DIR/thumbs"
 rm -rf "$APP_ROOT/lmdesktopplus"
 cp -a "$ROOT/src/lmdesktopplus" "$APP_ROOT/lmdesktopplus"
+cp -a "$ROOT/assets/wallpapers/vapor-matrix.svg" "$PACKAGE_WALLPAPER_DIR/vapor-matrix.svg"
+cp -a "$ROOT/assets/wallpapers/thumbs/." "$PACKAGE_WALLPAPER_DIR/thumbs/"
 find "$APP_ROOT/lmdesktopplus" -type d -name __pycache__ -prune -exec rm -rf {} +
 find "$APP_ROOT/lmdesktopplus" -type f -name '*.py[co]' -delete
 cat > "$BIN_DIR/lmdesktopplus" <<WRAPPER

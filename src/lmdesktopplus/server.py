@@ -18,6 +18,7 @@ from .adapters import AdapterRegistry
 from .adapters.audio import AudioAdapter
 from .adapters.display import DisplayAdapter
 from .adapters.session import SessionAdapter
+from .adapters.wallpaper import WallpaperAdapter
 from .agents import AgentRegistry
 from .assets import AssetCatalog
 from .config import ACCENTS, SettingsStore
@@ -35,7 +36,9 @@ class ApplicationState:
         self.adapters.register(AudioAdapter())
         self.adapters.register(DisplayAdapter())
         self.adapters.register(SessionAdapter())
-        self.assets = AssetCatalog()
+        self.wallpaper = WallpaperAdapter()
+        self.adapters.register(self.wallpaper)
+        self.assets = AssetCatalog(self.wallpaper.wallpaper_map)
         self.system = SystemSampler()
         self.actions = ActionRunner(self.settings.get)
         self.started = time.time()
@@ -101,6 +104,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             if not self._authorized():
                 return
             self._json(HTTPStatus.OK, network.scan_wifi(rescan=True))
+            return
+        if parsed.path.startswith("/wallpaper-thumbs/"):
+            self._serve_wallpaper_thumbnail(parsed.path)
             return
         self._serve_static(parsed.path)
 
@@ -228,6 +234,29 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _serve_wallpaper_thumbnail(self, url_path: str) -> None:
+        filename = url_path.removeprefix("/wallpaper-thumbs/")
+        if not filename.endswith(".png") or "/" in filename:
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        wallpaper_id = filename.removesuffix(".png")
+        thumbnail = self.server.state.wallpaper.thumbnail_path(wallpaper_id)
+        if thumbnail is None:
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        try:
+            data = thumbnail.read_bytes()
+        except (FileNotFoundError, IsADirectoryError, OSError):
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "image/png")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "max-age=3600")
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         self.wfile.write(data)
 

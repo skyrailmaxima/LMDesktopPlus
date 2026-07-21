@@ -17,6 +17,10 @@ grep -q 'data-bind="adapters.display.brightness"' "$STATIC/app.js"
 grep -q 'data-display-brightness' "$STATIC/app.js"
 grep -q '"/api/v1/adapter/display"' "$STATIC/app.js"
 grep -q 'displayPreviousBrightness' "$STATIC/app.js"
+grep -q 'loading="lazy"' "$STATIC/app.js"
+grep -q 'data-wallpaper-id' "$STATIC/app.js"
+grep -q '"/api/v1/adapter/wallpaper"' "$STATIC/app.js"
+grep -q 'this.wallpapers = new Map' "$STATIC/app.js"
 if grep -Eq '<script[^>]*>[^<]*window\.LMDP_TOKEN' "$STATIC/index.html"; then
   echo "inline token script remains in index.html" >&2
   exit 1

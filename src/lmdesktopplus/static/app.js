@@ -20,6 +20,7 @@ const DEV_MODE = document.documentElement.dataset.dev === "true";
 class AssetMap {
   constructor() {
     this.icons = new Map();
+    this.wallpapers = new Map();
     this.revision = null;
     this.initialized = false;
   }
@@ -27,6 +28,7 @@ class AssetMap {
   update(assets={}, revision=null) {
     if (this.initialized && (revision === null || revision === this.revision)) return;
     this.icons = new Map(Object.entries(assets.icons || {}));
+    this.wallpapers = new Map(Object.entries(assets.wallpapers || {}));
     this.revision = revision;
     this.initialized = true;
   }
@@ -280,6 +282,20 @@ function sessionHandoffControl() {
   return `<div class="session-handoff">${assetIcon(iconId, "session-icon")}<button class="btn primary dv-btn dv-btn--primary" data-session-arm ${active ? "disabled" : ""}>ARM HYPRLAND (TTY F3)</button>${badge}</div>`;
 }
 
+function wallpaperPicker() {
+  const currentId = app.state?.adapters?.wallpaper?.current_id;
+  const cards = [...app.assets.wallpapers.entries()].map(([id, wallpaper]) => {
+    const active = id === currentId;
+    return `<button class="wallpaper-card ${active ? "is-active" : ""}" data-wallpaper-id="${esc(id)}" title="Apply ${esc(wallpaper.label)}">
+      <img loading="lazy" src="${esc(wallpaper.thumb_path)}" alt="">
+      <span>${esc(wallpaper.label)}</span>
+      <small>${esc(wallpaper.source)}</small>
+    </button>`;
+  }).join("");
+  if (!cards) return '<p class="muted">No wallpapers found. Add PNG, JPG, WebP, or SVG files to ~/.local/share/lmdesktopplus/wallpapers/.</p>';
+  return `<div class="wallpaper-grid">${cards}</div>`;
+}
+
 function patchAudioBindings() {
   const audio = app.state?.adapters?.audio || {};
   const available = Boolean(audio.available);
@@ -507,7 +523,8 @@ function renderSettingsTab() {
   if (app.settingsTab === "appearance") {
     const swatches = Object.entries(app.state.accents).map(([name,hex])=>`<button class="swatch ${name===ap.accent?"active":""}" data-accent="${name}" title="${name}" style="background:${hex};box-shadow:0 0 10px ${hex}"></button>`).join("");
     const modes = ["tiled","floating","tabbed"].map(x=>`<button class="segment dv-seg__opt ${ap.window_mode===x?"active":""}" data-window-mode="${x}">${x}</button>`).join("");
-    return `<div class="setting-group"><h3>Accent</h3><div class="swatches">${swatches}</div></div>
+    return `<div class="setting-group"><h3>Wallpaper</h3>${wallpaperPicker()}</div>
+      <div class="setting-group"><h3>Accent</h3><div class="swatches">${swatches}</div></div>
       ${control("Interface font","Applied to the machine UI",`<select class="dv-input" data-setting="appearance.font"><option ${ap.font==="JetBrains Mono"?"selected":""}>JetBrains Mono</option><option ${ap.font==="DotGothic16"?"selected":""}>DotGothic16</option><option ${ap.font==="Zen Dots"?"selected":""}>Zen Dots</option><option ${ap.font==="System UI"?"selected":""}>System UI</option></select>`)}
       ${control("Surface opacity",`${ap.opacity}%`,`<input class="dv-slider" type="range" min="40" max="100" value="${ap.opacity}" data-setting="appearance.opacity" data-number>`)}
       ${control("Blur radius",`${ap.blur}px`,`<input class="dv-slider" type="range" min="0" max="24" value="${ap.blur}" data-setting="appearance.blur" data-number>`)}
@@ -626,6 +643,19 @@ async function sendAudioCommand(name, payload={}) {
 
 async function sendDisplayCommand(name, payload={}) {
   return api("/api/v1/adapter/display", {method:"POST", body:{name, payload}});
+}
+
+async function applyWallpaper(id) {
+  const wallpaper = app.assets.wallpapers.get(id);
+  if (!wallpaper) return;
+  try {
+    await api("/api/v1/adapter/wallpaper", {method:"POST", body:{name:"apply", payload:{id}}});
+    app.state.adapters.wallpaper.current_id = id;
+    toast("Wallpaper applied", wallpaper.label);
+    renderScene(true);
+  } catch (error) {
+    toast("Wallpaper apply failed", error.message, true);
+  }
 }
 
 async function armHyprland() {
@@ -771,6 +801,7 @@ function bindSceneEvents() {
   $$('[data-audio-mute]', root).forEach(n=>n.addEventListener("click",toggleAudioMute));
   $$('[data-display-brightness]', root).forEach(n=>n.addEventListener("input",()=>queueDisplayBrightness(n.value)));
   $$('[data-session-arm]', root).forEach(n=>n.addEventListener("click",armHyprland));
+  $$('[data-wallpaper-id]', root).forEach(n=>n.addEventListener("click",()=>applyWallpaper(n.dataset.wallpaperId)));
   $$('[data-accent]', root).forEach(n=>n.addEventListener("click",()=>saveSetting("appearance.accent",n.dataset.accent)));
   $$('[data-window-mode]', root).forEach(n=>n.addEventListener("click",()=>saveSetting("appearance.window_mode",n.dataset.windowMode)));
   $$('[data-feature]', root).forEach(n=>n.addEventListener("change",()=>saveSetting(`features.${n.dataset.feature}`,n.checked)));

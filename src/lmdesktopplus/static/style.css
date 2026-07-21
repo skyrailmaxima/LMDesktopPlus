@@ -154,6 +154,18 @@ select.dv-input { appearance: auto; }
 .swatches { display: flex; flex-wrap: wrap; gap: 9px; }
 .swatch { width: 35px; height: 35px; border: 2px solid transparent; cursor: pointer; border-radius: var(--dv-radius); }
 .swatch.active { border-color: #fff; transform: scale(1.08); }
+.wallpaper-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 10px; }
+.wallpaper-card {
+  min-width: 0; padding: 7px; border: 1px solid var(--dv-line-soft); background: rgba(4,5,12,.68);
+  color: var(--dv-text); text-align: left; cursor: pointer; border-radius: var(--dv-radius);
+}
+.wallpaper-card:hover, .wallpaper-card:focus-visible, .wallpaper-card.is-active {
+  border-color: var(--dv-accent); box-shadow: 0 0 16px color-mix(in srgb,var(--dv-accent) 22%,transparent);
+}
+.wallpaper-card img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--dv-bg2); }
+.wallpaper-card span, .wallpaper-card small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wallpaper-card span { margin-top: 7px; color: #fff; }
+.wallpaper-card small { margin-top: 2px; color: var(--dv-muted); text-transform: uppercase; }
 .segmented { width: 100%; }
 .segment { flex: 1; border: 0; background: transparent; cursor: pointer; }
 .segment.active { color: var(--dv-bg); background: var(--dv-accent); font-weight: 700; }

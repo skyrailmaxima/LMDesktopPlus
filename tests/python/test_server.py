@@ -64,9 +64,11 @@ class ServerTests(unittest.TestCase):
         self.assertIn("audio", payload["adapters"])
         self.assertIn("display", payload["adapters"])
         self.assertIn("session", payload["adapters"])
+        self.assertIn("wallpaper", payload["adapters"])
         self.assertIn("hyprland_active", payload["adapters"]["session"])
         self.assertIn("audio.volume", payload["assets"]["icons"])
         self.assertIn("display.brightness", payload["assets"]["icons"])
+        self.assertIn("package.vapor-matrix-svg", payload["assets"]["wallpapers"])
         with self.assertRaises(urllib.error.HTTPError) as ctx:
             self.request("/api/v1/action", self.server.token, {"action": "launch", "target": "not-real"})
         self.assertEqual(ctx.exception.code, 400)
@@ -121,6 +123,13 @@ class ServerTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as ctx:
             self.request("/icons/../app.js")
         self.assertEqual(ctx.exception.code, 404)
+
+    def test_wallpaper_thumbnail_is_served_from_catalog(self):
+        with self.request(
+            "/wallpaper-thumbs/package.vapor-matrix-svg.png"
+        ) as response:
+            self.assertEqual(response.headers.get_content_type(), "image/png")
+            self.assertTrue(response.read().startswith(b"\x89PNG"))
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from importlib.resources import files
 
-from lmdesktopplus.assets import ICON_MAP, AssetCatalog
+from lmdesktopplus.assets import ICON_MAP, WALLPAPER_MAP, AssetCatalog
 
 
 class AssetCatalogTests(unittest.TestCase):
@@ -46,6 +46,27 @@ class AssetCatalogTests(unittest.TestCase):
     def test_asset_catalog_exposes_icons(self):
         payload = AssetCatalog().as_dict()
         self.assertEqual(set(payload["icons"]), self.EXPECTED_IDS)
+
+    def test_wallpaper_map_exposes_packaged_wallpaper_thumb(self):
+        self.assertIn("package.vapor-matrix-svg", WALLPAPER_MAP)
+        entry = WALLPAPER_MAP["package.vapor-matrix-svg"]
+        self.assertEqual(entry["label"], "Vapor Matrix")
+        self.assertEqual(
+            entry["thumb_path"],
+            "/wallpaper-thumbs/package.vapor-matrix-svg.png",
+        )
+
+    def test_asset_catalog_accepts_dynamic_wallpaper_provider(self):
+        wallpaper_map = {
+            "user.custom-png": {
+                "path": "/tmp/custom.png",
+                "thumb_path": "/wallpaper-thumbs/user.custom-png.png",
+                "label": "Custom",
+                "source": "user",
+            }
+        }
+        payload = AssetCatalog(lambda: wallpaper_map).as_dict()
+        self.assertEqual(payload["wallpapers"], wallpaper_map)
 
 
 if __name__ == "__main__":
