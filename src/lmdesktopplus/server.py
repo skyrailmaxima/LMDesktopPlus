@@ -180,8 +180,9 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def _serve_static(self, url_path: str) -> None:
         rel = "index.html" if url_path in {"", "/"} else url_path.lstrip("/")
+        parts = Path(rel).parts
         allowed_static = {"index.html", "app.js", "style.css", "digitalvapor.css", "digitalvapor.js"}
-        if ".." in Path(rel).parts or rel not in allowed_static:
+        if ".." in parts or not self._allowed_static_path(rel, parts, allowed_static):
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         resource = files("lmdesktopplus").joinpath("static", rel)
@@ -202,6 +203,14 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
         self.end_headers()
         self.wfile.write(data)
+
+    @staticmethod
+    def _allowed_static_path(rel: str, parts: tuple[str, ...], allowed_static: set[str]) -> bool:
+        if rel in allowed_static:
+            return True
+        if len(parts) == 2 and parts[0] == "icons" and parts[1].endswith(".svg"):
+            return True
+        return False
 
 
 def start_server() -> tuple[ControlServer, threading.Thread, str]:

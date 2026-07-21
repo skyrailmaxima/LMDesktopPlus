@@ -60,9 +60,22 @@ class ServerTests(unittest.TestCase):
         with self.request("/api/v1/state", self.server.token) as response:
             payload = json.load(response)
         self.assertIn("metrics", payload)
+        self.assertIn("assets", payload)
+        self.assertIn("audio.volume", payload["assets"]["icons"])
         with self.assertRaises(urllib.error.HTTPError) as ctx:
             self.request("/api/v1/action", self.server.token, {"action": "launch", "target": "not-real"})
         self.assertEqual(ctx.exception.code, 400)
+
+    def test_icon_assets_are_served(self):
+        with self.request("/icons/volume.svg") as response:
+            text = response.read().decode()
+        self.assertIn("<svg", text)
+        self.assertIn("currentColor", text)
+
+    def test_icon_path_traversal_rejected(self):
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self.request("/icons/../app.js")
+        self.assertEqual(ctx.exception.code, 404)
 
 
 if __name__ == "__main__":
