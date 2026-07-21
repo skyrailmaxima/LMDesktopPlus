@@ -44,6 +44,18 @@ Audio and display probes use a 0.75-second TTL. Wallpaper entries come from the
 packaged assets and `~/.local/share/lmdesktopplus/wallpapers/`; the UI addresses
 them through the wallpaper hash map rather than accepting arbitrary paths.
 
+`/api/v1/state` also emits `assets_revision`, a short hash of the icon and
+wallpaper catalogs. The frontend `AssetMap` rebuilds its hash tables only when
+that revision changes, keeping wallpaper picker updates cheap.
+
+## Digitalvapor chrome
+
+Stage A controls reuse packaged Digitalvapor primitives (`dv-slider`,
+`dv-progress`, `dv-bar__stat`, `dv-choice`, `dv-tag`, `dv-btn`) from
+`static/digitalvapor.css`. The bundled `Digitalvapor - Styleguide (2).html`
+export matches the prior styleguide content (UUID remaps only); icons for Stage
+A live under `static/icons/` rather than inside that HTML pack.
+
 ## Planned optional integrations
 
 These binaries are optional suggestions, not hard package dependencies:

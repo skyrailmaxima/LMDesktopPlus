@@ -69,6 +69,7 @@ class ApplicationState:
             "agents": self.agents.list(),
             "adapters": self.adapters_snapshot(),
             "assets": self.assets.as_dict(),
+            "assets_revision": self.assets.revision(),
             "capabilities": self.actions.capabilities(),
             "network": self.cached("network-current", 5.0, network.current),
             "media": self.cached("media", 1.5, media.status),

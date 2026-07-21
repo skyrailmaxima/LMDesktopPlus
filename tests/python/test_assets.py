@@ -65,8 +65,17 @@ class AssetCatalogTests(unittest.TestCase):
                 "source": "user",
             }
         }
-        payload = AssetCatalog(lambda: wallpaper_map).as_dict()
+        catalog = AssetCatalog(lambda: wallpaper_map)
+        payload = catalog.as_dict()
         self.assertEqual(payload["wallpapers"], wallpaper_map)
+        revision = catalog.revision()
+        self.assertEqual(len(revision), 16)
+        self.assertEqual(catalog.revision(), revision)
+
+    def test_asset_revision_changes_with_wallpaper_map(self):
+        first = AssetCatalog(lambda: {"a": {"path": "/a", "thumb_path": "/t/a", "label": "A", "source": "user"}})
+        second = AssetCatalog(lambda: {"b": {"path": "/b", "thumb_path": "/t/b", "label": "B", "source": "user"}})
+        self.assertNotEqual(first.revision(), second.revision())
 
 
 if __name__ == "__main__":

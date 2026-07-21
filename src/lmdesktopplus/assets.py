@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from importlib.resources import files
 from typing import Any, Callable
@@ -40,3 +41,8 @@ class AssetCatalog:
             else WALLPAPER_MAP.copy()
         )
         return {"icons": ICON_MAP.copy(), "wallpapers": wallpapers}
+
+    def revision(self) -> str:
+        """Stable hash so the UI AssetMap rebuilds only when asset catalogs change."""
+        payload = json.dumps(self.as_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]

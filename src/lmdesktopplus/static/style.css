@@ -152,6 +152,9 @@ select.dv-input { appearance: auto; }
 .toggle-knob { display: block; width: 14px; height: 14px; background: rgba(141,255,190,.42); transition: .15s; }
 .toggle input:checked + .toggle-track .toggle-knob { transform: translateX(19px); background: var(--dv-accent); }
 .swatches { display: flex; flex-wrap: wrap; gap: 9px; }
+.accent-choice.dv-choice { padding: 0; }
+.accent-choice.dv-choice input:checked + .dv-mark::after { display: none; }
+.accent-choice.dv-choice input:checked + .dv-mark { box-shadow: 0 0 0 2px #05060a, 0 0 0 4px #fff; }
 .swatch { width: 35px; height: 35px; border: 2px solid transparent; cursor: pointer; border-radius: var(--dv-radius); }
 .swatch.active { border-color: #fff; transform: scale(1.08); }
 .wallpaper-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 10px; }

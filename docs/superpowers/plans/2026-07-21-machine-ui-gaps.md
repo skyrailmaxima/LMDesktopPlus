@@ -63,7 +63,7 @@ class Adapter(Protocol):
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]: ...
 ```
 
-`AdapterRegistry` is a `dict[str, Adapter]` keyed by `id`. Commands route as  
+`AdapterRegistry` is a `dict[str, Adapter]` keyed by `id`. Commands route as
 `POST /api/v1/adapter/{id}` → `registry[id].command(name, payload)`.
 
 ### Hash tables for assets
@@ -178,7 +178,7 @@ def test_registry_get_and_snapshot():
 
 - [ ] **Step 2: Run test — expect FAIL (missing module)**
 
-Run: `PYTHONPATH=src python3 -m unittest tests.python.test_adapter_registry -v`  
+Run: `PYTHONPATH=src python3 -m unittest tests.python.test_adapter_registry -v`
 Expected: ImportError / FAIL
 
 - [ ] **Step 3: Implement `base.py` + `AdapterRegistry` + `NullAdapter` + `assets.py` with empty `ICON_MAP`**
@@ -244,10 +244,10 @@ git commit -m "feat: add icon asset hash map for machine UI chrome"
 
 ### Task 4: DisplayAdapter (brightness)
 
-**Files:** `adapters/display.py`; Settings Display tab; optional topbar icon  
+**Files:** `adapters/display.py`; Settings Display tab; optional topbar icon
 **Host:** `brightnessctl g/m/s` or sysfs read-only fallback.
 
-- [ ] **Step 1–5:** Same TDD pattern as audio (`set_brightness` 1–100, TTL cache, cheap UI bind)  
+- [ ] **Step 1–5:** Same TDD pattern as audio (`set_brightness` 1–100, TTL cache, cheap UI bind)
 - [ ] **Step 6:** Commit `feat: add display brightness adapter`
 
 ---
@@ -259,17 +259,17 @@ git commit -m "feat: add icon asset hash map for machine UI chrome"
 - Modify: desktop quick actions + Settings Display; reuse one-shot flag `~/.local/share/lmdesktopplus/start-hyprland-once`
 - Test: unit test that `arm_hyprland` only writes the flag file (tmpdir)
 
-**Commands:** `arm_hyprland`, `status` (detect `HYPRLAND_INSTANCE_SIGNATURE`, `XDG_CURRENT_DESKTOP`, VT hints).  
+**Commands:** `arm_hyprland`, `status` (detect `HYPRLAND_INSTANCE_SIGNATURE`, `XDG_CURRENT_DESKTOP`, VT hints).
 **Do not** revive broken `openvt+su` launch.
 
-- [ ] Implement + UI buttons “ARM HYPRLAND (TTY F3)” / “HYPRLAND ACTIVE” badge  
+- [ ] Implement + UI buttons “ARM HYPRLAND (TTY F3)” / “HYPRLAND ACTIVE” badge
 - [ ] Commit `feat: session handoff controls for Hyprland one-shot arming`
 
 ---
 
 ### Task 6: WallpaperAdapter + thumbs
 
-**Files:** `adapters/wallpaper.py`; `assets/wallpapers/thumbs/`; Settings Appearance  
+**Files:** `adapters/wallpaper.py`; `assets/wallpapers/thumbs/`; Settings Appearance
 **Commands:** `list`, `apply` (Cinnamon `gsettings` + copy for hyprpaper PNG/SVG paths already used by installer).
 
 - [ ] Generate thumb for `vapor-matrix.svg` via `rsvg-convert`/`convert` in repo or script `scripts/gen-wallpaper-thumbs.sh`
@@ -419,7 +419,7 @@ Plan saved to `docs/superpowers/plans/2026-07-21-machine-ui-gaps.md`.
 
 **Two execution options when ready to build:**
 
-1. **Subagent-Driven (recommended)** — fresh subagent per task, review between tasks  
-2. **Inline Execution** — execute tasks in this session with checkpoints  
+1. **Subagent-Driven (recommended)** — fresh subagent per task, review between tasks
+2. **Inline Execution** — execute tasks in this session with checkpoints
 
 Which approach (and confirm Stage A-only vs full A→D continuum)?

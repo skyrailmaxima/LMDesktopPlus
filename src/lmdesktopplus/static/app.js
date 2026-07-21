@@ -26,7 +26,8 @@ class AssetMap {
   }
 
   update(assets={}, revision=null) {
-    if (this.initialized && (revision === null || revision === this.revision)) return;
+    if (this.initialized && revision !== null && revision === this.revision) return;
+    if (this.initialized && revision === null && this.revision === null) return;
     this.icons = new Map(Object.entries(assets.icons || {}));
     this.wallpapers = new Map(Object.entries(assets.wallpapers || {}));
     this.revision = revision;
@@ -366,6 +367,7 @@ function patchDisplayBindings() {
   const display = app.state?.adapters?.display || {};
   const available = Boolean(display.available);
   const brightness = clamp(app.displayPendingBrightness ?? display.brightness ?? 0, 1, 100);
+  const compact = available ? `BRT ${Math.round(brightness)}%` : "BRT --";
   const label = available ? `${Math.round(brightness)}%` : "BRIGHTNESS --";
   $$('[data-bind="adapters.display.brightness"]').forEach(node => {
     if (node.matches("input")) {
@@ -373,6 +375,8 @@ function patchDisplayBindings() {
       node.disabled = !display.writable;
     } else if (node.dataset.bindMode === "width") {
       node.style.width = `${brightness}%`;
+    } else if (node.id === "status-brightness") {
+      node.textContent = compact;
     } else {
       node.textContent = label;
     }
@@ -730,10 +734,10 @@ function renderSettings() {
 function renderSettingsTab() {
   const s=app.state.settings, ap=s.appearance, behavior=s.behavior;
   if (app.settingsTab === "appearance") {
-    const swatches = Object.entries(app.state.accents).map(([name,hex])=>`<button class="swatch ${name===ap.accent?"active":""}" data-accent="${name}" title="${name}" style="background:${hex};box-shadow:0 0 10px ${hex}"></button>`).join("");
+    const swatches = Object.entries(app.state.accents).map(([name,hex])=>`<label class="dv-choice dv-radio accent-choice ${name===ap.accent?"is-active":""}" title="${esc(name)}"><input type="radio" name="lmdp-accent" data-accent="${esc(name)}" ${name===ap.accent?"checked":""}><span class="dv-mark" style="width:30px;height:30px;background:${esc(hex)};border-color:${esc(hex)};box-shadow:0 0 10px ${esc(hex)}"></span></label>`).join("");
     const modes = ["tiled","floating","tabbed"].map(x=>`<button class="segment dv-seg__opt ${ap.window_mode===x?"active":""}" data-window-mode="${x}">${x}</button>`).join("");
     return `<div class="setting-group"><h3>Wallpaper</h3>${wallpaperPicker()}</div>
-      <div class="setting-group"><h3>Accent</h3><div class="swatches">${swatches}</div></div>
+      <div class="setting-group"><h3>Accent</h3><div class="swatches dv-row dv-gap-2">${swatches}</div></div>
       ${control("Interface font","Applied to the machine UI",`<select class="dv-input" data-setting="appearance.font"><option ${ap.font==="JetBrains Mono"?"selected":""}>JetBrains Mono</option><option ${ap.font==="DotGothic16"?"selected":""}>DotGothic16</option><option ${ap.font==="Zen Dots"?"selected":""}>Zen Dots</option><option ${ap.font==="System UI"?"selected":""}>System UI</option></select>`)}
       ${control("Surface opacity",`${ap.opacity}%`,`<input class="dv-slider" type="range" min="40" max="100" value="${ap.opacity}" data-setting="appearance.opacity" data-number>`)}
       ${control("Blur radius",`${ap.blur}px`,`<input class="dv-slider" type="range" min="0" max="24" value="${ap.blur}" data-setting="appearance.blur" data-number>`)}
