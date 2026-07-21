@@ -62,7 +62,9 @@ class ServerTests(unittest.TestCase):
         self.assertIn("metrics", payload)
         self.assertIn("assets", payload)
         self.assertIn("audio", payload["adapters"])
+        self.assertIn("display", payload["adapters"])
         self.assertIn("audio.volume", payload["assets"]["icons"])
+        self.assertIn("display.brightness", payload["assets"]["icons"])
         with self.assertRaises(urllib.error.HTTPError) as ctx:
             self.request("/api/v1/action", self.server.token, {"action": "launch", "target": "not-real"})
         self.assertEqual(ctx.exception.code, 400)

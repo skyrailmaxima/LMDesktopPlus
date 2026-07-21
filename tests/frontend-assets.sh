@@ -13,6 +13,10 @@ grep -q '"/api/v1/adapter/audio"' "$STATIC/app.js"
 grep -q '}, 100);' "$STATIC/app.js"
 grep -q 'previousVolume' "$STATIC/app.js"
 grep -q 'currentAudio.volume = previousVolume' "$STATIC/app.js"
+grep -q 'data-bind="adapters.display.brightness"' "$STATIC/app.js"
+grep -q 'data-display-brightness' "$STATIC/app.js"
+grep -q '"/api/v1/adapter/display"' "$STATIC/app.js"
+grep -q 'displayPreviousBrightness' "$STATIC/app.js"
 if grep -Eq '<script[^>]*>[^<]*window\.LMDP_TOKEN' "$STATIC/index.html"; then
   echo "inline token script remains in index.html" >&2
   exit 1

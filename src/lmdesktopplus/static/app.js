@@ -63,6 +63,10 @@ const app = {
   audioPendingVolume: null,
   audioPreviousVolume: null,
   audioRequestId: 0,
+  displayTimer: null,
+  displayPendingBrightness: null,
+  displayPreviousBrightness: null,
+  displayRequestId: 0,
   pendingRender: false,
   pendingConfirm: null,
   pendingWifiSsid: null,
@@ -251,6 +255,7 @@ function updateStatus() {
   $("#status-net").textContent = `↓ ${humanBytes(m.network?.down_bps || 0, true)}`;
   $("#status-battery").textContent = m.battery ? `BAT ${m.battery.percent}%` : "AC POWER";
   patchAudioBindings();
+  patchDisplayBindings();
 }
 
 function assetIcon(id, className="audio-icon") {
@@ -284,6 +289,23 @@ function patchAudioBindings() {
   });
   const icon = app.assets.icons.get(audio.muted ? "audio.mute" : "audio.volume");
   if (icon?.file) $$("[data-audio-icon]").forEach(node => { node.src = `/icons/${icon.file}`; });
+}
+
+function patchDisplayBindings() {
+  const display = app.state?.adapters?.display || {};
+  const available = Boolean(display.available);
+  const brightness = clamp(app.displayPendingBrightness ?? display.brightness ?? 0, 1, 100);
+  const label = available ? `${Math.round(brightness)}%` : "BRIGHTNESS --";
+  $$('[data-bind="adapters.display.brightness"]').forEach(node => {
+    if (node.matches("input")) {
+      if (document.activeElement !== node) node.value = String(Math.round(brightness));
+      node.disabled = !display.writable;
+    } else if (node.dataset.bindMode === "width") {
+      node.style.width = `${brightness}%`;
+    } else {
+      node.textContent = label;
+    }
+  });
 }
 
 function heading(jp, title, sub, actions="") {
@@ -488,7 +510,14 @@ function renderSettingsTab() {
     const audioControl = audio.available
       ? `<div class="audio-control"><div class="audio-control__header">${audioIcon}<span data-bind="adapters.audio.volume">${audio.muted ? "MUTE " : ""}${volume}%</span><button class="btn dv-btn dv-btn--outline" data-audio-mute data-audio-mute-label>${audio.muted ? "UNMUTE" : "MUTE"}</button></div><input class="dv-slider dv-slider--cyan" type="range" min="0" max="100" value="${volume}" data-audio-volume data-bind="adapters.audio.volume" aria-label="Output volume"><div class="progress dv-progress"><span class="dv-progress__bar" data-bind="adapters.audio.volume" data-bind-mode="width" style="width:${volume}%"></span></div></div>`
       : `<p class="muted">Audio controls unavailable. Install WirePlumber (wpctl) or PulseAudio tools (pactl).</p>`;
-    return `${control("Output volume",audio.backend || "default audio sink",audioControl)}
+    const display = app.state.adapters?.display || {};
+    const brightness = clamp(app.displayPendingBrightness ?? display.brightness ?? 0, 1, 100);
+    const displayIcon = assetIcon("display.brightness", "audio-icon");
+    const displayControl = display.available
+      ? `<div class="audio-control"><div class="audio-control__header">${displayIcon}<span data-bind="adapters.display.brightness">${brightness}%</span><span class="badge dv-tag ${display.writable ? "ok dv-tag--mint" : "warn dv-tag--warn"}">${display.writable ? "CONTROL" : "READ ONLY"}</span></div><input class="dv-slider" type="range" min="1" max="100" value="${brightness}" data-display-brightness data-bind="adapters.display.brightness" aria-label="Display brightness" ${display.writable ? "" : "disabled"}><div class="progress dv-progress"><span class="dv-progress__bar" data-bind="adapters.display.brightness" data-bind-mode="width" style="width:${brightness}%"></span></div></div>`
+      : `<p class="muted">Brightness unavailable. Install brightnessctl or expose a readable sysfs backlight device.</p>`;
+    return `${control("Display brightness",display.backend || "internal panel",displayControl)}
+      ${control("Output volume",audio.backend || "default audio sink",audioControl)}
       ${toggleControl("Start fullscreen","Open the embedded machine UI fullscreen","behavior.start_fullscreen",behavior.start_fullscreen)}
       ${toggleControl("Show shortcut hints","Show keyboard hints on the desktop scene","behavior.show_hints",behavior.show_hints)}
       ${control("Poll interval",`${behavior.poll_interval_ms} ms`,`<input class="dv-slider" type="range" min="500" max="5000" step="250" value="${behavior.poll_interval_ms}" data-setting="behavior.poll_interval_ms" data-number>`)}
@@ -579,6 +608,10 @@ async function sendAudioCommand(name, payload={}) {
   return api("/api/v1/adapter/audio", {method:"POST", body:{name, payload}});
 }
 
+async function sendDisplayCommand(name, payload={}) {
+  return api("/api/v1/adapter/display", {method:"POST", body:{name, payload}});
+}
+
 function queueAudioVolume(value) {
   const audio = app.state?.adapters?.audio;
   if (!audio?.available) return;
@@ -625,6 +658,39 @@ async function toggleAudioMute() {
     patchAudioBindings();
     toast("Mute change failed", error.message, true);
   }
+}
+
+function queueDisplayBrightness(value) {
+  const display = app.state?.adapters?.display;
+  if (!display?.available || !display.writable) return;
+  const brightness = Math.round(clamp(value, 1, 100));
+  const previousBrightness = Math.round(clamp(display.brightness ?? 1, 1, 100));
+  if (app.displayPendingBrightness === null) app.displayPreviousBrightness = previousBrightness;
+  app.displayPendingBrightness = brightness;
+  display.brightness = brightness;
+  patchDisplayBindings();
+  clearTimeout(app.displayTimer);
+  const requestId = ++app.displayRequestId;
+  app.displayTimer = setTimeout(async () => {
+    try {
+      await sendDisplayCommand("set_brightness", {brightness});
+      if (requestId === app.displayRequestId) {
+        const currentDisplay = app.state?.adapters?.display;
+        if (currentDisplay) currentDisplay.brightness = brightness;
+        app.displayPendingBrightness = null;
+        app.displayPreviousBrightness = null;
+      }
+    } catch (error) {
+      if (requestId !== app.displayRequestId) return;
+      const previousBrightness = app.displayPreviousBrightness;
+      const currentDisplay = app.state?.adapters?.display;
+      if (previousBrightness !== null && currentDisplay) currentDisplay.brightness = previousBrightness;
+      app.displayPendingBrightness = null;
+      app.displayPreviousBrightness = null;
+      patchDisplayBindings();
+      toast("Brightness change failed", error.message, true);
+    }
+  }, 100);
 }
 
 async function connectWifi(ssid, password="") {
@@ -676,6 +742,7 @@ function bindSceneEvents() {
   }));
   $$('[data-audio-volume]', root).forEach(n=>n.addEventListener("input",()=>queueAudioVolume(n.value)));
   $$('[data-audio-mute]', root).forEach(n=>n.addEventListener("click",toggleAudioMute));
+  $$('[data-display-brightness]', root).forEach(n=>n.addEventListener("input",()=>queueDisplayBrightness(n.value)));
   $$('[data-accent]', root).forEach(n=>n.addEventListener("click",()=>saveSetting("appearance.accent",n.dataset.accent)));
   $$('[data-window-mode]', root).forEach(n=>n.addEventListener("click",()=>saveSetting("appearance.window_mode",n.dataset.windowMode)));
   $$('[data-feature]', root).forEach(n=>n.addEventListener("change",()=>saveSetting(`features.${n.dataset.feature}`,n.checked)));

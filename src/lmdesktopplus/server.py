@@ -16,6 +16,7 @@ from . import __version__
 from .actions import ActionRunner
 from .adapters import AdapterRegistry
 from .adapters.audio import AudioAdapter
+from .adapters.display import DisplayAdapter
 from .agents import AgentRegistry
 from .assets import AssetCatalog
 from .config import ACCENTS, SettingsStore
@@ -31,6 +32,7 @@ class ApplicationState:
         self.agents = AgentRegistry()
         self.adapters = AdapterRegistry()
         self.adapters.register(AudioAdapter())
+        self.adapters.register(DisplayAdapter())
         self.assets = AssetCatalog()
         self.system = SystemSampler()
         self.actions = ActionRunner(self.settings.get)
