@@ -19,6 +19,8 @@ That runs `scripts/install-hyprland-mint.sh`, which:
 1. Tries the distro/`universe` `hyprland` package (works on some Ubuntu series).
 2. If that fails, adds **`ppa:cppiber/hyprland`** (covers Ubuntu **24.04 / noble**,
    which Mint 22 tracks) and installs `hyprland` + `xdg-desktop-portal-hyprland`.
+   This is a **community PPA** (not Canonical or official Hyprland packaging);
+   series support can lag or disappear — review before production machines.
 3. Fails soft — Cinnamon still finishes if the compositor cannot be installed.
 
 Then the installer links `packages/hyprland/` and registers the wayland session

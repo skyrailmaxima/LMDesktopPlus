@@ -5,4 +5,15 @@ if command -v starship >/dev/null 2>&1; then
 fi
 alias k='kitty'
 alias rofi-apps='rofi -show drun'
+# One-shot Hyprland start armed by ./switch.sh from inside Cinnamon.
+if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" && -f "${LMDESKTOPPLUS_DIR}/start-hyprland-once" ]]; then
+  rm -f "${LMDESKTOPPLUS_DIR}/start-hyprland-once"
+  export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}"
+  export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-Hyprland}"
+  if command -v Hyprland >/dev/null 2>&1; then
+    exec Hyprland
+  elif command -v hyprland >/dev/null 2>&1; then
+    exec hyprland
+  fi
+fi
 # LMDesktopPlus end

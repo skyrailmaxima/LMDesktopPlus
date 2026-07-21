@@ -2,13 +2,14 @@
 # Best-effort Hyprland install for Linux Mint / Ubuntu-family hosts.
 # Does NOT replace Cinnamon; only installs the compositor + portal so
 # LMDesktopPlus can register a Wayland session afterward.
+#
+# Note: ppa:cppiber/hyprland is a community PPA (not Canonical/Hyprland
+# official). Packaging can lag or drop series — see docs/install-notes.md.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=/dev/null
 source "$REPO_ROOT/lib/common.sh"
-# shellcheck source=/dev/null
-source "$REPO_ROOT/lib/detect.sh"
 
 DRY_RUN="${DRY_RUN:-0}"
 
@@ -17,13 +18,12 @@ hypr_on_path() {
 }
 
 ubuntu_codename() {
-  local codename=""
-  if [[ -f /etc/os-release ]]; then
-    # shellcheck source=/dev/null
-    source /etc/os-release
-    codename="${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}"
+  # Subshell so /etc/os-release vars do not leak into this script.
+  if [[ ! -f /etc/os-release ]]; then
+    return 0
   fi
-  printf '%s' "$codename"
+  # shellcheck disable=SC1091
+  ( . /etc/os-release && printf '%s' "${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}" )
 }
 
 try_apt_hyprland() {
@@ -61,12 +61,12 @@ add_hyprland_ppa() {
   if ! command -v add-apt-repository >/dev/null 2>&1; then
     sudo apt-get install -y software-properties-common
   fi
+  log_warn "Adding community PPA ppa:cppiber/hyprland (third-party; review before production use)."
   sudo add-apt-repository -y ppa:cppiber/hyprland
   sudo apt-get update
 }
 
 main() {
-  detect_os
   log_info "Attempting Hyprland install (Mint/Ubuntu best-effort)"
 
   if hypr_on_path; then
@@ -82,7 +82,7 @@ main() {
 
   # 1) Distro package (works on some Ubuntu releases with universe hyprland).
   log_info "Trying distro/universe hyprland package…"
-  if try_apt_hyprland && { [[ "$DRY_RUN" == "1" ]] || hypr_on_path; }; then
+  if try_apt_hyprland; then
     if [[ "$DRY_RUN" == "1" ]] || hypr_on_path; then
       log_info "Hyprland available via distro packages (or dry-run assumed success)"
       return 0
@@ -95,9 +95,11 @@ main() {
     log_err "Could not add Hyprland PPA"
     return 1
   fi
-  if try_apt_hyprland && { [[ "$DRY_RUN" == "1" ]] || hypr_on_path; }; then
-    log_info "Hyprland installed via ppa:cppiber/hyprland"
-    return 0
+  if try_apt_hyprland; then
+    if [[ "$DRY_RUN" == "1" ]] || hypr_on_path; then
+      log_info "Hyprland installed via ppa:cppiber/hyprland"
+      return 0
+    fi
   fi
 
   if [[ "$DRY_RUN" == "1" ]]; then

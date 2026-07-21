@@ -45,8 +45,11 @@ cd LMDesktopPlus
 ./switch.sh
 ```
 
-That runs `./install.sh --with-hyprland`, then starts Hyprland (on this TTY if
-you are already on a console, otherwise on a free VT via `openvt`).
+That runs `./install.sh --with-hyprland`, then either:
+
+- starts Hyprland immediately if you are already on a text TTY, or
+- arms a one-shot from Cinnamon: press **Ctrl+Alt+F3**, log in, and Hyprland
+  starts once automatically (safe seat/logind path — no fragile `openvt`+`su`).
 
 Useful variants:
 
@@ -66,8 +69,8 @@ Lower-level entrypoints (same as before):
 Then:
 
 - **Cinnamon:** stay on / return to Cinnamon for the themed daily desktop.
-- **Hyprland:** `./switch.sh` (or `./switch.sh --now`). If `openvt` is
-  unavailable: `Ctrl+Alt+F3` → log in → `./scripts/start-hyprland-tty.sh`.
+- **Hyprland:** `./switch.sh` (or `./switch.sh --now` on a TTY). From Cinnamon,
+  follow the Ctrl+Alt+F3 one-shot prompt after `./switch.sh`.
 
 ### Leaving Hyprland
 

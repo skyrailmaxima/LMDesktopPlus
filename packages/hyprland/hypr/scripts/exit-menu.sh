@@ -14,7 +14,8 @@ fi
 
 choice="$(
   printf '%s\n' 'Exit Hyprland' 'Cancel' \
-    | rofi -dmenu -i -p 'session' -mesg 'Leave Hyprland and return to the TTY / greeter'
+    | rofi -dmenu -i -p 'session' -mesg 'Leave Hyprland and return to the TTY / greeter' \
+    || true
 )"
 
 case "${choice:-}" in
