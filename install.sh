@@ -273,22 +273,48 @@ fi
 ### 8. bashrc snippet ##########################################################
 append_bashrc_snippet() {
   local bashrc="$HOME/.bashrc"
-  local marker="# LMDesktopPlus begin"
+  local begin="# LMDesktopPlus begin"
+  local end="# LMDesktopPlus end"
+  local snippet="$REPO_ROOT/packages/shared/bash/bashrc.snippet"
 
-  if [[ -f "$bashrc" ]] && grep -qF "$marker" "$bashrc" 2>/dev/null; then
-    log_info "bashrc already has LMDesktopPlus markers; skipping append"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    if [[ -f "$bashrc" ]] && grep -qF "$begin" "$bashrc" 2>/dev/null; then
+      log_info "[dry-run] would refresh LMDesktopPlus block in $bashrc"
+    else
+      log_info "[dry-run] would append packages/shared/bash/bashrc.snippet to $bashrc"
+    fi
     return 0
   fi
 
-  if [[ "$DRY_RUN" == "1" ]]; then
-    log_info "[dry-run] would append packages/shared/bash/bashrc.snippet to $bashrc"
+  if [[ -f "$bashrc" ]] && grep -qF "$begin" "$bashrc" 2>/dev/null; then
+    local begin_count end_count begin_line end_line
+    begin_count="$(grep -cF "$begin" "$bashrc" || true)"
+    end_count="$(grep -cF "$end" "$bashrc" || true)"
+    if [[ "$begin_count" != "1" || "$end_count" != "1" ]]; then
+      log_warn "Malformed LMDesktopPlus markers in $bashrc; leaving bashrc unchanged"
+      return 0
+    fi
+    begin_line="$(grep -nF "$begin" "$bashrc" | head -1 | cut -d: -f1)"
+    end_line="$(grep -nF "$end" "$bashrc" | head -1 | cut -d: -f1)"
+    if [[ "$begin_line" -ge "$end_line" ]]; then
+      log_warn "LMDesktopPlus end marker precedes begin in $bashrc; leaving unchanged"
+      return 0
+    fi
+    backup_path "$bashrc"
+    {
+      head -n "$((begin_line - 1))" "$bashrc"
+      cat "$snippet"
+      tail -n "+$((end_line + 1))" "$bashrc"
+    } > "${bashrc}.lmdp.tmp"
+    mv "${bashrc}.lmdp.tmp" "$bashrc"
+    log_info "Refreshed LMDesktopPlus snippet in $bashrc"
     return 0
   fi
 
   backup_path "$bashrc"
   {
     echo ""
-    cat "$REPO_ROOT/packages/shared/bash/bashrc.snippet"
+    cat "$snippet"
   } >> "$bashrc"
   log_info "Appended LMDesktopPlus snippet to $bashrc"
 }
