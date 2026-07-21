@@ -265,6 +265,21 @@ function assetIcon(id, className="audio-icon") {
   return `<img class="${esc(className)}" src="/icons/${esc(entry.file)}"${audioBinding} alt="" aria-hidden="true">`;
 }
 
+function sessionHandoffControl() {
+  const session = app.state?.adapters?.session || {};
+  const active = Boolean(session.hyprland_active);
+  const armed = Boolean(session.armed);
+  const iconId = active || armed ? "session.hyprland" : "session.cinnamon";
+  const badge = active
+    ? '<span class="badge ok dv-tag dv-tag--mint">HYPRLAND ACTIVE</span>'
+    : armed
+      ? '<span class="badge warn dv-tag dv-tag--warn">HYPRLAND ARMED</span>'
+      : session.cinnamon_active
+        ? '<span class="badge dv-tag dv-tag--cyan">CINNAMON ACTIVE</span>'
+        : "";
+  return `<div class="session-handoff">${assetIcon(iconId, "session-icon")}<button class="btn primary dv-btn dv-btn--primary" data-session-arm ${active ? "disabled" : ""}>ARM HYPRLAND (TTY F3)</button>${badge}</div>`;
+}
+
 function patchAudioBindings() {
   const audio = app.state?.adapters?.audio || {};
   const available = Boolean(audio.available);
@@ -367,7 +382,7 @@ function renderDesktop() {
         <button class="btn dv-btn dv-btn--outline" data-launch="browser">BROWSER</button>
         <button class="btn dv-btn dv-btn--outline" data-launch="rofi">ROFI</button>
         <button class="btn dv-btn dv-btn--outline" data-launch="monitor">BTOP</button>
-      </div><div class="terminal" style="margin-top:14px;min-height:160px"><span class="green">root@vaporframe</span> <span class="muted">~</span>\n<span class="mint">❯</span> <span class="cmd">agent ls --scope</span>\n${s.agents.map(a=>`<span class="out">${esc(a.name.padEnd(8))} → ${esc(a.home)}  ${a.available?"ready":"missing"}</span>`).join("\n")}\n<span class="mint">❯</span> <span class="cursor"></span></div>`, "accent")}
+      </div><div style="margin-top:14px">${sessionHandoffControl()}</div><div class="terminal" style="margin-top:14px;min-height:160px"><span class="green">root@vaporframe</span> <span class="muted">~</span>\n<span class="mint">❯</span> <span class="cmd">agent ls --scope</span>\n${s.agents.map(a=>`<span class="out">${esc(a.name.padEnd(8))} → ${esc(a.home)}  ${a.available?"ready":"missing"}</span>`).join("\n")}\n<span class="mint">❯</span> <span class="cursor"></span></div>`, "accent")}
       ${panel("NOW PLAYING", `<div class="card-title"><div><div class="kpi" style="font-size:24px">${esc(media.title || "No active player")}</div><div class="muted">${esc(media.artist || "playerctl")}${media.album ? ` · ${esc(media.album)}` : ""}</div></div><span class="badge dv-tag ${media.status==="Playing"?"ok dv-tag--mint":"off dv-tag--off"}">${esc(media.status || "Stopped")}</span></div><div class="button-row"><button class="btn dv-btn dv-btn--outline" data-media="previous">◀</button><button class="btn primary dv-btn dv-btn--primary" data-media="play-pause">▶ / Ⅱ</button><button class="btn dv-btn dv-btn--outline" data-media="next">▶</button></div>
       <div style="margin-top:18px">${statRow("Network down",humanBytes(m.network.down_bps,true))}${statRow("Network up",humanBytes(m.network.up_bps,true))}${statRow("Disk",`${Math.round(m.disk.percent)}% · ${humanBytes(m.disk.free)} free`)}</div>`)}
     </div>
@@ -518,6 +533,7 @@ function renderSettingsTab() {
       : `<p class="muted">Brightness unavailable. Install brightnessctl or expose a readable sysfs backlight device.</p>`;
     return `${control("Display brightness",display.backend || "internal panel",displayControl)}
       ${control("Output volume",audio.backend || "default audio sink",audioControl)}
+      ${control("Desktop session","One-shot handoff through a real login TTY",sessionHandoffControl())}
       ${toggleControl("Start fullscreen","Open the embedded machine UI fullscreen","behavior.start_fullscreen",behavior.start_fullscreen)}
       ${toggleControl("Show shortcut hints","Show keyboard hints on the desktop scene","behavior.show_hints",behavior.show_hints)}
       ${control("Poll interval",`${behavior.poll_interval_ms} ms`,`<input class="dv-slider" type="range" min="500" max="5000" step="250" value="${behavior.poll_interval_ms}" data-setting="behavior.poll_interval_ms" data-number>`)}
@@ -610,6 +626,17 @@ async function sendAudioCommand(name, payload={}) {
 
 async function sendDisplayCommand(name, payload={}) {
   return api("/api/v1/adapter/display", {method:"POST", body:{name, payload}});
+}
+
+async function armHyprland() {
+  try {
+    await api("/api/v1/adapter/session", {method:"POST", body:{name:"arm_hyprland", payload:{}}});
+    app.state.adapters.session.armed = true;
+    toast("Hyprland one-shot armed", "Press Ctrl+Alt+F3, then log in.");
+    renderScene(true);
+  } catch (error) {
+    toast("Session handoff failed", error.message, true);
+  }
 }
 
 function queueAudioVolume(value) {
@@ -743,6 +770,7 @@ function bindSceneEvents() {
   $$('[data-audio-volume]', root).forEach(n=>n.addEventListener("input",()=>queueAudioVolume(n.value)));
   $$('[data-audio-mute]', root).forEach(n=>n.addEventListener("click",toggleAudioMute));
   $$('[data-display-brightness]', root).forEach(n=>n.addEventListener("input",()=>queueDisplayBrightness(n.value)));
+  $$('[data-session-arm]', root).forEach(n=>n.addEventListener("click",armHyprland));
   $$('[data-accent]', root).forEach(n=>n.addEventListener("click",()=>saveSetting("appearance.accent",n.dataset.accent)));
   $$('[data-window-mode]', root).forEach(n=>n.addEventListener("click",()=>saveSetting("appearance.window_mode",n.dataset.windowMode)));
   $$('[data-feature]', root).forEach(n=>n.addEventListener("change",()=>saveSetting(`features.${n.dataset.feature}`,n.checked)));

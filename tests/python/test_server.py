@@ -63,6 +63,8 @@ class ServerTests(unittest.TestCase):
         self.assertIn("assets", payload)
         self.assertIn("audio", payload["adapters"])
         self.assertIn("display", payload["adapters"])
+        self.assertIn("session", payload["adapters"])
+        self.assertIn("hyprland_active", payload["adapters"]["session"])
         self.assertIn("audio.volume", payload["assets"]["icons"])
         self.assertIn("display.brightness", payload["assets"]["icons"])
         with self.assertRaises(urllib.error.HTTPError) as ctx:

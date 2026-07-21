@@ -74,6 +74,8 @@ button { color: inherit; }
 .audio-control { min-width: 240px; }
 .audio-control__header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .audio-control__header .dv-btn { margin-left: auto; }
+.session-handoff { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+.session-icon { width: 22px; height: 22px; filter: brightness(0) saturate(100%) invert(83%) sepia(68%) saturate(3913%) hue-rotate(134deg) brightness(103%); }
 
 .scene {
   position: absolute; inset: 38px 0 0; overflow: auto; padding: 26px 28px 100px;
