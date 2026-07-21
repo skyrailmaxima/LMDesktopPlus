@@ -52,6 +52,19 @@ On Mint, LightDM often hides Wayland sessions — start Hyprland from a TTY
 `./switch.sh` installs the full setup with Hyprland and prepares a safe TTY
 switch workflow. Cinnamon remains available and is the recommended fallback.
 
+## VM lab (host → Mint guest)
+
+To iterate the rice and machine UI inside a disposable Linux Mint VM
+(QEMU/KVM + Virt-Manager, virtiofs share + git):
+
+```bash
+# on the host, after installing libvirt/virt-manager (see docs)
+./scripts/vm/create-mint-guest.sh --iso /path/to/linuxmint-cinnamon.iso
+```
+
+Full host setup, mount instructions, snapshots, and destroy/recreate:
+[`docs/vm-lab.md`](docs/vm-lab.md).
+
 ## Functional machine UI
 
 The local control center includes:
@@ -147,7 +160,8 @@ packages/shared/              GTK, Kitty, Rofi, tmux, Starship, Bash
 packages/cinnamon/            Cinnamon integration notes
 packages/hyprland/            Hyprland, Waybar, and session files
 palette/                      Canonical vapor-matrix palette
-scripts/                      User installer and desktop helpers
+scripts/                      User installer, desktop helpers, and VM lab
+scripts/vm/                   QEMU/KVM Mint guest create/attach/destroy
 packaging/                    Debian package builder
 docs/                         Architecture, design system, install notes
 tests/                        Python, shell, frontend, and package checks
