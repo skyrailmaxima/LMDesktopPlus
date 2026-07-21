@@ -148,7 +148,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
   if on_tty_console; then
     log_info "[dry-run] mode: exec on this TTY"
   else
-    start_hyprland_on_vt || true
+    log_info "[dry-run] mode: sudo openvt -c $(find_free_vt) -f -s -- su - \"$USER\" -c 'Hyprland'"
   fi
   log_info "Dry run complete."
   exit 0
