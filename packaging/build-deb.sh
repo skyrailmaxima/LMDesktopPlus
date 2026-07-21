@@ -12,6 +12,8 @@ mkdir -p "$BUILD/DEBIAN" "$BUILD/usr/lib/lmdesktopplus" "$BUILD/usr/bin" \
   "$BUILD/usr/share/applications" "$BUILD/usr/share/icons/hicolor/scalable/apps" \
   "$BUILD/usr/share/doc/lmdesktopplus" "$ROOT/dist"
 cp -a "$ROOT/src/lmdesktopplus" "$BUILD/usr/lib/lmdesktopplus/lmdesktopplus"
+mkdir -p "$BUILD/usr/lib/lmdesktopplus/assets"
+cp -a "$ROOT/assets/wallpapers" "$BUILD/usr/lib/lmdesktopplus/assets/wallpapers"
 find "$BUILD/usr/lib/lmdesktopplus/lmdesktopplus" -type d -name __pycache__ -prune -exec rm -rf {} +
 find "$BUILD/usr/lib/lmdesktopplus/lmdesktopplus" -type f -name '*.py[co]' -delete
 cp -a "$ROOT/share/applications/lmdesktopplus.desktop" "$BUILD/usr/share/applications/lmdesktopplus.desktop"

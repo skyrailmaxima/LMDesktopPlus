@@ -22,6 +22,7 @@ mkdir -p "$APP_ROOT" "$BIN_DIR" "$DESKTOP_DIR" "$ICON_DIR" "$PACKAGE_WALLPAPER_D
 rm -rf "$APP_ROOT/lmdesktopplus"
 cp -a "$ROOT/src/lmdesktopplus" "$APP_ROOT/lmdesktopplus"
 cp -a "$ROOT/assets/wallpapers/vapor-matrix.svg" "$PACKAGE_WALLPAPER_DIR/vapor-matrix.svg"
+cp -a "$ROOT/assets/wallpapers/vapor-matrix.png" "$PACKAGE_WALLPAPER_DIR/vapor-matrix.png"
 cp -a "$ROOT/assets/wallpapers/thumbs/." "$PACKAGE_WALLPAPER_DIR/thumbs/"
 find "$APP_ROOT/lmdesktopplus" -type d -name __pycache__ -prune -exec rm -rf {} +
 find "$APP_ROOT/lmdesktopplus" -type f -name '*.py[co]' -delete

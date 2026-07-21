@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE="$ROOT/assets/wallpapers/vapor-matrix.svg"
+FULL="$ROOT/assets/wallpapers/vapor-matrix.png"
 THUMBS="$ROOT/assets/wallpapers/thumbs"
 OUTPUT="$THUMBS/vapor-matrix.png"
 PLACEHOLDER="$THUMBS/placeholder.png"
@@ -10,10 +11,12 @@ PLACEHOLDER="$THUMBS/placeholder.png"
 mkdir -p "$THUMBS"
 
 if command -v rsvg-convert >/dev/null 2>&1; then
+  rsvg-convert --output "$FULL" "$SOURCE"
   rsvg-convert --width 320 --height 180 --keep-aspect-ratio \
     --output "$OUTPUT" "$SOURCE"
 elif command -v convert >/dev/null 2>&1; then
-  convert -background '#05060a' "$SOURCE" -thumbnail '320x180^' \
+  convert -background '#05060a' "$SOURCE" "$FULL"
+  convert "$FULL" -thumbnail '320x180^' \
     -gravity center -extent 320x180 "$OUTPUT"
 else
   echo "Install librsvg2-bin or ImageMagick to generate wallpaper thumbs." >&2
@@ -31,4 +34,4 @@ else
   cp "$OUTPUT" "$PLACEHOLDER"
 fi
 
-echo "Generated $OUTPUT and $PLACEHOLDER"
+echo "Generated $FULL, $OUTPUT, and $PLACEHOLDER"

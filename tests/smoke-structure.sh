@@ -4,6 +4,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 fail=0
 need() { [[ -e "$ROOT/$1" ]] || { echo "MISSING: $1"; fail=1; }; }
 need "palette/vapor-matrix.theme"
+need "assets/wallpapers/vapor-matrix.png"
 need "install.sh"
 need "uninstall.sh"
 need "lib/common.sh"
@@ -20,6 +21,10 @@ need "src/lmdesktopplus/static/digitalvapor.css"
 need "src/lmdesktopplus/static/digitalvapor.js"
 need "docs/digitalvapor-design-system.md"
 need "scripts/install-ui.sh"
+grep -q 'assets/wallpapers/vapor-matrix.png' "$ROOT/scripts/install-ui.sh" || {
+  echo "MISSING: install-ui.sh full-size wallpaper raster install"
+  fail=1
+}
 need "packaging/build-deb.sh"
 if [[ "$fail" -ne 0 ]]; then exit 1; fi
 echo "structure OK"

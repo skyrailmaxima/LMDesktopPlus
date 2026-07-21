@@ -14,8 +14,13 @@ _AUTO = object()
 
 
 def _default_package_dir() -> Path:
-    repository_assets = Path(__file__).resolve().parents[3] / "assets" / "wallpapers"
-    return repository_assets if repository_assets.is_dir() else app_data_dir() / "wallpapers"
+    module_path = Path(__file__).resolve()
+    candidates = (
+        module_path.parents[2] / "assets" / "wallpapers",
+        module_path.parents[3] / "assets" / "wallpapers",
+        app_data_dir() / "assets" / "wallpapers",
+    )
+    return next((path for path in candidates if path.is_dir()), candidates[-1])
 
 
 def _slug(value: str) -> str:
@@ -61,6 +66,12 @@ class WallpaperAdapter:
             for path in paths:
                 if not path.is_file() or path.suffix.lower() not in SUPPORTED_SUFFIXES:
                     continue
+                if (
+                    source == "package"
+                    and path.suffix.lower() in RASTER_SUFFIXES
+                    and path.with_suffix(".svg").is_file()
+                ):
+                    continue
                 resolved = path.resolve()
                 if resolved in seen_paths:
                     continue
@@ -104,6 +115,13 @@ class WallpaperAdapter:
             destination = self.user_dir / source.name
             if source.resolve() != destination.resolve():
                 shutil.copy2(source, destination)
+            if source.suffix.lower() == ".svg":
+                package_raster = source.with_suffix(".png")
+                destination_raster = destination.with_suffix(".png")
+                if package_raster.is_file() and (
+                    package_raster.resolve() != destination_raster.resolve()
+                ):
+                    shutil.copy2(package_raster, destination_raster)
         except OSError as exc:
             return {"ok": False, "error": f"could not install wallpaper: {exc}"}
 

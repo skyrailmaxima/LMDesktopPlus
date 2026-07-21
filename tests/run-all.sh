@@ -27,4 +27,6 @@ if grep -Eqi '\.(woff2?|ttf|otf)$' "$DEB_CONTENTS"; then
 fi
 grep -q 'digitalvapor.css' "$DEB_CONTENTS"
 grep -q 'digitalvapor.js' "$DEB_CONTENTS"
+grep -q 'usr/lib/lmdesktopplus/assets/wallpapers/vapor-matrix.svg' "$DEB_CONTENTS"
+grep -q 'usr/lib/lmdesktopplus/assets/wallpapers/vapor-matrix.png' "$DEB_CONTENTS"
 printf 'all tests OK\n'
