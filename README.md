@@ -37,18 +37,37 @@ Hyprland from a TTY with `scripts/start-hyprland-tty.sh`. Details:
 
 ## Quick start
 
+One script installs the rice, pulls in Hyprland, and switches you over:
+
 ```bash
 git clone https://github.com/skyrailmaxima/LMDesktopPlus.git
 cd LMDesktopPlus
+./switch.sh
+```
+
+That runs `./install.sh --with-hyprland`, then starts Hyprland (on this TTY if
+you are already on a console, otherwise on a free VT via `openvt`).
+
+Useful variants:
+
+```bash
+./switch.sh --dry-run        # preview install + switch, change nothing
+./switch.sh --install-only   # theme + packages only; do not start Hyprland
+./switch.sh --now            # skip install; just start Hyprland
+```
+
+Lower-level entrypoints (same as before):
+
+```bash
 ./install.sh                  # Cinnamon theme + shared tools
 ./install.sh --with-hyprland  # also try to install Hyprland (needs sudo/network)
 ```
 
 Then:
 
-- **Cinnamon:** log out/in and stay on Cinnamon for the themed daily desktop.
-- **Hyprland on Mint:** `Ctrl+Alt+F3` → log in → `./scripts/start-hyprland-tty.sh`
-  (LightDM usually will not list the Wayland session).
+- **Cinnamon:** stay on / return to Cinnamon for the themed daily desktop.
+- **Hyprland:** `./switch.sh` (or `./switch.sh --now`). If `openvt` is
+  unavailable: `Ctrl+Alt+F3` → log in → `./scripts/start-hyprland-tty.sh`.
 
 Re-running `./install.sh` is idempotent — existing correct symlinks are left
 alone. Existing **config targets** that would be replaced are backed up first
