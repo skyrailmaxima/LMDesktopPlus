@@ -69,6 +69,14 @@ Then:
 - **Hyprland:** `./switch.sh` (or `./switch.sh --now`). If `openvt` is
   unavailable: `Ctrl+Alt+F3` → log in → `./scripts/start-hyprland-tty.sh`.
 
+### Leaving Hyprland
+
+| Action | How |
+|--------|-----|
+| Confirm + exit | Click **EXIT** on the waybar (top-right), or press **Super+E** |
+| Exit immediately | **Super+Shift+E** |
+| After exit | You’re back on the TTY / greeter — Cinnamon is usually on **Ctrl+Alt+F7** |
+
 Re-running `./install.sh` is idempotent — existing correct symlinks are left
 alone. Existing **config targets** that would be replaced are backed up first
 (see [Backups](#backups) below).

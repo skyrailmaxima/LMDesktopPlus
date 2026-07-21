@@ -223,6 +223,7 @@ bash "$REPO_ROOT/scripts/apply-cinnamon-gsettings.sh" "$GSETTINGS_WALLPAPER" || 
 link_hypr_assets() {
   maybe link_file "$REPO_ROOT/packages/hyprland/hypr/hyprland.conf" "$HOME/.config/hypr/hyprland.conf"
   maybe link_file "$REPO_ROOT/packages/hyprland/hypr/hyprpaper.conf" "$HOME/.config/hypr/hyprpaper.conf"
+  maybe link_file "$REPO_ROOT/packages/hyprland/hypr/scripts/exit-menu.sh" "$HOME/.config/hypr/scripts/exit-menu.sh"
   maybe link_file "$REPO_ROOT/packages/hyprland/waybar/config.jsonc" "$HOME/.config/waybar/config.jsonc"
   maybe link_file "$REPO_ROOT/packages/hyprland/waybar/style.css" "$HOME/.config/waybar/style.css"
 }

@@ -63,6 +63,7 @@ KNOWN_PATHS=(
   "$HOME/.config/vapor-matrix.theme"
   "$HOME/.config/hypr/hyprland.conf"
   "$HOME/.config/hypr/hyprpaper.conf"
+  "$HOME/.config/hypr/scripts/exit-menu.sh"
   "$HOME/.config/waybar/config.jsonc"
   "$HOME/.config/waybar/style.css"
   "$HOME/.bashrc"
