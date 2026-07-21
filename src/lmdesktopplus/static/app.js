@@ -61,6 +61,8 @@ const app = {
   pollTimer: null,
   audioTimer: null,
   audioPendingVolume: null,
+  audioPreviousVolume: null,
+  audioRequestId: 0,
   pendingRender: false,
   pendingConfirm: null,
   pendingWifiSsid: null,
@@ -578,17 +580,33 @@ async function sendAudioCommand(name, payload={}) {
 }
 
 function queueAudioVolume(value) {
+  const audio = app.state?.adapters?.audio;
+  if (!audio?.available) return;
   const volume = Math.round(clamp(value, 0, 100));
+  const previousVolume = Math.round(clamp(audio.volume ?? 0, 0, 100));
+  if (app.audioPendingVolume === null) app.audioPreviousVolume = previousVolume;
   app.audioPendingVolume = volume;
-  if (app.state?.adapters?.audio) app.state.adapters.audio.volume = volume;
+  audio.volume = volume;
   patchAudioBindings();
   clearTimeout(app.audioTimer);
+  const requestId = ++app.audioRequestId;
   app.audioTimer = setTimeout(async () => {
     try {
       await sendAudioCommand("set_volume", {volume});
-      app.audioPendingVolume = null;
+      if (requestId === app.audioRequestId) {
+        const currentAudio = app.state?.adapters?.audio;
+        if (currentAudio) currentAudio.volume = volume;
+        app.audioPendingVolume = null;
+        app.audioPreviousVolume = null;
+      }
     } catch (error) {
+      if (requestId !== app.audioRequestId) return;
+      const previousVolume = app.audioPreviousVolume;
+      const currentAudio = app.state?.adapters?.audio;
+      if (previousVolume !== null && currentAudio) currentAudio.volume = previousVolume;
       app.audioPendingVolume = null;
+      app.audioPreviousVolume = null;
+      patchAudioBindings();
       toast("Volume change failed", error.message, true);
     }
   }, 100);
