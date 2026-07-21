@@ -14,13 +14,16 @@ source "$REPO_ROOT/lib/packages-apt.sh"
 DRY_RUN="${DRY_RUN:-0}"
 FORCE="${FORCE:-0}"
 CINNAMON_ONLY=0
+WITH_HYPRLAND=0
 
 usage() {
   cat <<'EOF'
-Usage: install.sh [--dry-run] [--cinnamon-only] [--force]
+Usage: install.sh [--dry-run] [--cinnamon-only] [--with-hyprland] [--force]
 
-  --dry-run        Print planned actions without changing the system.
+  --dry-run         Print planned actions without changing the system.
   --cinnamon-only   Skip Hyprland/waybar setup, even if Hyprland is installed.
+  --with-hyprland   Best-effort install Hyprland (distro package, then
+                    ppa:cppiber/hyprland) before linking configs / session.
   --force           Continue on unsupported OS (same as FORCE=1).
 
 Env: DRY_RUN=1, FORCE=1 are equivalent to the flags above.
@@ -31,12 +34,18 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
     --cinnamon-only) CINNAMON_ONLY=1 ;;
+    --with-hyprland) WITH_HYPRLAND=1 ;;
     --force) FORCE=1 ;;
     -h|--help) usage; exit 0 ;;
     *) log_err "Unknown flag: $1"; usage; exit 1 ;;
   esac
   shift
 done
+
+if [[ "$CINNAMON_ONLY" == "1" && "$WITH_HYPRLAND" == "1" ]]; then
+  log_err "Cannot combine --cinnamon-only with --with-hyprland"
+  exit 1
+fi
 
 export DRY_RUN FORCE
 
@@ -62,14 +71,37 @@ WALLPAPER_DEST_PNG="$SHARE_DIR/wallpapers/vapor-matrix.png"
 PALETTE_SRC="$REPO_ROOT/palette/vapor-matrix.theme"
 PALETTE_DEST="$SHARE_DIR/palette/vapor-matrix.theme"
 
-HYPR_AVAILABLE=0
-HYPR_BIN=""
-if command -v Hyprland >/dev/null 2>&1; then
-  HYPR_AVAILABLE=1
-  HYPR_BIN="Hyprland"
-elif command -v hyprland >/dev/null 2>&1; then
-  HYPR_AVAILABLE=1
-  HYPR_BIN="hyprland"
+detect_hyprland() {
+  HYPR_AVAILABLE=0
+  HYPR_BIN=""
+  if command -v Hyprland >/dev/null 2>&1; then
+    HYPR_AVAILABLE=1
+    HYPR_BIN="Hyprland"
+  elif command -v hyprland >/dev/null 2>&1; then
+    HYPR_AVAILABLE=1
+    HYPR_BIN="hyprland"
+  fi
+}
+
+detect_hyprland
+
+### 0. optional Hyprland package install #####################################
+if [[ "$WITH_HYPRLAND" == "1" ]]; then
+  log_info "--with-hyprland: installing compositor (best-effort)"
+  if bash "$REPO_ROOT/scripts/install-hyprland-mint.sh"; then
+    # Refresh PATH detection after apt install.
+    hash -r 2>/dev/null || true
+    detect_hyprland
+    # Dry-run cannot actually put a binary on PATH; still exercise the
+    # Hyprland link/session plan so the user sees what would happen.
+    if [[ "$DRY_RUN" == "1" && "$HYPR_AVAILABLE" != "1" ]]; then
+      HYPR_AVAILABLE=1
+      HYPR_BIN="Hyprland"
+      log_info "[dry-run] assuming Hyprland will be on PATH after package install"
+    fi
+  else
+    log_warn "Hyprland package install failed; continuing with Cinnamon path"
+  fi
 fi
 
 ### 1. apt packages ##########################################################
@@ -226,7 +258,15 @@ elif [[ "$HYPR_AVAILABLE" == "1" ]]; then
   install_session_desktop
 else
   log_warn "Hyprland not found on PATH; skipping Hyprland/waybar setup."
-  log_warn "See docs/install-notes.md to install Hyprland and re-run install.sh (or install.sh --force)."
+  log_warn "Install it with: ./install.sh --with-hyprland"
+  log_warn "On Mint, LightDM often hides Wayland sessions — after install use:"
+  log_warn "  Ctrl+Alt+F3 → login → ./scripts/start-hyprland-tty.sh"
+  log_warn "Details: docs/install-notes.md"
+fi
+
+if [[ "$HYPR_AVAILABLE" == "1" && "$CINNAMON_ONLY" != "1" ]]; then
+  log_info "Hyprland ready ($HYPR_BIN). If the login greeter has no Wayland entry,"
+  log_info "start from a TTY: $REPO_ROOT/scripts/start-hyprland-tty.sh"
 fi
 
 ### 8. bashrc snippet ##########################################################

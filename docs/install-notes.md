@@ -6,35 +6,71 @@ quick start; this document covers the rough edges.
 
 ## Hyprland on Linux Mint
 
-Linux Mint (and Ubuntu, which it tracks) does **not** ship an official
-Hyprland apt package in most releases. `install.sh` only registers the
-Hyprland session and links `packages/hyprland/` configs when it finds
-`Hyprland` (or `hyprland`) on `PATH` — it never tries to compile or install
-Hyprland itself. If Hyprland isn't found, the Cinnamon path still completes
-successfully; you'll just see a log line pointing back here.
+Linux Mint (and Ubuntu, which it tracks) does **not** always ship an official
+Hyprland apt package. Older LMDesktopPlus installs only registered a session
+when Hyprland was already on `PATH`. Use `--with-hyprland` to install it:
 
-### Getting Hyprland onto Mint
+```bash
+./install.sh --with-hyprland
+```
 
-There is no single command that works on every Mint/Ubuntu release. In
-rough order of preference:
+That runs `scripts/install-hyprland-mint.sh`, which:
 
-1. **Check if a PPA/repo exists for your base Ubuntu release.** Hyprland
-   moves fast and packaging lags; search for a Hyprland PPA or a
-   community repo matching your Mint's Ubuntu base (`lsb_release -a`, or
-   check `/etc/os-release` for `UBUNTU_CODENAME`). Add it, then:
+1. Tries the distro/`universe` `hyprland` package (works on some Ubuntu series).
+2. If that fails, adds **`ppa:cppiber/hyprland`** (covers Ubuntu **24.04 / noble**,
+   which Mint 22 tracks) and installs `hyprland` + `xdg-desktop-portal-hyprland`.
+3. Fails soft — Cinnamon still finishes if the compositor cannot be installed.
+
+Then the installer links `packages/hyprland/` and registers the wayland session
+desktop file when `Hyprland`/`hyprland` is on `PATH`.
+
+### LightDM usually will not start Hyprland
+
+Mint’s default greeter (**LightDM**) is X11-oriented and often **does not show**
+`/usr/share/wayland-sessions/` entries. That looks like “Hyprland won’t start”
+even when the binary is installed.
+
+**Recommended launch path on Mint:**
+
+1. Install + theme: `./install.sh --with-hyprland`
+2. Switch to a TTY: `Ctrl+Alt+F3` (or F4…), log in
+3. Run:
 
    ```bash
-   sudo apt update
-   sudo apt install hyprland
+   ~/path/to/LMDesktopPlus/scripts/start-hyprland-tty.sh
    ```
 
-2. **Build from source** (most reliable, more work). Follow the official
-   Hyprland wiki build instructions for your Ubuntu base version — you'll
-   need a recent `wlroots`, `meson`, `ninja`, and a handful of `-dev`
-   packages. This is the path most Mint users will end up on for now.
+   Or, with configs already linked: `Hyprland`
 
-3. **Distro-hop for the Hyprland session only** is out of scope for this
-   repo; LMDesktopPlus assumes Mint stays the base OS.
+Return to Cinnamon with `Ctrl+Alt+F7` (or F1/F2 depending on Mint version)
+after exiting Hyprland.
+
+Optional: install **SDDM** or another Wayland-capable greeter if you want a
+graphical session picker for Hyprland. That is outside LMDesktopPlus scope;
+the TTY script is the supported Mint path.
+
+### Getting Hyprland onto Mint (manual)
+
+If `--with-hyprland` fails, try manually:
+
+```bash
+# Mint 22 / Ubuntu 24.04 (noble)
+sudo add-apt-repository -y ppa:cppiber/hyprland
+sudo apt update
+sudo apt install -y hyprland xdg-desktop-portal-hyprland
+
+./install.sh   # re-run to link configs + session file
+```
+
+Check your Ubuntu base with `grep UBUNTU_CODENAME /etc/os-release`.
+
+Community full-desktop scripts (install their own dots / SDDM) also exist —
+e.g. [LinuxBeginnings/Ubuntu-Hyprland](https://github.com/LinuxBeginnings/Ubuntu-Hyprland)
+`24.04` branch for Mint-on-24.04. Prefer those only if you want their entire
+stack; they can conflict with LMDesktopPlus configs.
+
+Build-from-source remains the last resort; follow the official Hyprland wiki
+for your Ubuntu base.
 
 Once `Hyprland` (or `hyprland`) resolves on `PATH`, re-run:
 
@@ -45,7 +81,7 @@ Once `Hyprland` (or `hyprland`) resolves on `PATH`, re-run:
 and the installer will pick it up: it links `packages/hyprland/hypr/` and
 `packages/hyprland/waybar/` configs, and installs the wayland session
 `.desktop` file (via `sudo cp`) so **LMDesktopPlus Hyprland** appears at your
-login greeter alongside Cinnamon.
+login greeter **if the greeter lists Wayland sessions** (often not LightDM).
 
 ### If `sudo cp` for the session file fails
 

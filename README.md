@@ -29,21 +29,26 @@ Both sessions consume:
   repo are picked up immediately without re-running the installer.
 
 Hyprland support is **fail-soft**: if Hyprland isn't installed, `install.sh`
-finishes the Cinnamon setup successfully and just logs a skip with a pointer
-to [`docs/install-notes.md`](docs/install-notes.md) for manual setup.
+finishes the Cinnamon setup successfully and logs how to install it. Use
+`--with-hyprland` to attempt a Mint-compatible package/PPA install. Mint’s
+**LightDM** greeter often hides Wayland sessions — after installing, start
+Hyprland from a TTY with `scripts/start-hyprland-tty.sh`. Details:
+[`docs/install-notes.md`](docs/install-notes.md).
 
 ## Quick start
 
 ```bash
 git clone https://github.com/skyrailmaxima/LMDesktopPlus.git
 cd LMDesktopPlus
-./install.sh
+./install.sh                  # Cinnamon theme + shared tools
+./install.sh --with-hyprland  # also try to install Hyprland (needs sudo/network)
 ```
 
-Then log out and back in:
+Then:
 
-- Pick **Cinnamon** for the themed daily-driver desktop (works out of the box).
-- Pick **Hyprland** at the login greeter if it was detected and registered.
+- **Cinnamon:** log out/in and stay on Cinnamon for the themed daily desktop.
+- **Hyprland on Mint:** `Ctrl+Alt+F3` → log in → `./scripts/start-hyprland-tty.sh`
+  (LightDM usually will not list the Wayland session).
 
 Re-running `./install.sh` is idempotent — existing correct symlinks are left
 alone. Existing **config targets** that would be replaced are backed up first
@@ -65,6 +70,7 @@ See [Uninstall](#uninstall) for what is and is not removed.
 |------|-----------------|--------|
 | `--dry-run` | `DRY_RUN=1` | Print every planned action (apt installs, symlinks, gsettings, bashrc append, session registration) without touching the system. |
 | `--cinnamon-only` | — | Skip the Hyprland/waybar apt packages, config symlinks, and wayland-session registration entirely, even if Hyprland is present. |
+| `--with-hyprland` | — | Best-effort install Hyprland via distro package, then `ppa:cppiber/hyprland`, then link configs/session. Cannot combine with `--cinnamon-only`. |
 | `--force` | `FORCE=1` | Continue installing on a non-Mint, non-Debian-family OS instead of refusing. |
 | `-h`, `--help` | — | Print usage and exit. |
 
@@ -73,6 +79,7 @@ Examples:
 ```bash
 ./install.sh --dry-run              # see what would happen, change nothing
 ./install.sh --cinnamon-only        # Cinnamon-only box, skip Hyprland entirely
+./install.sh --with-hyprland        # install Hyprland (PPA/apt) then theme it
 FORCE=1 ./install.sh                # override the Mint/Debian-family check
 ```
 
@@ -182,10 +189,9 @@ bash tests/smoke-structure.sh   # verifies expected files exist
 
 ## Known caveats
 
-Hyprland support is best-effort on Linux Mint (there is no first-party apt
-package). See [`docs/install-notes.md`](docs/install-notes.md) for
-Hyprland-on-Mint installation guidance, manual session fallback, and font
-troubleshooting.
+Hyprland on Mint needs a package/PPA install (`./install.sh --with-hyprland`)
+and is usually started from a **TTY** because LightDM hides Wayland sessions.
+See [`docs/install-notes.md`](docs/install-notes.md).
 
 ## Non-goals (v1)
 
