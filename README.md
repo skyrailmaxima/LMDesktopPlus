@@ -6,18 +6,16 @@ Hyprland session, and supplies a local control center for system telemetry,
 application launchers, agent workspaces, NetworkManager, media, settings, and
 desktop integration.
 
-Version **0.3.0** promotes the user-supplied Digitalvapor styleguide into the
-maintained frontend design system. Panels, buttons, tags, inputs, toggles,
-segmented controls, sliders, tabs, progress indicators, dropdowns, context
-menus, dialogs, toasts, window chrome, side navigation, and the dock now share
-one semantic token layer.
+Version **0.4.0** adds Stage A machine controls for audio, brightness, session
+handoff, and wallpaper selection. The control center retains the shared
+Digitalvapor component and semantic-token layer introduced in 0.3.0.
 
 ## Install the machine UI
 
 The Debian package is the cleanest system-wide installation:
 
 ```bash
-sudo apt install ./lmdesktopplus_0.3.0_all.deb
+sudo apt install ./lmdesktopplus_0.4.0_all.deb
 lmdesktopplus
 ```
 

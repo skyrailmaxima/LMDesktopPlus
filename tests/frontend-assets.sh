@@ -21,6 +21,11 @@ grep -q 'loading="lazy"' "$STATIC/app.js"
 grep -q 'data-wallpaper-id' "$STATIC/app.js"
 grep -q '"/api/v1/adapter/wallpaper"' "$STATIC/app.js"
 grep -q 'this.wallpapers = new Map' "$STATIC/app.js"
+grep -q 'class DiffRenderer' "$STATIC/app.js"
+grep -q 'app.renderer.update(app.scene, changedPaths)' "$STATIC/app.js"
+grep -q 'app.renderer.register("desktop"' "$STATIC/app.js"
+grep -q 'app.renderer.register("monitor"' "$STATIC/app.js"
+grep -q 'data-live-chart=' "$STATIC/app.js"
 if grep -Eq '<script[^>]*>[^<]*window\.LMDP_TOKEN' "$STATIC/index.html"; then
   echo "inline token script remains in index.html" >&2
   exit 1

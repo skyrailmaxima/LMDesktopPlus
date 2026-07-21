@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0 — Stage A machine controls
+
+- Added an adapter registry and cached host adapters for PipeWire/PulseAudio
+  volume and mute, display brightness, session handoff, and wallpaper apply.
+- Added authenticated machine-control routes with validated, allowlisted
+  commands and fail-soft capability snapshots.
+- Added volume, mute, brightness, Hyprland one-shot arming, and wallpaper picker
+  controls to the machine UI.
+- Added hash-mapped icons and wallpaper assets with lazy thumbnail loading.
+- Added `LiveStore` state diffs and a `DiffRenderer` so Desktop and Monitor
+  patch live metrics, charts, and adapter fields without rebuilding the scene.
+- Documented the adapter contract and optional host-binary matrix.
+
 ## 0.3.0 — Digitalvapor design system
 
 - Promoted the expanded Digitalvapor styleguide into maintained, dependency-free

@@ -100,7 +100,7 @@ Changes update Digitalvapor runtime tokens and generate:
 
 ```bash
 ./packaging/build-deb.sh
-sudo apt install ./dist/lmdesktopplus_0.3.0_all.deb
+sudo apt install ./dist/lmdesktopplus_0.4.0_all.deb
 ```
 
 The Debian package contains the machine UI. Run `install.sh` from the source
