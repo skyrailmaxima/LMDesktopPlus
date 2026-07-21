@@ -61,10 +61,51 @@ class ServerTests(unittest.TestCase):
             payload = json.load(response)
         self.assertIn("metrics", payload)
         self.assertIn("assets", payload)
+        self.assertIn("audio", payload["adapters"])
         self.assertIn("audio.volume", payload["assets"]["icons"])
         with self.assertRaises(urllib.error.HTTPError) as ctx:
             self.request("/api/v1/action", self.server.token, {"action": "launch", "target": "not-real"})
         self.assertEqual(ctx.exception.code, 400)
+
+    def test_adapter_command_route_dispatches_allowlisted_command(self):
+        class StubAdapter:
+            id = "stub"
+
+            def available(self):
+                return True
+
+            def snapshot(self):
+                return {"available": True}
+
+            def command(self, name, payload):
+                if name != "ping":
+                    return {"ok": False, "error": "unknown stub command"}
+                return {"ok": True, "value": payload.get("value")}
+
+        self.server.state.adapters.register(StubAdapter())
+        with self.request(
+            "/api/v1/adapter/stub",
+            self.server.token,
+            {"name": "ping", "payload": {"value": 7}},
+        ) as response:
+            self.assertEqual(json.load(response), {"ok": True, "value": 7})
+
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self.request(
+                "/api/v1/adapter/stub",
+                self.server.token,
+                {"name": "unknown", "payload": {}},
+            )
+        self.assertEqual(ctx.exception.code, 400)
+
+    def test_adapter_command_route_rejects_unknown_adapter(self):
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self.request(
+                "/api/v1/adapter/not-real",
+                self.server.token,
+                {"name": "anything", "payload": {}},
+            )
+        self.assertEqual(ctx.exception.code, 404)
 
     def test_icon_assets_are_served(self):
         with self.request("/icons/volume.svg") as response:

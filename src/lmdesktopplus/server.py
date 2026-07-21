@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 from . import __version__
 from .actions import ActionRunner
 from .adapters import AdapterRegistry
+from .adapters.audio import AudioAdapter
 from .agents import AgentRegistry
 from .assets import AssetCatalog
 from .config import ACCENTS, SettingsStore
@@ -29,6 +30,7 @@ class ApplicationState:
         self.settings = SettingsStore()
         self.agents = AgentRegistry()
         self.adapters = AdapterRegistry()
+        self.adapters.register(AudioAdapter())
         self.assets = AssetCatalog()
         self.system = SystemSampler()
         self.actions = ActionRunner(self.settings.get)
@@ -136,6 +138,27 @@ class RequestHandler(BaseHTTPRequestHandler):
         if path == "/api/v1/network/disconnect":
             result = network.disconnect(str(body.get("device", "")))
             state._cache.pop("network-current", None)
+            self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
+            return
+        if path.startswith("/api/v1/adapter/"):
+            adapter_id = path.removeprefix("/api/v1/adapter/")
+            name = body.get("name")
+            payload = body.get("payload", {})
+            if not adapter_id or "/" in adapter_id:
+                self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "unknown adapter"})
+                return
+            if not isinstance(name, str) or not name:
+                self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "name must be a non-empty string"})
+                return
+            if not isinstance(payload, dict):
+                self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "payload must be an object"})
+                return
+            try:
+                adapter = state.adapters.get(adapter_id)
+            except KeyError:
+                self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": f"unknown adapter: {adapter_id}"})
+                return
+            result = adapter.command(name, payload)
             self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
             return
         self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "unknown endpoint"})

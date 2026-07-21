@@ -7,6 +7,10 @@ grep -q -- '--dv-accent' "$STATIC/digitalvapor.css"
 grep -q 'Digitalvapor' "$STATIC/digitalvapor.js"
 grep -q 'digitalvapor.css' "$STATIC/index.html"
 grep -q 'digitalvapor.js' "$STATIC/index.html"
+grep -q 'data-bind="adapters.audio.volume"' "$STATIC/index.html"
+grep -q 'data-audio-volume' "$STATIC/app.js"
+grep -q '"/api/v1/adapter/audio"' "$STATIC/app.js"
+grep -q '}, 100);' "$STATIC/app.js"
 if grep -Eq '<script[^>]*>[^<]*window\.LMDP_TOKEN' "$STATIC/index.html"; then
   echo "inline token script remains in index.html" >&2
   exit 1

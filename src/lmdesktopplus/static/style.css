@@ -68,6 +68,12 @@ button { color: inherit; }
 .window-title { color: var(--dv-text); white-space: nowrap; }
 .status-strip { justify-self: end; gap: 13px; white-space: nowrap; }
 .icon-button { min-width: 34px; padding: 3px 8px; }
+.audio-status { display: inline-flex; align-items: center; gap: 5px; min-width: 72px; padding: 3px 7px; color: var(--dv-cyan); }
+.audio-status img, .audio-icon { width: 16px; height: 16px; filter: brightness(0) saturate(100%) invert(83%) sepia(68%) saturate(3913%) hue-rotate(134deg) brightness(103%); }
+.audio-status.is-muted { color: var(--dv-muted); }
+.audio-control { min-width: 240px; }
+.audio-control__header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.audio-control__header .dv-btn { margin-left: auto; }
 
 .scene {
   position: absolute; inset: 38px 0 0; overflow: auto; padding: 26px 28px 100px;

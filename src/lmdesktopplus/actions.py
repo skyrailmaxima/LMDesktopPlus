@@ -27,6 +27,7 @@ class ActionRunner:
             "hyprctl": executable("hyprctl"),
             "nmcli": executable("nmcli"),
             "playerctl": executable("playerctl"),
+            "audio": first_executable(["wpctl", "pactl"]),
             "bubblewrap": executable("bwrap"),
         }
         return {key: {"available": bool(value), "path": value} for key, value in apps.items()}

@@ -59,6 +59,8 @@ const app = {
   networkScan: null,
   history: {cpu:[], ram:[], gpu:[], down:[], up:[]},
   pollTimer: null,
+  audioTimer: null,
+  audioPendingVolume: null,
   pendingRender: false,
   pendingConfirm: null,
   pendingWifiSsid: null,
@@ -246,6 +248,40 @@ function updateStatus() {
   $("#status-ram").textContent = `RAM ${Math.round(m.memory?.percent || 0)}%`;
   $("#status-net").textContent = `↓ ${humanBytes(m.network?.down_bps || 0, true)}`;
   $("#status-battery").textContent = m.battery ? `BAT ${m.battery.percent}%` : "AC POWER";
+  patchAudioBindings();
+}
+
+function assetIcon(id, className="audio-icon") {
+  const entry = app.assets.icons.get(id);
+  if (!entry?.file) return "";
+  const audioBinding = id.startsWith("audio.") ? " data-audio-icon" : "";
+  return `<img class="${esc(className)}" src="/icons/${esc(entry.file)}"${audioBinding} alt="" aria-hidden="true">`;
+}
+
+function patchAudioBindings() {
+  const audio = app.state?.adapters?.audio || {};
+  const available = Boolean(audio.available);
+  const volume = clamp(app.audioPendingVolume ?? audio.volume ?? 0, 0, 100);
+  const label = available ? `${audio.muted ? "MUTE " : ""}${Math.round(volume)}%` : "VOL --";
+  $$('[data-bind="adapters.audio.volume"]').forEach(node => {
+    if (node.matches("input")) {
+      if (document.activeElement !== node) node.value = String(Math.round(volume));
+    } else if (node.dataset.bindMode === "width") {
+      node.style.width = `${volume}%`;
+    } else {
+      node.textContent = label;
+    }
+  });
+  $$("[data-audio-mute]").forEach(node => {
+    node.disabled = !available;
+    node.classList.toggle("is-muted", Boolean(audio.muted));
+    node.title = audio.muted ? "Unmute audio" : "Mute audio";
+  });
+  $$("[data-audio-mute-label]").forEach(node => {
+    node.textContent = audio.muted ? "UNMUTE" : "MUTE";
+  });
+  const icon = app.assets.icons.get(audio.muted ? "audio.mute" : "audio.volume");
+  if (icon?.file) $$("[data-audio-icon]").forEach(node => { node.src = `/icons/${icon.file}`; });
 }
 
 function heading(jp, title, sub, actions="") {
@@ -444,7 +480,14 @@ function renderSettingsTab() {
       ${toggleControl("Drop shadows","Generated Hyprland overlay","appearance.shadows",ap.shadows)}`;
   }
   if (app.settingsTab === "display") {
-    return `${toggleControl("Start fullscreen","Open the embedded machine UI fullscreen","behavior.start_fullscreen",behavior.start_fullscreen)}
+    const audio = app.state.adapters?.audio || {};
+    const volume = clamp(app.audioPendingVolume ?? audio.volume ?? 0, 0, 100);
+    const audioIcon = assetIcon(audio.muted ? "audio.mute" : "audio.volume");
+    const audioControl = audio.available
+      ? `<div class="audio-control"><div class="audio-control__header">${audioIcon}<span data-bind="adapters.audio.volume">${audio.muted ? "MUTE " : ""}${volume}%</span><button class="btn dv-btn dv-btn--outline" data-audio-mute data-audio-mute-label>${audio.muted ? "UNMUTE" : "MUTE"}</button></div><input class="dv-slider dv-slider--cyan" type="range" min="0" max="100" value="${volume}" data-audio-volume data-bind="adapters.audio.volume" aria-label="Output volume"><div class="progress dv-progress"><span class="dv-progress__bar" data-bind="adapters.audio.volume" data-bind-mode="width" style="width:${volume}%"></span></div></div>`
+      : `<p class="muted">Audio controls unavailable. Install WirePlumber (wpctl) or PulseAudio tools (pactl).</p>`;
+    return `${control("Output volume",audio.backend || "default audio sink",audioControl)}
+      ${toggleControl("Start fullscreen","Open the embedded machine UI fullscreen","behavior.start_fullscreen",behavior.start_fullscreen)}
       ${toggleControl("Show shortcut hints","Show keyboard hints on the desktop scene","behavior.show_hints",behavior.show_hints)}
       ${control("Poll interval",`${behavior.poll_interval_ms} ms`,`<input class="dv-slider" type="range" min="500" max="5000" step="250" value="${behavior.poll_interval_ms}" data-setting="behavior.poll_interval_ms" data-number>`)}
       ${toggleControl("Allow power actions","Required before logout, reboot, suspend, or poweroff API calls","behavior.allow_power_actions",behavior.allow_power_actions)}
@@ -530,6 +573,42 @@ async function runAction(action,target="") {
   } catch (error) { toast("Action failed", error.message, true); }
 }
 
+async function sendAudioCommand(name, payload={}) {
+  return api("/api/v1/adapter/audio", {method:"POST", body:{name, payload}});
+}
+
+function queueAudioVolume(value) {
+  const volume = Math.round(clamp(value, 0, 100));
+  app.audioPendingVolume = volume;
+  if (app.state?.adapters?.audio) app.state.adapters.audio.volume = volume;
+  patchAudioBindings();
+  clearTimeout(app.audioTimer);
+  app.audioTimer = setTimeout(async () => {
+    try {
+      await sendAudioCommand("set_volume", {volume});
+      app.audioPendingVolume = null;
+    } catch (error) {
+      app.audioPendingVolume = null;
+      toast("Volume change failed", error.message, true);
+    }
+  }, 100);
+}
+
+async function toggleAudioMute() {
+  const audio = app.state?.adapters?.audio;
+  if (!audio?.available) return;
+  const previous = Boolean(audio.muted);
+  audio.muted = !previous;
+  patchAudioBindings();
+  try {
+    await sendAudioCommand("toggle_mute");
+  } catch (error) {
+    audio.muted = previous;
+    patchAudioBindings();
+    toast("Mute change failed", error.message, true);
+  }
+}
+
 async function connectWifi(ssid, password="") {
   try {
     await api("/api/v1/network/connect", {method:"POST", body:{ssid, password}});
@@ -577,6 +656,8 @@ function bindSceneEvents() {
     if (n.hasAttribute("data-number")) value = Number(value);
     saveSetting(n.dataset.setting,value);
   }));
+  $$('[data-audio-volume]', root).forEach(n=>n.addEventListener("input",()=>queueAudioVolume(n.value)));
+  $$('[data-audio-mute]', root).forEach(n=>n.addEventListener("click",toggleAudioMute));
   $$('[data-accent]', root).forEach(n=>n.addEventListener("click",()=>saveSetting("appearance.accent",n.dataset.accent)));
   $$('[data-window-mode]', root).forEach(n=>n.addEventListener("click",()=>saveSetting("appearance.window_mode",n.dataset.windowMode)));
   $$('[data-feature]', root).forEach(n=>n.addEventListener("change",()=>saveSetting(`features.${n.dataset.feature}`,n.checked)));
@@ -605,6 +686,7 @@ function bindSceneEvents() {
 function bindGlobal() {
   $("#unlock-button").addEventListener("click",unlock);
   $("#lock-screen").addEventListener("click",unlock);
+  $("#status-audio").addEventListener("click", toggleAudioMute);
 
   $("#wifi-form").addEventListener("submit", (event) => {
     event.preventDefault();
