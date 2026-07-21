@@ -109,6 +109,12 @@ class DisplayAdapter:
         if isinstance(value, bool) or not isinstance(value, int):
             return {"ok": False, "error": "brightness must be an integer"}
         brightness = max(1, min(100, value))
+        if self._cached_snapshot is not None and not self._cached_snapshot.get(
+            "writable", False
+        ):
+            if self._cached_snapshot.get("backend") == "sysfs":
+                return {"ok": False, "error": "sysfs brightness fallback is read-only"}
+            return {"ok": False, "error": "display brightness control is unavailable"}
         if not isinstance(self.brightnessctl, str):
             if self._sysfs_device() is not None:
                 return {"ok": False, "error": "sysfs brightness fallback is read-only"}

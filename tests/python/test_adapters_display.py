@@ -85,6 +85,34 @@ class DisplayAdapterTests(unittest.TestCase):
             },
         )
 
+    @patch("lmdesktopplus.adapters.display.run_capture")
+    def test_sysfs_fallback_after_brightnessctl_read_failure_rejects_writes(
+        self, run_capture
+    ):
+        run_capture.side_effect = [
+            completed(stderr="read failed", returncode=1),
+            completed("100\n"),
+            completed(),
+        ]
+        with tempfile.TemporaryDirectory() as temp:
+            device = Path(temp) / "panel"
+            device.mkdir()
+            (device / "brightness").write_text("40\n", encoding="utf-8")
+            (device / "max_brightness").write_text("100\n", encoding="utf-8")
+            adapter = DisplayAdapter(
+                brightnessctl="/usr/bin/brightnessctl",
+                sysfs_root=Path(temp),
+            )
+
+            snapshot = adapter.snapshot()
+            result = adapter.command("set_brightness", {"brightness": 70})
+
+        self.assertEqual(snapshot["backend"], "sysfs")
+        self.assertFalse(snapshot["writable"])
+        self.assertFalse(result["ok"])
+        self.assertIn("read-only", result["error"])
+        self.assertEqual(run_capture.call_count, 2)
+
     @patch(
         "lmdesktopplus.adapters.display.run_capture",
         side_effect=subprocess.TimeoutExpired(["brightnessctl"], 3),
