@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Branching and PR stack
 
 LMDesktopPlus development is split into reviewable topic branches so a
@@ -50,3 +51,30 @@ After the topic stack exists:
 - Typed adapter snapshot envelope + `error_code` values
 - Cache locks, adapter exception boundaries, Host/Origin checks
 - Session arm state machine (`arm_once` / `disarm` / status values)
+=======
+# Branching and review stack
+
+Preferred base branch: `feature/lmdesktopplus`.
+
+## Open review topics
+
+| Branch | Scope | Notes |
+|---|---|---|
+| `cursor/fix-hyprland-mint-install-17f1` | Hyprland Mint install only | Supersedes the Hyprland portion of PR #1. Distro packages by default; community PPA requires `--allow-community-ppa`. |
+| `cursor/feature-debian-packaging-17f1` | `pyproject.toml`, desktop entry, `packaging/build-deb.sh` | Lands first; no machine UI. |
+| `cursor/feature-control-center-core-17f1` | Loopback machine UI + Digitalvapor + Stage A/B adapters | Stacks on packaging. Frontend/tests are coupled, so Digitalvapor and adapter stages ship together here rather than as separate PRs. |
+| `cursor/feature-adapter-contract-17f1` | Envelope, domain state, locks, origin checks, session arm/disarm | Stacks on control-center. |
+
+## Superseded / transitional
+
+| Branch / PR | Status |
+|---|---|
+| `fix/install-hyprland-on-mint` (PR #1) | Mega PR; Hyprland work moved to the fix branch above. Close after the successor merges. |
+| `cursor/stage-b-control-center-17f1` (PR #2) | Stage B tip on the mega history; prefer the packaging → control-center → contract stack for review. |
+
+## Not split further (yet)
+
+Separate PRs for Digitalvapor-only, Stage A-only, and Stage B-only were deferred:
+`static/app.js`, `server.py`, and the frontend asset tests share one surface, and
+extracting them without a broken intermediate tip cost more than it helped review.
+>>>>>>> 70f7dce (feat: harden adapter contract with envelopes and domain state)

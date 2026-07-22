@@ -17,17 +17,21 @@ class ServerTests(unittest.TestCase):
         self.server.server_close()
         self.thread.join(timeout=2)
 
-    def request(self, path, token=None, body=None):
-        headers = {}
+    def request(self, path, token=None, body=None, headers=None):
+        req_headers = {}
         if token is not None:
-            headers["X-LMDP-Token"] = token
+            req_headers["X-LMDP-Token"] = token
+        if headers:
+            req_headers.update(headers)
         data = None
         method = "GET"
         if body is not None:
             data = json.dumps(body).encode()
-            headers["Content-Type"] = "application/json"
+            req_headers["Content-Type"] = "application/json"
             method = "POST"
-        req = urllib.request.Request(self.url.rstrip("/") + path, data=data, headers=headers, method=method)
+        req = urllib.request.Request(
+            self.url.rstrip("/") + path, data=data, headers=req_headers, method=method
+        )
         return urllib.request.urlopen(req, timeout=10)
 
     def test_index_injects_token(self):
@@ -66,12 +70,76 @@ class ServerTests(unittest.TestCase):
         self.assertIn("session", payload["adapters"])
         self.assertIn("wallpaper", payload["adapters"])
         self.assertIn("hyprland_active", payload["adapters"]["session"])
+        self.assertIn("capabilities", payload["adapters"]["session"])
         self.assertIn("audio.volume", payload["assets"]["icons"])
         self.assertIn("display.brightness", payload["assets"]["icons"])
         self.assertIn("package.vapor-matrix-svg", payload["assets"]["wallpapers"])
         with self.assertRaises(urllib.error.HTTPError) as ctx:
             self.request("/api/v1/action", self.server.token, {"action": "launch", "target": "not-real"})
         self.assertEqual(ctx.exception.code, 400)
+
+    def test_domain_state_endpoints(self):
+        with self.request("/api/v1/state/core", self.server.token) as response:
+            core = json.load(response)
+        self.assertIn("version", core)
+        self.assertIn("settings", core)
+        self.assertNotIn("metrics", core)
+        self.assertNotIn("adapters", core)
+
+        with self.request("/api/v1/state/metrics", self.server.token) as response:
+            metrics = json.load(response)
+        self.assertIn("metrics", metrics)
+
+        with self.request("/api/v1/state/adapters", self.server.token) as response:
+            adapters = json.load(response)
+        self.assertIn("session", adapters["adapters"])
+
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self.request("/api/v1/state/not-a-domain", self.server.token)
+        self.assertEqual(ctx.exception.code, 404)
+
+    def test_api_rejects_cross_site_fetch(self):
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self.request(
+                "/api/v1/state",
+                self.server.token,
+                headers={"Sec-Fetch-Site": "cross-site"},
+            )
+        self.assertEqual(ctx.exception.code, 403)
+
+    def test_api_rejects_foreign_origin(self):
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self.request(
+                "/api/v1/state",
+                self.server.token,
+                headers={"Origin": "https://evil.example"},
+            )
+        self.assertEqual(ctx.exception.code, 403)
+
+    def test_adapter_command_maps_uncaught_exceptions(self):
+        class BoomAdapter:
+            id = "boom"
+
+            def available(self):
+                return True
+
+            def snapshot(self):
+                return {"available": True}
+
+            def command(self, name, payload):
+                raise TimeoutError("host hung")
+
+        self.server.state.adapters.register(BoomAdapter())
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self.request(
+                "/api/v1/adapter/boom",
+                self.server.token,
+                {"name": "ping", "payload": {}},
+            )
+        self.assertEqual(ctx.exception.code, 400)
+        body = json.loads(ctx.exception.read().decode())
+        self.assertEqual(body["error_code"], "timeout")
+        self.assertEqual(body["error"], "Adapter command failed")
 
     def test_adapter_command_route_dispatches_allowlisted_command(self):
         class StubAdapter:

@@ -16,6 +16,7 @@ from . import __version__
 from .actions import ActionRunner
 from .adapters import AdapterRegistry
 from .adapters.audio import AudioAdapter
+from .adapters.base import classify_exception, command_error
 from .adapters.bluetooth import BluetoothAdapter
 from .adapters.capture import CaptureAdapter
 from .adapters.clipboard import ClipboardAdapter
@@ -58,37 +59,81 @@ class ApplicationState:
         self.actions = ActionRunner(self.settings.get)
         self.started = time.time()
         self._cache: dict[str, tuple[float, Any]] = {}
+        self._cache_lock = threading.RLock()
+        self._key_locks: dict[str, threading.Lock] = {}
+        self._key_locks_guard = threading.Lock()
         # Prime CPU/net deltas so the first visible sample is useful.
         self.system.sample()
 
+    def _lock_for(self, key: str) -> threading.Lock:
+        with self._key_locks_guard:
+            lock = self._key_locks.get(key)
+            if lock is None:
+                lock = threading.Lock()
+                self._key_locks[key] = lock
+            return lock
+
     def cached(self, key: str, seconds: float, loader):
         now = time.monotonic()
-        entry = self._cache.get(key)
-        if entry and now - entry[0] < seconds:
-            return entry[1]
-        value = loader()
-        self._cache[key] = (now, value)
-        return value
+        with self._cache_lock:
+            entry = self._cache.get(key)
+            if entry and now - entry[0] < seconds:
+                return entry[1]
+        # Load outside the shared cache lock so slow host tools do not block
+        # unrelated keys; per-key lock collapses stampedes.
+        with self._lock_for(key):
+            now = time.monotonic()
+            with self._cache_lock:
+                entry = self._cache.get(key)
+                if entry and now - entry[0] < seconds:
+                    return entry[1]
+            value = loader()
+            with self._cache_lock:
+                self._cache[key] = (time.monotonic(), value)
+            return value
 
     def adapters_snapshot(self) -> dict[str, dict[str, Any]]:
         return self.adapters.as_dict()
 
-    def snapshot(self) -> dict[str, Any]:
+    def snapshot_core(self) -> dict[str, Any]:
         return {
             "version": __version__,
             "server_uptime_seconds": int(time.time() - self.started),
             "identity": self.system.identity(),
-            "metrics": self.system.sample(),
             "settings": self.settings.get(),
             "accents": ACCENTS,
             "agents": self.agents.list(),
-            "adapters": self.adapters_snapshot(),
+            "capabilities": self.actions.capabilities(),
+        }
+
+    def snapshot_metrics(self) -> dict[str, Any]:
+        return {"metrics": self.system.sample()}
+
+    def snapshot_adapters(self) -> dict[str, Any]:
+        return {"adapters": self.adapters_snapshot()}
+
+    def snapshot_network(self) -> dict[str, Any]:
+        return {"network": self.cached("network-current", 5.0, network.current)}
+
+    def snapshot_media(self) -> dict[str, Any]:
+        return {"media": self.cached("media", 1.5, media.status)}
+
+    def snapshot_assets(self) -> dict[str, Any]:
+        return {
             "assets": self.assets.as_dict(),
             "assets_revision": self.assets.revision(),
-            "capabilities": self.actions.capabilities(),
-            "network": self.cached("network-current", 5.0, network.current),
-            "media": self.cached("media", 1.5, media.status),
         }
+
+    def snapshot(self) -> dict[str, Any]:
+        # Aggregate kept for one release; domain endpoints prefer independent refresh.
+        out = {}
+        out.update(self.snapshot_core())
+        out.update(self.snapshot_metrics())
+        out.update(self.snapshot_adapters())
+        out.update(self.snapshot_assets())
+        out.update(self.snapshot_network())
+        out.update(self.snapshot_media())
+        return out
 
 
 class ControlServer(ThreadingHTTPServer):
@@ -97,7 +142,10 @@ class ControlServer(ThreadingHTTPServer):
     def __init__(self, address, state: ApplicationState):
         self.state = state
         self.token = secrets.token_urlsafe(32)
+        self.origin = f"http://{address[0]}:{address[1]}" if address[1] else None
         super().__init__(address, RequestHandler)
+        host, port = self.server_address[:2]
+        self.origin = f"http://{host}:{port}"
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -111,10 +159,27 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path == "/api/v1/state":
+        if parsed.path == "/api/v1/state" or parsed.path.startswith("/api/v1/state/"):
             if not self._authorized():
                 return
-            self._json(HTTPStatus.OK, self.server.state.snapshot())
+            domain = parsed.path.removeprefix("/api/v1/state").strip("/")
+            state = self.server.state
+            if domain in {"", "full"}:
+                self._json(HTTPStatus.OK, state.snapshot())
+                return
+            loaders = {
+                "core": state.snapshot_core,
+                "metrics": state.snapshot_metrics,
+                "adapters": state.snapshot_adapters,
+                "network": state.snapshot_network,
+                "media": state.snapshot_media,
+                "assets": state.snapshot_assets,
+            }
+            loader = loaders.get(domain)
+            if loader is None:
+                self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": f"unknown state domain: {domain}"})
+                return
+            self._json(HTTPStatus.OK, loader())
             return
         if parsed.path == "/api/v1/network/scan":
             if not self._authorized():
@@ -153,17 +218,20 @@ class RequestHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/v1/media":
             result = media.control(str(body.get("action", "")))
-            state._cache.pop("media", None)
+            with state._cache_lock:
+                state._cache.pop("media", None)
             self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
             return
         if path == "/api/v1/network/connect":
             result = network.connect_wifi(str(body.get("ssid", "")), str(body.get("password", "")) or None)
-            state._cache.pop("network-current", None)
+            with state._cache_lock:
+                state._cache.pop("network-current", None)
             self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
             return
         if path == "/api/v1/network/disconnect":
             result = network.disconnect(str(body.get("device", "")))
-            state._cache.pop("network-current", None)
+            with state._cache_lock:
+                state._cache.pop("network-current", None)
             self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
             return
         if path.startswith("/api/v1/adapter/"):
@@ -184,7 +252,13 @@ class RequestHandler(BaseHTTPRequestHandler):
             except KeyError:
                 self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": f"unknown adapter: {adapter_id}"})
                 return
-            result = adapter.command(name, payload)
+            try:
+                result = adapter.command(name, payload)
+            except Exception as exc:  # noqa: BLE001 — boundary for API JSON stability
+                code, _message = classify_exception(exc)
+                # Log details locally; never send raw exception text to the UI by default.
+                self.log_error("Adapter command failed adapter=%s name=%s err=%s", adapter_id, name, exc)
+                result = command_error(code if code != "internal_error" else "internal_error", "Adapter command failed")
             self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
             return
         self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "unknown endpoint"})
@@ -196,6 +270,34 @@ class RequestHandler(BaseHTTPRequestHandler):
         if self.headers.get("X-LMDP-Token") != self.server.token:
             self._json(HTTPStatus.UNAUTHORIZED, {"ok": False, "error": "invalid UI token"})
             return False
+        if not self._origin_allowed():
+            self._json(HTTPStatus.FORBIDDEN, {"ok": False, "error": "origin not allowed"})
+            return False
+        return True
+
+    def _origin_allowed(self) -> bool:
+        """Defense in depth on top of loopback + token checks."""
+        expected = self.server.origin
+        host = self.headers.get("Host", "")
+        if expected:
+            expected_host = expected.removeprefix("http://").removeprefix("https://")
+            if host and host not in {expected_host, "127.0.0.1", "localhost"} and not host.startswith(
+                ("127.0.0.1:", "localhost:")
+            ):
+                # Allow Host that matches our bound port even if hostname form differs.
+                if not host.endswith(f":{self.server.server_address[1]}"):
+                    return False
+        origin = self.headers.get("Origin")
+        if origin:
+            if origin not in {expected, "null"} and not origin.startswith(
+                ("http://127.0.0.1:", "http://localhost:")
+            ):
+                return False
+        site = self.headers.get("Sec-Fetch-Site", "")
+        if site and site not in {"same-origin", "same-site", "none", ""}:
+            # Browsers send cross-site for hostile embeds; reject those.
+            if site == "cross-site":
+                return False
         return True
 
     def _read_json(self) -> dict[str, Any] | None:
