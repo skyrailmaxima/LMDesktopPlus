@@ -1,198 +1,184 @@
 # LMDesktopPlus
 
-A one-command **vapor//matrix** desktop rice for Linux Mint. Cinnamon stays the
-default, daily-driver session; an optional Hyprland session is registered
-alongside it for a mockup-faithful, tiling-window-manager experience. Both
-sessions share the same palette, kitty/rofi/tmux/starship configs, and
-wallpaper, so switching sessions at the login screen never feels like
-switching themes.
+LMDesktopPlus is an installable **vapor//matrix machine UI and Linux Mint rice**.
+It keeps Cinnamon as the practical daily-driver desktop, can add an optional
+Hyprland session, and supplies a local control center for system telemetry,
+application launchers, agent workspaces, NetworkManager, media, settings, and
+desktop integration.
 
-[Original mockup preview](assets/preview/NeonRice-Vaporwave-Matrix-Rice.html)
+Version **0.4.2** adds Stage B control-center adapters (Bluetooth, notifications,
+updates, clipboard, screenshots) on top of Stage A audio/brightness/session/
+wallpaper controls. The control center retains the shared Digitalvapor component
+and semantic-token layer introduced in 0.3.0.
 
-> Screenshot/GIF coming soon — see `assets/preview/` for the original mockup
-> this rice is based on.
+## Install the machine UI
 
-## Hybrid model
-
-| Session | Role | Notes |
-|---------|------|-------|
-| **Cinnamon** (default) | Daily Mint desktop | Themed via GTK CSS + wallpaper + `gsettings` (dark GTK/icon theme hints). Always installed; never requires Hyprland. |
-| **Hyprland** (optional) | Mockup-faithful tiling rice | `hyprland.conf`, `waybar`, `rofi`, `kitty`, matching palette. Registered as a login-screen session **only if Hyprland is detected on `PATH`**. |
-
-Both sessions consume:
-
-- `palette/vapor-matrix.theme` — canonical palette/reference; app configs
-  currently hard-code matching hex values across kitty, rofi, tmux, starship,
-  GTK, and Hyprland/waybar.
-- `packages/shared/` — kitty, rofi, tmux, starship, bash snippet, and GTK CSS
-  configs, symlinked into `~/.config/...` (or `~/.tmux.conf`) so edits to the
-  repo are picked up immediately without re-running the installer.
-
-Hyprland support is **fail-soft**: if Hyprland isn't installed, `install.sh`
-finishes the Cinnamon setup successfully and just logs a skip with a pointer
-to [`docs/install-notes.md`](docs/install-notes.md) for manual setup.
-
-## Quick start
+The Debian package is the cleanest system-wide installation:
 
 ```bash
-git clone https://github.com/skyrailmaxima/LMDesktopPlus.git
-cd LMDesktopPlus
-./install.sh
+sudo apt install ./lmdesktopplus_0.4.2_all.deb
+lmdesktopplus
 ```
 
-Then log out and back in:
+Launch modes:
 
-- Pick **Cinnamon** for the themed daily-driver desktop (works out of the box).
-- Pick **Hyprland** at the login greeter if it was detected and registered.
+```bash
+lmdesktopplus             # embedded GTK/WebKit window
+lmdesktopplus --kiosk     # fullscreen control center
+lmdesktopplus --browser   # local browser fallback
+```
 
-Re-running `./install.sh` is idempotent — existing correct symlinks are left
-alone. Existing **config targets** that would be replaced are backed up first
-(see [Backups](#backups) below).
+For a user-local installation from source:
 
-To roll back config changes made by this installer:
+```bash
+./scripts/install-ui.sh
+~/.local/bin/lmdesktopplus
+```
+
+## Install the complete Mint rice
+
+```bash
+./install.sh                  # Cinnamon theme + machine UI
+./install.sh --with-hyprland  # also attempt Hyprland installation/setup
+./install.sh --no-ui          # rice/configuration only
+./install.sh --dry-run        # print the complete plan without changing files
+```
+
+`./switch.sh` installs the full setup with Hyprland and prepares a safe TTY
+switch workflow. Cinnamon remains available and is the recommended fallback.
+
+## Functional machine UI
+
+The local control center includes:
+
+- Internal lock scene plus an allowlisted system-lock action.
+- Live CPU, memory, disk, load, uptime, network, temperature, battery, and
+  supported GPU telemetry.
+- Rolling system-monitor charts.
+- Application launchers for terminal, tmux, editor, browser, Rofi, file
+  manager, settings, and monitoring tools.
+- Agent registry with dedicated homes, configurable workspaces, executable
+  detection, and optional Bubblewrap filesystem/network isolation.
+- NetworkManager Wi-Fi scanning, connection, and disconnection.
+- MPRIS media status and controls through `playerctl`.
+- Persistent appearance, behavior, feature, and agent configuration.
+- Generated GTK 3, GTK 4, and Hyprland appearance overlays.
+- A live Digitalvapor component laboratory for checking new panel features
+  before they are wired into production screens.
+
+## Security model
+
+The frontend talks to a Python standard-library HTTP server bound to
+`127.0.0.1` on a random port. Each launch receives a random token through a
+CSP-compatible metadata field, and every API request must present it.
+
+The backend has no arbitrary shell endpoint. Actions and launch targets are
+allowlisted. Wi-Fi passwords are passed directly to NetworkManager and are not
+persisted by LMDesktopPlus. Power actions remain disabled until explicitly
+enabled in settings.
+
+Bubblewrap is useful process/filesystem isolation for agents, but it is not a
+virtual machine and does not protect against kernel compromise.
+
+## Digitalvapor design system
+
+Frontend assets live in:
+
+```text
+src/lmdesktopplus/static/digitalvapor.css
+src/lmdesktopplus/static/digitalvapor.js
+src/lmdesktopplus/static/style.css
+src/lmdesktopplus/static/app.js
+```
+
+`digitalvapor.css` owns reusable tokens, utilities, components, effects, and
+chrome. `style.css` contains LMDesktopPlus-specific layouts and compatibility
+rules. `digitalvapor.js` provides dependency-free rain, tabs, dropdowns,
+context menus, dialogs, and toasts. `app.js` handles machine state and API
+operations.
+
+Embedded webfont payloads are deliberately not redistributed. The UI uses
+installed JetBrains Mono, DotGothic16, and Zen Dots families when available,
+with standard Linux fallbacks. The full rice installer can install or fetch
+those font families separately.
+
+See [`docs/digitalvapor-design-system.md`](docs/digitalvapor-design-system.md)
+for component conventions.
+
+## Configuration
+
+Persistent user files:
+
+```text
+~/.config/lmdesktopplus/settings.json
+~/.config/lmdesktopplus/agents.json
+~/.config/lmdesktopplus/hypr-generated.conf
+~/.local/share/lmdesktopplus/agents/<name>/
+```
+
+Generated appearance overlays:
+
+```text
+~/.config/gtk-3.0/lmdesktopplus-generated.css
+~/.config/gtk-4.0/lmdesktopplus-generated.css
+~/.config/lmdesktopplus/hypr-generated.conf
+```
+
+## Cinnamon and Hyprland
+
+| Session | Role | Notes |
+|---|---|---|
+| Cinnamon | Default Mint desktop | GTK CSS, wallpaper, dark-theme hints, shared terminal/launcher configuration |
+| Hyprland | Optional tiling session | Matching Hyprland, Waybar, Rofi, Kitty, wallpaper, and generated appearance overlay |
+
+Hyprland support is fail-soft. If it cannot be installed or detected, the
+Cinnamon and machine-UI installation still completes.
+
+## Repository layout
+
+```text
+src/lmdesktopplus/            Python backend and static machine UI
+packages/shared/              GTK, Kitty, Rofi, tmux, Starship, Bash
+packages/cinnamon/            Cinnamon integration notes
+packages/hyprland/            Hyprland, Waybar, and session files
+palette/                      Canonical vapor-matrix palette
+scripts/                      User installer and desktop helpers
+packaging/                    Debian package builder
+docs/                         Architecture, design system, install notes
+tests/                        Python, shell, frontend, and package checks
+assets/wallpapers/            Shared wallpaper source
+```
+
+## Build packages
+
+```bash
+./packaging/build-deb.sh
+python3 -m build --wheel
+```
+
+The resulting artifacts are placed under `dist/`.
+
+## Test
+
+```bash
+./tests/run-all.sh
+```
+
+The suite validates repository structure, shell behavior, Python compilation,
+API authorization, static asset delivery, settings, NetworkManager parsing,
+JavaScript syntax, installer dry-run behavior, Debian contents, and the absence
+of cached bytecode or bundled font files.
+
+## Uninstall
 
 ```bash
 ./uninstall.sh
 ```
 
-See [Uninstall](#uninstall) for what is and is not removed.
-
-## Flags
-
-`install.sh` and its environment variables:
-
-| Flag | Env equivalent | Effect |
-|------|-----------------|--------|
-| `--dry-run` | `DRY_RUN=1` | Print every planned action (apt installs, symlinks, gsettings, bashrc append, session registration) without touching the system. |
-| `--cinnamon-only` | — | Skip the Hyprland/waybar apt packages, config symlinks, and wayland-session registration entirely, even if Hyprland is present. |
-| `--force` | `FORCE=1` | Continue installing on a non-Mint, non-Debian-family OS instead of refusing. |
-| `-h`, `--help` | — | Print usage and exit. |
-
-Examples:
-
-```bash
-./install.sh --dry-run              # see what would happen, change nothing
-./install.sh --cinnamon-only        # Cinnamon-only box, skip Hyprland entirely
-FORCE=1 ./install.sh                # override the Mint/Debian-family check
-```
-
-## What gets installed
-
-1. Detects Linux Mint (warns and continues on Ubuntu/Debian-family, refuses
-   otherwise unless `--force`/`FORCE=1`).
-2. Installs shared apt packages (`kitty`, `rofi`, `tmux`, `btop`, `curl`,
-   `wget`, `git`, `fonts-jetbrains-mono`), plus `waybar`/`swaybg` unless
-   `--cinnamon-only`.
-3. Fetches display fonts (DotGothic16, Zen Dots) into
-   `~/.local/share/fonts/lmdesktopplus/`; failures are non-fatal and skipped
-   with a warning (JetBrains Mono ships via apt).
-4. Materializes the wallpaper and palette under
-   `~/.local/share/lmdesktopplus/` and rasterizes the SVG wallpaper to PNG
-   when a converter (`convert`, `rsvg-convert`, or `inkscape`) is available.
-5. Symlinks shared configs into `~/.config/...` (kitty, rofi, tmux, starship,
-   GTK 3/4 CSS, palette).
-6. Applies Cinnamon `gsettings` (wallpaper, best-effort dark GTK/icon theme).
-7. If Hyprland is detected: symlinks `hypr`/`waybar` configs and installs the
-   wayland session `.desktop` file via `sudo` so it shows up at the login
-   screen. If Hyprland is missing, this step is skipped with a log message.
-8. Appends a marked snippet (`# LMDesktopPlus begin` / `... end`) to
-   `~/.bashrc` — never touches the rest of your bashrc.
-
-## Backups
-
-Before replacing an existing **config target** (a file under `~/.config/...`,
-`~/.tmux.conf`, or `~/.bashrc` when appending the snippet), `install.sh`
-copies it to:
-
-```
-~/.lmdesktopplus-backup/<timestamp>/
-```
-
-Paths are preserved under that directory (for example,
-`~/.config/kitty/kitty.conf` is backed up as
-`~/.lmdesktopplus-backup/<timestamp>/.config/kitty/kitty.conf`).
-
-**Not backed up:** wallpaper and palette copies under
-`~/.local/share/lmdesktopplus/` are overwritten on each install; the Hyprland
-wayland-session `.desktop` file under `/usr/share/wayland-sessions/` is
-replaced without a home-directory backup.
-
-Apt packages, fonts, and Cinnamon `gsettings` are applied during install;
-those changes are outside the backup tree (see [Uninstall](#uninstall)).
-
-## Uninstall
-
-`./uninstall.sh` does **not** undo everything `install.sh` did. It:
-
-- Restores known config paths from the **newest** backup under
-  `~/.lmdesktopplus-backup/` (kitty, rofi, tmux, starship, GTK CSS, palette
-  symlink, hypr/waybar configs, and `.bashrc` if one was backed up)
-- Strips the `# LMDesktopPlus begin` / `# LMDesktopPlus end` block from
-  `~/.bashrc`
-- Removes LMDesktopPlus-owned config symlinks when there is no backup to
-  restore
-- Removes the Hyprland wayland-session file if it mentions LMDesktopPlus
-
-It **leaves in place:**
-
-- Apt packages installed by `install.sh` (including optional `waybar`/`swaybg`)
-- Fonts under `~/.local/share/fonts/lmdesktopplus/`
-- Wallpaper/palette under `~/.local/share/lmdesktopplus/`
-- Cinnamon `gsettings` changes (wallpaper, GTK/icon theme hints)
-- The backup tree under `~/.lmdesktopplus-backup/` (never deleted automatically)
-
-## Repository layout
-
-```
-install.sh / uninstall.sh   Entrypoints
-lib/                         common.sh, detect.sh, packages-apt.sh
-palette/                     vapor-matrix.theme (canonical palette/reference)
-packages/shared/             kitty, rofi, tmux, starship, bash, gtk-3.0/4.0
-packages/cinnamon/           Cinnamon package README (docs-only in v1)
-packages/hyprland/           hypr, waybar, wayland session .desktop
-scripts/                     apply-cinnamon-gsettings.sh, fetch-fonts.sh
-assets/                      wallpapers/, preview/ (original mockup)
-docs/                        install-notes.md and design docs
-tests/                       smoke-structure.sh
-```
-
-## Palette
-
-Canonical file: [`palette/vapor-matrix.theme`](palette/vapor-matrix.theme)
-
-| Token | Hex | Use |
-|-------|-----|-----|
-| mag | `#ff2e97` | Accent / active |
-| pink | `#ff71ce` | Secondary accent |
-| cyan | `#01cdfe` | Borders, highlights |
-| mint | `#05ffa1` | Cursor / success |
-| purple | `#b967ff` | Tertiary |
-| grn | `#00ff70` | Matrix green |
-| grn2 | `#8dffbe` | Soft green text |
-| amber | `#ffcc44` | Warnings / labels |
-| bg | `#05060a` | Base background |
-| bg2 | `#0b0817` | Elevated panels |
-
-## Testing
-
-```bash
-bash tests/smoke-structure.sh   # verifies expected files exist
-./install.sh --dry-run          # verifies install plan without changing anything
-```
-
-## Known caveats
-
-Hyprland support is best-effort on Linux Mint (there is no first-party apt
-package). See [`docs/install-notes.md`](docs/install-notes.md) for
-Hyprland-on-Mint installation guidance, manual session fallback, and font
-troubleshooting.
-
-## Non-goals (v1)
-
-Pulsar editor theming, agent sandbox directories, a Nix flake, a live
-matrix-rain wallpaper (static SVG/PNG only), and GNU Stow as the primary
-installer are all out of scope for v1.
+The uninstaller restores known configuration paths from the newest backup when
+possible and removes LMDesktopPlus-owned links and launchers. It intentionally
+does not remove apt packages, the backup tree, or unrelated user settings.
 
 ## License
 
-[MIT](LICENSE) © 2026 skyrailmaxima
+[MIT](LICENSE) © 2026 skyrailmaxima and LMDesktopPlus contributors

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digitalvapor — Settings template</title>
+<link rel="stylesheet" href="../digitalvapor.css">
+<style>
+  html,body{height:100%}
+  .stage{position:relative;z-index:2;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:56px 20px 20px}
+  .set{width:min(1000px,96vw);height:min(620px,86vh);display:flex}
+  .set__nav{width:220px;flex:none;display:flex;flex-direction:column;border-right:1px solid var(--dv-line-soft);background:var(--dv-panel-2)}
+  .set__panel{flex:1;overflow:auto;padding:26px 30px}
+</style>
+</head>
+<body class="dv-flicker">
+<canvas class="dv-rain" data-dv-rain data-dv-intensity="50"></canvas>
+
+<!-- waybar -->
+<div class="dv-bar">
+  <div class="dv-bar__group"><span class="dv-jp dv-mag dv-glow" style="font-size:16px">墨</span><span class="dv-ink">vaporframe</span></div>
+  <div class="dv-bar__group dv-muted"><span class="dv-cyan">◈</span> system settings</div>
+  <div class="dv-bar__group"><a href="../index.html" class="dv-bar__stat">← pack</a></div>
+</div>
+
+<div class="stage">
+  <div class="dv-window set">
+    <!-- category nav -->
+    <div class="set__nav">
+      <div style="padding:16px;border-bottom:1px solid var(--dv-line-soft)" class="dv-row dv-gap-2" >
+        <span class="dv-jp dv-mag dv-glow" style="font-size:20px">設定</span><span class="dv-disp dv-ink" style="font-size:15px">Settings</span>
+      </div>
+      <div style="flex:1;padding:8px 0">
+        <div class="dv-navitem is-active"><span class="dv-jp">外観</span> Appearance</div>
+        <div class="dv-navitem"><span class="dv-jp">画面</span> Display</div>
+        <div class="dv-navitem"><span class="dv-jp">網</span> Network</div>
+        <div class="dv-navitem"><span class="dv-jp">代理</span> Agents</div>
+        <div class="dv-navitem"><span class="dv-jp">鍵</span> Keybinds</div>
+        <div class="dv-navitem"><span class="dv-jp">情報</span> About</div>
+      </div>
+      <div style="padding:12px 16px;border-top:1px solid var(--dv-line-soft);font-size:10px;letter-spacing:1px" class="dv-muted">vapor//matrix · v1.0</div>
+    </div>
+
+    <!-- panel -->
+    <div class="set__panel">
+      <h2 style="margin-bottom:2px">Appearance</h2>
+      <div class="dv-muted" style="font-size:12px;margin-bottom:22px">theme · fonts · compositor style</div>
+
+      <div class="dv-kicker" style="margin-bottom:10px">◈ Accent</div>
+      <div class="dv-row dv-gap-2" style="align-items:center;margin-bottom:26px">
+        <label class="dv-choice dv-radio" style="padding:0"><input type="radio" name="acc" checked><span class="dv-mark" style="width:30px;height:30px;background:var(--dv-mag);border-color:var(--dv-mag)"></span></label>
+        <label class="dv-choice dv-radio" style="padding:0"><input type="radio" name="acc"><span class="dv-mark" style="width:30px;height:30px;background:var(--dv-cyan)"></span></label>
+        <label class="dv-choice dv-radio" style="padding:0"><input type="radio" name="acc"><span class="dv-mark" style="width:30px;height:30px;background:var(--dv-mint)"></span></label>
+        <label class="dv-choice dv-radio" style="padding:0"><input type="radio" name="acc"><span class="dv-mark" style="width:30px;height:30px;background:var(--dv-purple)"></span></label>
+        <label class="dv-choice dv-radio" style="padding:0"><input type="radio" name="acc"><span class="dv-mark" style="width:30px;height:30px;background:var(--dv-amber)"></span></label>
+      </div>
+
+      <div class="dv-kicker" style="margin-bottom:10px">◈ Fonts</div>
+      <div class="dv-grid dv-grid-3" style="margin-bottom:26px">
+        <div class="dv-card dv-card--mag" style="cursor:pointer"><div class="dv-disp dv-ink" style="font-size:24px">Aa 現</div><div style="font-size:12px;color:#fff;margin-top:6px">Zen Dots</div><div class="dv-muted" style="font-size:10px">display</div></div>
+        <div class="dv-card" style="cursor:pointer"><div class="dv-mono dv-ink" style="font-size:24px">Aa 現</div><div style="font-size:12px;color:#fff;margin-top:6px">JetBrains Mono</div><div class="dv-muted" style="font-size:10px">code · ui</div></div>
+        <div class="dv-card" style="cursor:pointer"><div class="dv-jp dv-ink" style="font-size:24px">現実仮</div><div style="font-size:12px;color:#fff;margin-top:6px">DotGothic16</div><div class="dv-muted" style="font-size:10px">jp accents</div></div>
+      </div>
+
+      <div class="dv-grid dv-grid-2" style="gap:26px 40px">
+        <div class="dv-field"><div class="dv-between"><label>Terminal opacity</label><span class="dv-ink">90%</span></div>
+          <input type="range" class="dv-slider" min="40" max="100" value="90"></div>
+        <div class="dv-field"><div class="dv-between"><label>Blur passes</label><span class="dv-ink">9px</span></div>
+          <input type="range" class="dv-slider dv-slider--cyan" min="0" max="24" value="9"></div>
+
+        <div>
+          <label class="dv-muted" style="font-size:12px;display:block;margin-bottom:10px">Window surface</label>
+          <label class="dv-choice dv-radio"><input type="radio" name="surf" checked><span class="dv-mark"></span>Blur + transparency</label>
+          <label class="dv-choice dv-radio"><input type="radio" name="surf"><span class="dv-mark"></span>Solid opaque</label>
+          <label class="dv-choice dv-radio"><input type="radio" name="surf"><span class="dv-mark"></span>Acrylic frost</label>
+        </div>
+
+        <div>
+          <label class="dv-muted" style="font-size:12px;display:block;margin-bottom:10px">Default layout</label>
+          <div class="dv-seg" style="margin-bottom:16px">
+            <label class="dv-seg__opt"><input type="radio" name="lay" checked>tiled</label>
+            <label class="dv-seg__opt"><input type="radio" name="lay">floating</label>
+            <label class="dv-seg__opt"><input type="radio" name="lay">tabbed</label>
+          </div>
+          <div class="dv-between" style="padding:5px 0;font-size:13px">Window gaps <label class="dv-toggle"><input type="checkbox" checked><span class="dv-track"></span></label></div>
+          <div class="dv-between" style="padding:5px 0;font-size:13px">Rounded corners <label class="dv-toggle"><input type="checkbox"><span class="dv-track"></span></label></div>
+          <div class="dv-between" style="padding:5px 0;font-size:13px">Drop shadows <label class="dv-toggle"><input type="checkbox" checked><span class="dv-track"></span></label></div>
+        </div>
+      </div>
+
+      <div class="dv-row" style="justify-content:flex-end;gap:10px;margin-top:26px">
+        <button class="dv-btn dv-btn--ghost">Reset</button>
+        <button class="dv-btn dv-btn--primary" onclick="Digitalvapor.toast({title:'settings',body:'appearance saved',tone:'mint'})">Apply</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../digitalvapor.js" defer></script>
+</body>
+</html>

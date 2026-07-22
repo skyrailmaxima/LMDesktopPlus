@@ -1,0 +1,16 @@
+{
+  "audio.volume": {"file": "volume.svg", "label": "Volume"},
+  "audio.mute": {"file": "volume-mute.svg", "label": "Mute"},
+  "display.brightness": {"file": "brightness.svg", "label": "Brightness"},
+  "bluetooth": {"file": "bluetooth.svg", "label": "Bluetooth"},
+  "notify": {"file": "notify.svg", "label": "Notifications"},
+  "update": {"file": "update.svg", "label": "Updates"},
+  "session.hyprland": {"file": "hyprland.svg", "label": "Hyprland"},
+  "session.cinnamon": {"file": "cinnamon.svg", "label": "Cinnamon"},
+  "wallpaper": {"file": "wallpaper.svg", "label": "Wallpaper"},
+  "clipboard": {"file": "clipboard.svg", "label": "Clipboard"},
+  "camera": {"file": "camera.svg", "label": "Screenshot"},
+  "vpn": {"file": "vpn.svg", "label": "VPN"},
+  "usb": {"file": "usb.svg", "label": "USB"},
+  "power": {"file": "power.svg", "label": "Power"}
+}

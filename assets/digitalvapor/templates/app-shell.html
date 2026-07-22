@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digitalvapor — App shell template</title>
+<link rel="stylesheet" href="../digitalvapor.css">
+<style>
+  html,body{height:100%}
+  .shell{display:flex;flex-direction:column;height:100vh}
+  .shell__body{flex:1;display:flex;min-height:0}
+  .main{flex:1;overflow:auto;padding:24px 28px 90px}
+</style>
+</head>
+<body class="dv-flicker">
+<canvas class="dv-rain" data-dv-rain data-dv-intensity="45"></canvas>
+
+<div class="shell" style="position:relative;z-index:2">
+  <!-- waybar -->
+  <div class="dv-bar">
+    <div class="dv-bar__group">
+      <span class="dv-jp dv-mag dv-glow" style="font-size:16px">墨</span>
+      <span class="dv-bar__ws is-active">1 家</span>
+      <span class="dv-bar__ws">2 端</span>
+      <span class="dv-bar__ws">3 網</span>
+      <span class="dv-bar__ws">4 設</span>
+    </div>
+    <div class="dv-bar__group dv-muted"><span class="dv-cyan">◈</span> dashboard — neon-api</div>
+    <div class="dv-bar__group" style="font-size:12px">
+      <span class="dv-purple"> 65%</span><span class="dv-mint"> 41%</span><span class="dv-cyan"> ↓2.1M</span><span class="dv-amber"> 82%</span>
+      <span class="dv-ink">14:22</span><span class="dv-jp dv-mag">火</span>
+    </div>
+  </div>
+
+  <div class="shell__body">
+    <!-- sidebar -->
+    <aside class="dv-sidepanel">
+      <div style="padding:16px 14px;border-bottom:1px solid var(--dv-line-soft)" class="dv-between">
+        <span class="dv-disp dv-ink" style="font-size:15px">CONSOLE</span>
+        <span class="dv-tag dv-tag--mint"><span class="dv-tag__dot"></span>live</span>
+      </div>
+      <div style="padding:8px 0;flex:1">
+        <div class="dv-navitem is-active"><span class="dv-jp">盤</span> Overview</div>
+        <div class="dv-navitem"><span class="dv-jp">代</span> Agents</div>
+        <div class="dv-navitem"><span class="dv-jp">監</span> Monitor</div>
+        <div class="dv-navitem"><span class="dv-jp">網</span> Network</div>
+        <div class="dv-navitem"><span class="dv-jp">記</span> Logs</div>
+        <div class="dv-navitem"><span class="dv-jp">設</span> Settings</div>
+      </div>
+      <div style="padding:12px 14px;border-top:1px solid var(--dv-line-soft)">
+        <button class="dv-btn dv-btn--primary dv-btn--block" data-dv-dialog="spawn">Spawn agent</button>
+      </div>
+    </aside>
+
+    <!-- main -->
+    <main class="main" data-dv-menu>
+      <div class="dv-between" style="margin-bottom:20px">
+        <div><div class="dv-kicker">workspace</div><h2 style="margin:0">Overview</h2></div>
+        <div class="dv-row dv-gap-2">
+          <div class="dv-dropdown" data-dv-dropdown style="width:150px">
+            <div class="dv-dropdown__toggle"><span>last 24h</span><span class="dv-cyan">▾</span></div>
+            <div class="dv-dropdown__list">
+              <div class="dv-dropdown__item is-active">last 24h</div>
+              <div class="dv-dropdown__item">last 7d</div>
+              <div class="dv-dropdown__item">last 30d</div>
+            </div>
+          </div>
+          <button class="dv-btn dv-btn--outline">Export</button>
+        </div>
+      </div>
+
+      <!-- stat cards -->
+      <div class="dv-grid dv-grid-4" style="margin-bottom:20px">
+        <div class="dv-card"><div class="dv-kicker">requests</div><div class="dv-disp dv-ink" style="font-size:26px">1.84M</div><div class="dv-mint" style="font-size:12px">▲ 12%</div></div>
+        <div class="dv-card"><div class="dv-kicker">p95 latency</div><div class="dv-disp dv-ink" style="font-size:26px">22ms</div><div class="dv-mint" style="font-size:12px">▼ 4ms</div></div>
+        <div class="dv-card"><div class="dv-kicker">error rate</div><div class="dv-disp dv-ink" style="font-size:26px">0.3%</div><div class="dv-amber" style="font-size:12px">▲ 0.1%</div></div>
+        <div class="dv-card"><div class="dv-kicker">agents</div><div class="dv-disp dv-ink" style="font-size:26px">3</div><div class="dv-cyan" style="font-size:12px">2 active</div></div>
+      </div>
+
+      <div class="dv-grid dv-grid-2" style="align-items:start">
+        <!-- build panel -->
+        <div class="dv-card">
+          <div class="dv-card__title">Current build</div>
+          <div class="dv-progress" style="margin:6px 0 8px"><div class="dv-progress__bar" style="width:72%"></div></div>
+          <div class="dv-between"><span class="dv-muted">compiling · release</span><span class="dv-cyan">72%</span></div>
+          <div class="dv-row dv-gap-2" style="align-items:center;margin-top:14px"><span class="dv-spinner"></span><span class="dv-muted">cargo build --release</span></div>
+        </div>
+        <!-- agents panel -->
+        <div class="dv-card dv-card--mag">
+          <div class="dv-card__title">Agents</div>
+          <div class="dv-col dv-gap-2">
+            <div class="dv-between"><span><span class="dv-tag__dot dv-mag" style="display:inline-block;width:6px;height:6px;background:var(--dv-mag);box-shadow:0 0 6px var(--dv-mag)"></span> claude · sonnet-4.5</span><span class="dv-tag dv-tag--mint">active</span></div>
+            <div class="dv-between dv-muted"><span><span style="display:inline-block;width:6px;height:6px;background:var(--dv-cyan)"></span> cursor · composer</span><span class="dv-tag">idle</span></div>
+            <div class="dv-between dv-muted"><span><span style="display:inline-block;width:6px;height:6px;background:var(--dv-mint)"></span> aider · gpt-4o</span><span class="dv-tag">idle</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- log tabs -->
+      <div class="dv-card" style="margin-top:20px">
+        <div class="dv-tabs" data-dv-tabs data-dv-panels="#logout">
+          <div class="dv-tab is-active" data-dv-panel="req">Requests</div>
+          <div class="dv-tab" data-dv-panel="err">Errors</div>
+          <div class="dv-tab" data-dv-panel="agt">Agent</div>
+        </div>
+        <div id="logout" class="dv-mono" style="padding:14px 4px;font-size:12px;line-height:1.7">
+          <div data-dv-panel-content="req">
+            <div class="dv-mint">GET  /health        200  1ms</div>
+            <div class="dv-cyan">POST /auth/login    200  22ms</div>
+            <div class="dv-amber">POST /auth/login    429  rate-limited</div>
+            <div class="dv-mint">GET  /api/notes     200  6ms</div>
+          </div>
+          <div data-dv-panel-content="err" style="display:none">
+            <div class="dv-amber">429  too many requests · /auth/login</div>
+            <div class="dv-muted">no fatal errors in window</div>
+          </div>
+          <div data-dv-panel-content="agt" style="display:none">
+            <div class="dv-mag">⏺ claude</div>
+            <div class="dv-muted">&nbsp;&nbsp;rate limiter added · opening PR<span class="dv-caret"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <p class="dv-muted" style="margin-top:14px;font-size:11px">tip: right-click anywhere for the context menu.</p>
+
+      <div class="dv-menu">
+        <div class="dv-menu__item">New panel</div>
+        <div class="dv-menu__item">Refresh data</div>
+        <div class="dv-menu__item">Spawn agent…</div>
+        <div class="dv-menu__sep"></div>
+        <div class="dv-menu__item">Export view</div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- dock -->
+<div class="dv-dock">
+  <div class="dv-dock__item is-active"><span class="dv-dock__glyph">盤</span><span class="dv-dock__label">Board</span></div>
+  <div class="dv-dock__item"><span class="dv-dock__glyph">端</span><span class="dv-dock__label">Term</span></div>
+  <div class="dv-dock__item"><span class="dv-dock__glyph">網</span><span class="dv-dock__label">Web</span></div>
+  <div class="dv-dock__item"><span class="dv-dock__glyph">設</span><span class="dv-dock__label">Config</span></div>
+</div>
+
+<!-- spawn dialog -->
+<div class="dv-dialog-backdrop" id="spawn">
+  <div class="dv-dialog">
+    <div class="dv-dialog__bar"><span class="dv-jp dv-mag">確認</span> Spawn agent</div>
+    <div class="dv-dialog__body">
+      <div class="dv-field" style="margin-bottom:14px"><label>Agent</label>
+        <div class="dv-dropdown" data-dv-dropdown><div class="dv-dropdown__toggle"><span>claude</span><span class="dv-cyan">▾</span></div>
+          <div class="dv-dropdown__list"><div class="dv-dropdown__item is-active">claude</div><div class="dv-dropdown__item">cursor</div><div class="dv-dropdown__item">aider</div></div></div>
+      </div>
+      Mounts a scoped <span class="dv-cyan">$HOME</span> with <span class="dv-amber">rw</span> on <span class="dv-amber">~/work</span>.
+    </div>
+    <div class="dv-dialog__actions">
+      <button class="dv-btn dv-btn--ghost" data-dv-close>Cancel</button>
+      <button class="dv-btn dv-btn--primary" data-dv-close onclick="Digitalvapor.toast({title:'claude',body:'agent spawned · ~/agents/claude',tone:'mint'})">Spawn</button>
+    </div>
+  </div>
+</div>
+
+<script src="../digitalvapor.js" defer></script>
+</body>
+</html>
