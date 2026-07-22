@@ -295,27 +295,27 @@ git commit -m "feat: add icon asset hash map for machine UI chrome"
 
 ### Task 8: BluetoothAdapter
 - `bluetoothctl` scan/connect/disconnect/power; 5s scan cache; UI under Settings → Network or new tab.
-- Commit `feat: bluetooth adapter`
+- [x] Commit `feat: bluetooth adapter`
 
 ### Task 9: NotificationsAdapter
 - List recent via `gdbus` call to `org.freedesktop.Notifications` if available; `do_not_disturb` setting; `notify-send` test.
 - Host notification history may be limited — document fallback “send test only”.
-- Commit `feat: notification bridge and DND toggle`
+- [x] Commit `feat: notification bridge and DND toggle`
 
 ### Task 10: UpdatesAdapter
 - Detect `mintupdate` GUI launch + `apt list --upgradable` count (cached 10 min).
 - Badge on dock/settings; button opens Mint Update.
-- Commit `feat: pending update count and MintUpdate launcher`
+- [x] Commit `feat: pending update count and MintUpdate launcher`
 
 ### Task 11: ClipboardAdapter
 - `wl-paste`/`xclip` read (+ optional history ring of last 20 in memory only, never disk).
-- Commit `feat: clipboard peek and copy actions`
+- [x] Commit `feat: clipboard peek and copy actions`
 
 ### Task 12: ScreenshotAdapter (capture)
 - Hyprland: `grim` (+ `slurp` for region); Cinnamon: `gnome-screenshot` / `spectacle` fallback.
 - Save under `~/Pictures/lmdesktopplus/` ; open folder allowlisted.
-- Commit `feat: screenshot capture actions`
-- Commit `release: 0.4.2 stage B control center`
+- [x] Commit `feat: screenshot capture actions`
+- [x] Commit `release: 0.4.2 stage B control center`
 
 **Stage B exit criteria:** all five adapters fail-soft; UI panels exist; Suggests documented in `docs/adapters.md`.
 

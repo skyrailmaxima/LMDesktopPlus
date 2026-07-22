@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.2 — Stage B control center
+
+- Added BluetoothAdapter (`bluetoothctl`) with power, timed scan, connect, and
+  disconnect controls in Settings → Network.
+- Added NotificationsAdapter with `notify-send` test notifications, local
+  do-not-disturb, and best-effort Cinnamon `gsettings` DND sync.
+- Added UpdatesAdapter with a 10-minute cached `apt list --upgradable` count,
+  Mint Update launcher, and topbar badge.
+- Added ClipboardAdapter with Wayland (`wl-clipboard`) / X11 (`xclip`) routing,
+  truncated peek, copy/clear, and an in-memory history ring.
+- Added CaptureAdapter with `grim`/`slurp` or `gnome-screenshot`, saving only
+  under `~/Pictures/lmdesktopplus/`.
+- Documented the Stage B adapter matrix and optional Suggests binaries.
+
 ## 0.4.0 — Stage A machine controls
 
 - Added an adapter registry and cached host adapters for PipeWire/PulseAudio

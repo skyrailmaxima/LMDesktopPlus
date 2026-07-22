@@ -56,17 +56,30 @@ Stage A controls reuse packaged Digitalvapor primitives (`dv-slider`,
 export matches the prior styleguide content (UUID remaps only); icons for Stage
 A live under `static/icons/` rather than inside that HTML pack.
 
-## Planned optional integrations
+## Stage B matrix
 
-These binaries are optional suggestions, not hard package dependencies:
+| Adapter | Preferred integration | Fallback | Commands | TTL | Missing-tool behavior |
+|---|---|---|---|---|---|
+| `bluetooth` | `bluetoothctl` | none | `power`, `scan`, `connect`, `disconnect` | 5s | Unavailable without BlueZ tools; Blocked power hints `rfkill` |
+| `notifications` | `notify-send` + Cinnamon `gsettings` DND | local `behavior.do_not_disturb` | `send_test`, `set_dnd` | 5s | Always available for DND; send requires `notify-send` (no history API) |
+| `updates` | `apt list --upgradable` | — | `refresh`, `open` (`mintupdate`) | 600s | Unavailable without `apt`; open disabled without Mint Update |
+| `clipboard` | `wl-paste` / `wl-copy` (Wayland) | `xclip` (X11) | `peek`, `copy`, `clear`, `history` (RAM only) | 2s | Unavailable without a session-matched tool; never writes clipboard to disk |
+| `capture` | `grim` (+ `slurp` region) | `gnome-screenshot` | `full`, `region`, `open_folder` | 60s capability | Unavailable without tools; saves only under `~/Pictures/lmdesktopplus/` |
+
+## Optional Suggests (not hard Depends)
+
+| Concern | Preferred tools | Notes |
+|---|---|---|
+| Bluetooth | `bluez`, `bluez-utils` | Provides `bluetoothctl` |
+| Notifications | `libnotify-bin` | Provides `notify-send` |
+| Clipboard | `wl-clipboard`, `xclip` | Session-routed |
+| Screenshots | `grim`, `slurp`, `gnome-screenshot` | Hyprland vs Cinnamon |
+| Updates | `mintupdate` | Launcher only; counting uses `apt` |
+
+## Stage C+ (still planned)
 
 | Concern | Preferred tools | Fallback or limitation |
 |---|---|---|
-| Bluetooth | `bluetoothctl` | Adapter unavailable without BlueZ tools |
-| Notifications | `gdbus`, `notify-send` | Some desktops do not expose notification history |
-| Updates | `mintupdate` | `apt` for a cached upgradable count |
-| Clipboard | `wl-paste`, `wl-copy` | `xclip` on X11 |
-| Screenshots | `grim`, optionally `slurp` | `gnome-screenshot` on Cinnamon |
 | VPN | `nmcli` | No credentials are stored by LMDesktopPlus |
 | Removable storage | `lsblk`, `udisksctl` | Operations remain device-allowlisted |
 

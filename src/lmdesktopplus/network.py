@@ -78,12 +78,12 @@ def scan_wifi(rescan: bool = False) -> dict[str, Any]:
 
 
 def connect_wifi(ssid: str, password: str | None = None) -> dict[str, Any]:
-    if not available():
-        return {"ok": False, "error": "nmcli is not installed"}
     if not ssid or len(ssid) > 128:
         return {"ok": False, "error": "invalid SSID"}
     if password is not None and len(password) > 256:
         return {"ok": False, "error": "invalid password"}
+    if not available():
+        return {"ok": False, "error": "nmcli is not installed"}
     argv = ["nmcli", "device", "wifi", "connect", ssid]
     if password:
         argv += ["password", password]
