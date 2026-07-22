@@ -764,6 +764,7 @@ function renderSettingsTab() {
     return `${control("Display brightness",display.backend || "internal panel",displayControl)}
       ${control("Output volume",audio.backend || "default audio sink",audioControl)}
       ${control("Desktop session","One-shot handoff through a real login TTY",sessionHandoffControl())}
+      ${notificationsSettingsPanel()}
       ${toggleControl("Start fullscreen","Open the embedded machine UI fullscreen","behavior.start_fullscreen",behavior.start_fullscreen)}
       ${toggleControl("Show shortcut hints","Show keyboard hints on the desktop scene","behavior.show_hints",behavior.show_hints)}
       ${control("Poll interval",`${behavior.poll_interval_ms} ms`,`<input class="dv-slider" type="range" min="500" max="5000" step="250" value="${behavior.poll_interval_ms}" data-setting="behavior.poll_interval_ms" data-number>`)}
@@ -803,6 +804,19 @@ function bluetoothSettingsPanel() {
     return `<div class="network-row"><div><strong class="white">${esc(d.name)}</strong><div class="muted">${esc(d.mac)}${d.connected ? " · connected" : ""}</div></div><button class="${btnClass}" data-bt-device="${esc(d.mac)}" data-bt-action="${action}">${label}</button></div>`;
   }).join("");
   return `<div class="setting-group" style="margin-top:24px"><h3>Bluetooth</h3><div class="audio-control__header">${icon}${powerBadge}</div><div class="button-row" style="margin-top:12px"><button class="btn primary dv-btn dv-btn--primary" data-bt-power="${bt.powered ? "off" : "on"}">${bt.powered ? "POWER OFF" : "POWER ON"}</button><button class="btn dv-btn dv-btn--outline" data-bt-scan>SCAN (5s)</button></div><div style="margin-top:16px">${devices || '<p class="muted">No known devices. Scan to discover nearby Bluetooth devices.</p>'}</div></div>`;
+}
+
+function notificationsSettingsPanel() {
+  const notes = app.state?.adapters?.notifications || {};
+  const behavior = app.state?.settings?.behavior || {};
+  const dnd = Boolean(notes.dnd ?? behavior.do_not_disturb);
+  const icon = assetIcon("notify", "session-icon");
+  const sendDisabled = !notes.can_send || dnd ? "disabled" : "";
+  const note = notes.can_send
+    ? (notes.dnd_backend === "cinnamon" ? "Cinnamon display-notifications + local DND" : "Local DND; notify-send for tests")
+    : "notify-send missing — DND still works locally";
+  return `${control("Do not disturb", note, `<label class="toggle dv-toggle"><input type="checkbox" data-notify-dnd ${dnd?"checked":""}><span class="toggle-track dv-track"><span class="toggle-knob"></span></span><span>${dnd?"ON":"OFF"}</span></label>`)}
+    <div class="button-row" style="margin-top:8px">${icon}<button class="btn dv-btn dv-btn--outline" data-notify-test ${sendDisabled}>SEND TEST NOTIFICATION</button></div>`;
 }
 
 function renderAgentSettings() {
@@ -913,6 +927,32 @@ async function bluetoothDevice(action, mac) {
     renderScene(true);
   } catch (error) {
     toast(`Bluetooth ${action} failed`, error.message, true);
+  }
+}
+
+async function sendNotificationsCommand(name, payload={}) {
+  return api("/api/v1/adapter/notifications", {method:"POST", body:{name, payload}});
+}
+
+async function setDoNotDisturb(enabled) {
+  try {
+    await sendNotificationsCommand("set_dnd", {enabled});
+    if (app.state?.adapters?.notifications) app.state.adapters.notifications.dnd = enabled;
+    if (app.state?.settings?.behavior) app.state.settings.behavior.do_not_disturb = enabled;
+    toast(enabled ? "Do not disturb on" : "Do not disturb off");
+    renderScene(true);
+  } catch (error) {
+    toast("DND change failed", error.message, true);
+  }
+}
+
+async function sendTestNotification() {
+  try {
+    const result = await sendNotificationsCommand("send_test", {});
+    if (result.skipped) toast("Notification skipped", "Do not disturb is on");
+    else toast("Test notification sent");
+  } catch (error) {
+    toast("Test notification failed", error.message, true);
   }
 }
 
@@ -1084,6 +1124,8 @@ function bindSceneEvents() {
   $$('[data-bt-power]', root).forEach(n=>n.addEventListener("click",()=>bluetoothPower(n.dataset.btPower === "on")));
   $$('[data-bt-scan]', root).forEach(n=>n.addEventListener("click",bluetoothScan));
   $$('[data-bt-device]', root).forEach(n=>n.addEventListener("click",()=>bluetoothDevice(n.dataset.btAction, n.dataset.btDevice)));
+  $$('[data-notify-dnd]', root).forEach(n=>n.addEventListener("change",()=>setDoNotDisturb(n.checked)));
+  $$('[data-notify-test]', root).forEach(n=>n.addEventListener("click",sendTestNotification));
   $$('[data-connect-ssid]', root).forEach(n=>n.addEventListener("click",()=>{
     const ssid=decodeURIComponent(n.dataset.connectSsid);
     const network=(app.networkScan?.networks||[]).find(x=>x.ssid===ssid);

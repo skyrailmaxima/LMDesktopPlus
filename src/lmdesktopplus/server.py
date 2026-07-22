@@ -18,6 +18,7 @@ from .adapters import AdapterRegistry
 from .adapters.audio import AudioAdapter
 from .adapters.bluetooth import BluetoothAdapter
 from .adapters.display import DisplayAdapter
+from .adapters.notifications import NotificationsAdapter
 from .adapters.session import SessionAdapter
 from .adapters.wallpaper import WallpaperAdapter
 from .agents import AgentRegistry
@@ -38,6 +39,12 @@ class ApplicationState:
         self.adapters.register(DisplayAdapter())
         self.adapters.register(SessionAdapter())
         self.adapters.register(BluetoothAdapter())
+        self.adapters.register(
+            NotificationsAdapter(
+                settings_get=self.settings.get,
+                settings_update=self.settings.update,
+            )
+        )
         self.wallpaper = WallpaperAdapter()
         self.adapters.register(self.wallpaper)
         self.assets = AssetCatalog(self.wallpaper.wallpaper_map)

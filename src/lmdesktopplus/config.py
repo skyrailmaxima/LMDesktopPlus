@@ -36,6 +36,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "show_hints": True,
         "poll_interval_ms": 1000,
         "allow_power_actions": False,
+        "do_not_disturb": False,
     },
     "features": {
         "claude": True,
@@ -106,6 +107,7 @@ class SettingsStore:
         behavior["start_fullscreen"] = bool(behavior.get("start_fullscreen", False))
         behavior["show_hints"] = bool(behavior.get("show_hints", True))
         behavior["allow_power_actions"] = bool(behavior.get("allow_power_actions", False))
+        behavior["do_not_disturb"] = bool(behavior.get("do_not_disturb", False))
         behavior["poll_interval_ms"] = max(500, min(10000, int(behavior.get("poll_interval_ms", 1000))))
         result["features"] = {str(k): bool(v) for k, v in result.get("features", {}).items()}
         return result
