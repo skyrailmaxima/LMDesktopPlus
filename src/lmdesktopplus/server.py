@@ -16,6 +16,7 @@ from . import __version__
 from .actions import ActionRunner
 from .adapters import AdapterRegistry
 from .adapters.audio import AudioAdapter
+from .adapters.bluetooth import BluetoothAdapter
 from .adapters.display import DisplayAdapter
 from .adapters.session import SessionAdapter
 from .adapters.wallpaper import WallpaperAdapter
@@ -36,6 +37,7 @@ class ApplicationState:
         self.adapters.register(AudioAdapter())
         self.adapters.register(DisplayAdapter())
         self.adapters.register(SessionAdapter())
+        self.adapters.register(BluetoothAdapter())
         self.wallpaper = WallpaperAdapter()
         self.adapters.register(self.wallpaper)
         self.assets = AssetCatalog(self.wallpaper.wallpaper_map)

@@ -784,7 +784,25 @@ function renderNetworkSettings() {
   const active = current.connections?.length ? current.connections.map(c=>`${esc(c.name)} (${esc(c.device)})`).join(", ") : "not connected";
   const networks = app.networkScan?.networks || [];
   const rows = networks.map(n=>`<div class="network-row"><div><strong class="white">${esc(n.ssid)}</strong><div class="muted">${esc(n.security)} · ${esc(n.device)} ${n.active?"· active":""}</div></div><div class="signal"><div class="progress dv-progress"><span class="dv-progress__bar" style="width:${clamp(n.signal,0,100)}%"></span></div><small>${n.signal}%</small></div><button class="btn dv-btn dv-btn--outline" data-connect-ssid="${encodeURIComponent(n.ssid)}">${n.active?"ACTIVE":"CONNECT"}</button></div>`).join("");
-  return `<div class="setting-group"><h3>NetworkManager</h3>${statRow("Active",active)}${statRow("Adapter",current.available?"nmcli":"unavailable")}</div><div class="button-row"><button class="btn primary dv-btn dv-btn--primary" data-network-scan>SCAN WI-FI</button>${current.connections?.filter(c=>c.device).map(c=>`<button class="btn danger dv-btn dv-btn--danger" data-disconnect="${esc(c.device)}">DISCONNECT ${esc(c.device)}</button>`).join("") || ""}</div><div style="margin-top:16px">${app.networkScan ? (rows || `<p class="muted">No networks returned.</p>`) : `<p class="muted">Scan to populate live SSIDs. Passwords are sent directly to nmcli and are not persisted by LMDesktopPlus.</p>`}</div>`;
+  return `<div class="setting-group"><h3>NetworkManager</h3>${statRow("Active",active)}${statRow("Adapter",current.available?"nmcli":"unavailable")}</div><div class="button-row"><button class="btn primary dv-btn dv-btn--primary" data-network-scan>SCAN WI-FI</button>${current.connections?.filter(c=>c.device).map(c=>`<button class="btn danger dv-btn dv-btn--danger" data-disconnect="${esc(c.device)}">DISCONNECT ${esc(c.device)}</button>`).join("") || ""}</div><div style="margin-top:16px">${app.networkScan ? (rows || `<p class="muted">No networks returned.</p>`) : `<p class="muted">Scan to populate live SSIDs. Passwords are sent directly to nmcli and are not persisted by LMDesktopPlus.</p>`}</div>${bluetoothSettingsPanel()}`;
+}
+
+function bluetoothSettingsPanel() {
+  const bt = app.state?.adapters?.bluetooth || {};
+  const icon = assetIcon("bluetooth", "session-icon");
+  if (!bt.available) {
+    return `<div class="setting-group" style="margin-top:24px"><h3>Bluetooth</h3>${icon}<p class="muted">bluetoothctl unavailable. Install bluez / bluez-utils.</p>${bt.last_error ? `<p class="muted">${esc(bt.last_error)}</p>` : ""}</div>`;
+  }
+  const powerBadge = bt.powered
+    ? '<span class="badge ok dv-tag dv-tag--mint" data-bind="adapters.bluetooth.powered">POWERED</span>'
+    : '<span class="badge warn dv-tag dv-tag--warn" data-bind="adapters.bluetooth.powered">OFF</span>';
+  const devices = (bt.devices || []).map(d => {
+    const action = d.connected ? "disconnect" : "connect";
+    const label = d.connected ? "DISCONNECT" : "CONNECT";
+    const btnClass = d.connected ? "btn danger dv-btn dv-btn--danger" : "btn dv-btn dv-btn--outline";
+    return `<div class="network-row"><div><strong class="white">${esc(d.name)}</strong><div class="muted">${esc(d.mac)}${d.connected ? " · connected" : ""}</div></div><button class="${btnClass}" data-bt-device="${esc(d.mac)}" data-bt-action="${action}">${label}</button></div>`;
+  }).join("");
+  return `<div class="setting-group" style="margin-top:24px"><h3>Bluetooth</h3><div class="audio-control__header">${icon}${powerBadge}</div><div class="button-row" style="margin-top:12px"><button class="btn primary dv-btn dv-btn--primary" data-bt-power="${bt.powered ? "off" : "on"}">${bt.powered ? "POWER OFF" : "POWER ON"}</button><button class="btn dv-btn dv-btn--outline" data-bt-scan>SCAN (5s)</button></div><div style="margin-top:16px">${devices || '<p class="muted">No known devices. Scan to discover nearby Bluetooth devices.</p>'}</div></div>`;
 }
 
 function renderAgentSettings() {
@@ -856,6 +874,46 @@ async function sendAudioCommand(name, payload={}) {
 
 async function sendDisplayCommand(name, payload={}) {
   return api("/api/v1/adapter/display", {method:"POST", body:{name, payload}});
+}
+
+async function sendBluetoothCommand(name, payload={}) {
+  return api("/api/v1/adapter/bluetooth", {method:"POST", body:{name, payload}});
+}
+
+async function bluetoothPower(on) {
+  try {
+    await sendBluetoothCommand("power", {on});
+    if (app.state?.adapters?.bluetooth) app.state.adapters.bluetooth.powered = on;
+    toast(on ? "Bluetooth powered on" : "Bluetooth powered off");
+    renderScene(true);
+  } catch (error) {
+    toast("Bluetooth power failed", error.message, true);
+  }
+}
+
+async function bluetoothScan() {
+  try {
+    toast("Bluetooth scan", "Searching for 5 seconds…");
+    const result = await sendBluetoothCommand("scan", {});
+    if (app.state?.adapters?.bluetooth) {
+      app.state.adapters.bluetooth.devices = result.devices || [];
+      if (typeof result.powered === "boolean") app.state.adapters.bluetooth.powered = result.powered;
+    }
+    toast("Bluetooth scan complete", `${(result.devices || []).length} device(s)`);
+    renderScene(true);
+  } catch (error) {
+    toast("Bluetooth scan failed", error.message, true);
+  }
+}
+
+async function bluetoothDevice(action, mac) {
+  try {
+    await sendBluetoothCommand(action, {mac});
+    toast(action === "connect" ? "Bluetooth connected" : "Bluetooth disconnected", mac);
+    renderScene(true);
+  } catch (error) {
+    toast(`Bluetooth ${action} failed`, error.message, true);
+  }
 }
 
 async function applyWallpaper(id) {
@@ -1023,6 +1081,9 @@ function bindSceneEvents() {
     try { app.networkScan=await api("/api/v1/network/scan"); renderScene(true); }
     catch(error){ toast("Wi-Fi scan failed",error.message,true); n.disabled=false; }
   }));
+  $$('[data-bt-power]', root).forEach(n=>n.addEventListener("click",()=>bluetoothPower(n.dataset.btPower === "on")));
+  $$('[data-bt-scan]', root).forEach(n=>n.addEventListener("click",bluetoothScan));
+  $$('[data-bt-device]', root).forEach(n=>n.addEventListener("click",()=>bluetoothDevice(n.dataset.btAction, n.dataset.btDevice)));
   $$('[data-connect-ssid]', root).forEach(n=>n.addEventListener("click",()=>{
     const ssid=decodeURIComponent(n.dataset.connectSsid);
     const network=(app.networkScan?.networks||[]).find(x=>x.ssid===ssid);
