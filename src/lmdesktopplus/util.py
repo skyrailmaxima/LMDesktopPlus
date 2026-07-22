@@ -73,10 +73,15 @@ def first_executable(names: Iterable[str]) -> str | None:
     return None
 
 
-def run_capture(argv: Sequence[str], timeout: float = 4.0) -> subprocess.CompletedProcess[str]:
+def run_capture(
+    argv: Sequence[str],
+    timeout: float = 4.0,
+    input_text: str | None = None,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         list(argv),
         text=True,
+        input=input_text,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         timeout=timeout,

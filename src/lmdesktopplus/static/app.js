@@ -299,6 +299,15 @@ function updateStatus() {
   $("#status-battery").textContent = m.battery ? `BAT ${m.battery.percent}%` : "AC POWER";
   patchAudioBindings();
   patchDisplayBindings();
+  patchUpdatesBindings();
+}
+
+function patchUpdatesBindings() {
+  const updates = app.state?.adapters?.updates || {};
+  const label = updates.available ? `UPD ${updates.count ?? 0}` : "UPD --";
+  $$('[data-bind="adapters.updates.count"]').forEach(node => {
+    node.textContent = label;
+  });
 }
 
 function assetIcon(id, className="audio-icon") {
@@ -439,6 +448,8 @@ function renderDesktop() {
         <button class="btn dv-btn dv-btn--outline" data-launch="browser">BROWSER</button>
         <button class="btn dv-btn dv-btn--outline" data-launch="rofi">ROFI</button>
         <button class="btn dv-btn dv-btn--outline" data-launch="monitor">BTOP</button>
+        <button class="btn dv-btn dv-btn--outline" data-capture="full">SCREENSHOT</button>
+        <button class="btn dv-btn dv-btn--outline" data-capture="region">REGION</button>
       </div><div style="margin-top:14px">${sessionHandoffControl()}</div><div class="terminal" style="margin-top:14px;min-height:160px"><span class="green">root@vaporframe</span> <span class="muted">~</span>\n<span class="mint">❯</span> <span class="cmd">agent ls --scope</span>\n${s.agents.map(a=>`<span class="out">${esc(a.name.padEnd(8))} → ${esc(a.home)}  ${a.available?"ready":"missing"}</span>`).join("\n")}\n<span class="mint">❯</span> <span class="cursor"></span></div>`, "accent")}
       ${panel("NOW PLAYING", `<div class="card-title"><div><div class="kpi" data-live="desktop.media.title" style="font-size:24px">${esc(media.title || "No active player")}</div><div class="muted" data-live="desktop.media.artist">${esc(media.artist || "playerctl")}${media.album ? ` · ${esc(media.album)}` : ""}</div></div><span class="badge dv-tag ${media.status==="Playing"?"ok dv-tag--mint":"off dv-tag--off"}" data-live="desktop.media.status">${esc(media.status || "Stopped")}</span></div><div class="button-row"><button class="btn dv-btn dv-btn--outline" data-media="previous">◀</button><button class="btn primary dv-btn dv-btn--primary" data-media="play-pause">▶ / Ⅱ</button><button class="btn dv-btn dv-btn--outline" data-media="next">▶</button></div>
       <div style="margin-top:18px">${liveStatRow("desktop.network.down","Network down",humanBytes(m.network.down_bps,true))}${liveStatRow("desktop.network.up","Network up",humanBytes(m.network.up_bps,true))}${liveStatRow("desktop.disk","Disk",`${Math.round(m.disk.percent)}% · ${humanBytes(m.disk.free)} free`)}</div>`)}
@@ -765,6 +776,8 @@ function renderSettingsTab() {
       ${control("Output volume",audio.backend || "default audio sink",audioControl)}
       ${control("Desktop session","One-shot handoff through a real login TTY",sessionHandoffControl())}
       ${notificationsSettingsPanel()}
+      ${clipboardSettingsPanel()}
+      ${captureSettingsPanel()}
       ${toggleControl("Start fullscreen","Open the embedded machine UI fullscreen","behavior.start_fullscreen",behavior.start_fullscreen)}
       ${toggleControl("Show shortcut hints","Show keyboard hints on the desktop scene","behavior.show_hints",behavior.show_hints)}
       ${control("Poll interval",`${behavior.poll_interval_ms} ms`,`<input class="dv-slider" type="range" min="500" max="5000" step="250" value="${behavior.poll_interval_ms}" data-setting="behavior.poll_interval_ms" data-number>`)}
@@ -819,6 +832,28 @@ function notificationsSettingsPanel() {
     <div class="button-row" style="margin-top:8px">${icon}<button class="btn dv-btn dv-btn--outline" data-notify-test ${sendDisabled}>SEND TEST NOTIFICATION</button></div>`;
 }
 
+function clipboardSettingsPanel() {
+  const clip = app.state?.adapters?.clipboard || {};
+  const icon = assetIcon("clipboard", "session-icon");
+  if (!clip.available) {
+    return control("Clipboard", "Install wl-clipboard (Wayland) or xclip (X11)", `<p class="muted">${icon} Clipboard tools unavailable.</p>`);
+  }
+  const preview = clip.preview ? esc(clip.preview) : "<span class=\"muted\">empty</span>";
+  return `${control("Clipboard peek", `${clip.backend}${clip.truncated ? " · truncated" : ""}`, `<div class="audio-control__header">${icon}<code class="value" data-bind="adapters.clipboard.preview" style="max-width:28rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</code></div>`)}
+    <div class="button-row"><button class="btn dv-btn dv-btn--outline" data-clipboard-peek>REFRESH PEEK</button><button class="btn dv-btn dv-btn--outline" data-clipboard-clear>CLEAR</button></div>
+    <div class="dv-field" style="margin-top:12px"><label>Copy text</label><div class="button-row"><input class="dv-input" data-clipboard-input placeholder="Text to copy" aria-label="Clipboard copy input"><button class="btn primary dv-btn dv-btn--primary" data-clipboard-copy>COPY</button></div></div>`;
+}
+
+function captureSettingsPanel() {
+  const cap = app.state?.adapters?.capture || {};
+  const icon = assetIcon("camera", "session-icon");
+  if (!cap.available) {
+    return control("Screenshots", "Install grim/slurp (Hyprland) or gnome-screenshot (Cinnamon)", `<p class="muted">${icon} Screenshot tools unavailable.</p>`);
+  }
+  const regionDisabled = cap.region_available ? "" : "disabled";
+  return `${control("Screenshots", `${cap.backend} · ${esc(cap.save_dir || "~/Pictures/lmdesktopplus")}`, `<div class="button-row">${icon}<button class="btn primary dv-btn dv-btn--primary" data-capture="full">FULL</button><button class="btn dv-btn dv-btn--outline" data-capture="region" ${regionDisabled}>REGION</button><button class="btn dv-btn dv-btn--outline" data-capture-folder>OPEN FOLDER</button></div>${cap.last_path ? `<p class="muted" style="margin-top:8px">Last: ${esc(cap.last_path)}</p>` : ""}`)}`;
+}
+
 function renderAgentSettings() {
   return `<p class="muted">Agent definitions are stored in <span class="cyan">~/.config/lmdesktopplus/agents.json</span>. Commands are intentionally edited in the file rather than through the web UI, so a stray click cannot create a new arbitrary command.</p><div class="grid two">${app.state.agents.map(a=>`<div class="app-card dv-card"><div class="app-head"><strong>${esc(a.label)}</strong><span class="badge dv-tag ${a.available?"ok dv-tag--mint":"warn dv-tag--warn"}">${a.available?"ready":"missing"}</span></div>${statRow("Command",a.command.join(" "))}${statRow("Home",a.home)}${statRow("Workspace",a.workspace_resolved)}${statRow("Sandbox",a.sandbox?(a.sandbox_available?"Bubblewrap":"requested; bwrap missing"):"off")}${statRow("Network",a.network?"allowed":"isolated")}<button class="btn primary dv-btn dv-btn--primary" data-agent="${esc(a.name)}" ${a.available?"":"disabled"}>SPAWN</button></div>`).join("")}</div><div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" data-action="open-config">OPEN CONFIG FOLDER</button></div>`;
 }
@@ -834,7 +869,12 @@ function renderKeybinds() {
 
 function renderAbout() {
   const id=app.state.identity;
-  return `<div class="grid two">${panel("LMDesktopPlus", `${statRow("Version",app.state.version)}${statRow("API","loopback-only + per-launch token")}${statRow("Frontend","plain HTML/CSS/JavaScript")}${statRow("Host shell",id.session)}${statRow("Python",id.python)}`)}${panel("BOUNDARIES", `<p class="muted">This UI manages the current user session. It does not expose a remote management port, store Wi-Fi passwords, or accept arbitrary shell commands over the API.</p><p class="muted">Power operations remain disabled until explicitly enabled. Bubblewrap adds useful filesystem isolation for agents but is not equivalent to a virtual machine.</p>`)}</div>`;
+  const updates = app.state?.adapters?.updates || {};
+  const updateIcon = assetIcon("update", "session-icon");
+  const updatePanel = updates.available
+    ? `<div class="setting-group"><h3>Updates</h3><div class="audio-control__header">${updateIcon}<span data-bind="adapters.updates.count">${updates.count ?? 0} upgradable</span></div><div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" data-updates-refresh>REFRESH</button><button class="btn primary dv-btn dv-btn--primary" data-updates-open ${updates.mintupdate_available?"":"disabled"}>OPEN MINT UPDATE</button></div></div>`
+    : `<div class="setting-group"><h3>Updates</h3><p class="muted">${updateIcon} apt unavailable${updates.last_error ? ` · ${esc(updates.last_error)}` : ""}.</p></div>`;
+  return `${updatePanel}<div class="grid two" style="margin-top:16px">${panel("LMDesktopPlus", `${statRow("Version",app.state.version)}${statRow("API","loopback-only + per-launch token")}${statRow("Frontend","plain HTML/CSS/JavaScript")}${statRow("Host shell",id.session)}${statRow("Python",id.python)}`)}${panel("BOUNDARIES", `<p class="muted">This UI manages the current user session. It does not expose a remote management port, store Wi-Fi passwords, or accept arbitrary shell commands over the API.</p><p class="muted">Power operations remain disabled until explicitly enabled. Bubblewrap adds useful filesystem isolation for agents but is not equivalent to a virtual machine.</p>`)}</div>`;
 }
 
 function renderKit() {
@@ -953,6 +993,98 @@ async function sendTestNotification() {
     else toast("Test notification sent");
   } catch (error) {
     toast("Test notification failed", error.message, true);
+  }
+}
+
+async function sendUpdatesCommand(name, payload={}) {
+  return api("/api/v1/adapter/updates", {method:"POST", body:{name, payload}});
+}
+
+async function refreshUpdates() {
+  try {
+    const result = await sendUpdatesCommand("refresh", {});
+    if (app.state?.adapters?.updates) {
+      app.state.adapters.updates.count = result.count;
+      app.state.adapters.updates.mintupdate_available = result.mintupdate_available;
+      app.state.adapters.updates.available = true;
+    }
+    patchUpdatesBindings();
+    toast("Updates refreshed", `${result.count} upgradable`);
+    renderScene(true);
+  } catch (error) {
+    toast("Update refresh failed", error.message, true);
+  }
+}
+
+async function openMintUpdate() {
+  try {
+    await sendUpdatesCommand("open", {});
+    toast("Mint Update launched");
+  } catch (error) {
+    toast("Mint Update failed", error.message, true);
+  }
+}
+
+async function sendClipboardCommand(name, payload={}) {
+  return api("/api/v1/adapter/clipboard", {method:"POST", body:{name, payload}});
+}
+
+async function clipboardPeek() {
+  try {
+    const result = await sendClipboardCommand("peek", {});
+    if (app.state?.adapters?.clipboard) {
+      Object.assign(app.state.adapters.clipboard, result);
+    }
+    toast("Clipboard peeked", result.truncated ? "truncated preview" : `${result.length || 0} chars`);
+    renderScene(true);
+  } catch (error) {
+    toast("Clipboard peek failed", error.message, true);
+  }
+}
+
+async function clipboardCopy() {
+  const input = document.querySelector("[data-clipboard-input]");
+  const text = input?.value ?? "";
+  try {
+    await sendClipboardCommand("copy", {text});
+    toast("Copied to clipboard", `${text.length} chars`);
+    renderScene(true);
+  } catch (error) {
+    toast("Clipboard copy failed", error.message, true);
+  }
+}
+
+async function clipboardClear() {
+  try {
+    await sendClipboardCommand("clear", {});
+    toast("Clipboard cleared");
+    renderScene(true);
+  } catch (error) {
+    toast("Clipboard clear failed", error.message, true);
+  }
+}
+
+async function sendCaptureCommand(name, payload={}) {
+  return api("/api/v1/adapter/capture", {method:"POST", body:{name, payload}});
+}
+
+async function captureScreen(mode) {
+  try {
+    const result = await sendCaptureCommand(mode, {});
+    if (app.state?.adapters?.capture) app.state.adapters.capture.last_path = result.path;
+    toast(mode === "region" ? "Region captured" : "Screenshot saved", result.path);
+    renderScene(true);
+  } catch (error) {
+    toast("Screenshot failed", error.message, true);
+  }
+}
+
+async function openCaptureFolder() {
+  try {
+    const result = await sendCaptureCommand("open_folder", {});
+    toast("Opened screenshots folder", result.path);
+  } catch (error) {
+    toast("Open folder failed", error.message, true);
   }
 }
 
@@ -1126,6 +1258,13 @@ function bindSceneEvents() {
   $$('[data-bt-device]', root).forEach(n=>n.addEventListener("click",()=>bluetoothDevice(n.dataset.btAction, n.dataset.btDevice)));
   $$('[data-notify-dnd]', root).forEach(n=>n.addEventListener("change",()=>setDoNotDisturb(n.checked)));
   $$('[data-notify-test]', root).forEach(n=>n.addEventListener("click",sendTestNotification));
+  $$('[data-updates-refresh]', root).forEach(n=>n.addEventListener("click",refreshUpdates));
+  $$('[data-updates-open]', root).forEach(n=>n.addEventListener("click",openMintUpdate));
+  $$('[data-clipboard-peek]', root).forEach(n=>n.addEventListener("click",clipboardPeek));
+  $$('[data-clipboard-copy]', root).forEach(n=>n.addEventListener("click",clipboardCopy));
+  $$('[data-clipboard-clear]', root).forEach(n=>n.addEventListener("click",clipboardClear));
+  $$('[data-capture]', root).forEach(n=>n.addEventListener("click",()=>captureScreen(n.dataset.capture)));
+  $$('[data-capture-folder]', root).forEach(n=>n.addEventListener("click",openCaptureFolder));
   $$('[data-connect-ssid]', root).forEach(n=>n.addEventListener("click",()=>{
     const ssid=decodeURIComponent(n.dataset.connectSsid);
     const network=(app.networkScan?.networks||[]).find(x=>x.ssid===ssid);

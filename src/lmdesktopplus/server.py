@@ -17,9 +17,12 @@ from .actions import ActionRunner
 from .adapters import AdapterRegistry
 from .adapters.audio import AudioAdapter
 from .adapters.bluetooth import BluetoothAdapter
+from .adapters.capture import CaptureAdapter
+from .adapters.clipboard import ClipboardAdapter
 from .adapters.display import DisplayAdapter
 from .adapters.notifications import NotificationsAdapter
 from .adapters.session import SessionAdapter
+from .adapters.updates import UpdatesAdapter
 from .adapters.wallpaper import WallpaperAdapter
 from .agents import AgentRegistry
 from .assets import AssetCatalog
@@ -45,6 +48,9 @@ class ApplicationState:
                 settings_update=self.settings.update,
             )
         )
+        self.adapters.register(UpdatesAdapter())
+        self.adapters.register(ClipboardAdapter())
+        self.adapters.register(CaptureAdapter())
         self.wallpaper = WallpaperAdapter()
         self.adapters.register(self.wallpaper)
         self.assets = AssetCatalog(self.wallpaper.wallpaper_map)
