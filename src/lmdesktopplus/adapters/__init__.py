@@ -5,11 +5,11 @@ from typing import Any
 from .base import Adapter, envelope
 
 
-# Declared capabilities for envelope metadata (authoritative for UI/docs).
+# Declared command capabilities for envelope metadata (authoritative for UI/docs).
 ADAPTER_CAPABILITIES: dict[str, tuple[str, ...]] = {
-    "audio": ("volume", "mute"),
-    "display": ("brightness",),
-    "session": ("arm_once", "disarm", "status", "verify_configuration"),
+    "audio": ("set_volume", "toggle_mute"),
+    "display": ("set_brightness",),
+    "session": ("arm_once", "arm_hyprland", "disarm", "status", "verify_configuration"),
     "wallpaper": ("list", "apply"),
     "bluetooth": ("power", "scan", "connect", "disconnect"),
     "notifications": ("send_test", "set_dnd"),

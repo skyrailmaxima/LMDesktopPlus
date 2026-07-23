@@ -7,8 +7,9 @@
   one release of UI compatibility.
 - Split `/api/v1/state` into domain endpoints (`core`, `metrics`, `adapters`,
   `network`, `media`, `assets`) with the aggregate path retained for compat.
-- Added per-key cache locks, Origin / `Sec-Fetch-Site` checks, and stable
-  `error_code` mapping for adapter command failures.
+- Added per-key cache locks, exact Origin/Host checks (reject foreign localhost
+  ports and `Origin: null`), and stable `error_code` mapping for adapter
+  command failures.
 - Clarified session lifecycle (`not_installed` / `ready` / `armed` / `active`)
   with `arm_once` + `disarm` (`arm_hyprland` remains an alias).
 - Documented the review branch stack in `docs/branching.md`.

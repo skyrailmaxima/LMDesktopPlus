@@ -276,28 +276,32 @@ class RequestHandler(BaseHTTPRequestHandler):
         return True
 
     def _origin_allowed(self) -> bool:
-        """Defense in depth on top of loopback + token checks."""
+        """Defense in depth on top of loopback + token checks.
+
+        Only the exact bound server origin (and matching Host forms) are
+        accepted. Foreign localhost ports, Origin: null, and cross-site
+        fetches are rejected.
+        """
         expected = self.server.origin
+        if not expected:
+            return False
+        expected_host = expected.removeprefix("http://").removeprefix("https://")
+        port = self.server.server_address[1]
+        allowed_hosts = {
+            expected_host,
+            f"127.0.0.1:{port}",
+            f"localhost:{port}",
+            "[::1]:" + str(port),
+        }
         host = self.headers.get("Host", "")
-        if expected:
-            expected_host = expected.removeprefix("http://").removeprefix("https://")
-            if host and host not in {expected_host, "127.0.0.1", "localhost"} and not host.startswith(
-                ("127.0.0.1:", "localhost:")
-            ):
-                # Allow Host that matches our bound port even if hostname form differs.
-                if not host.endswith(f":{self.server.server_address[1]}"):
-                    return False
+        if host and host not in allowed_hosts:
+            return False
         origin = self.headers.get("Origin")
-        if origin:
-            if origin not in {expected, "null"} and not origin.startswith(
-                ("http://127.0.0.1:", "http://localhost:")
-            ):
-                return False
+        if origin and origin != expected:
+            return False
         site = self.headers.get("Sec-Fetch-Site", "")
-        if site and site not in {"same-origin", "same-site", "none", ""}:
-            # Browsers send cross-site for hostile embeds; reject those.
-            if site == "cross-site":
-                return False
+        if site == "cross-site":
+            return False
         return True
 
     def _read_json(self) -> dict[str, Any] | None:

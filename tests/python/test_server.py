@@ -116,6 +116,42 @@ class ServerTests(unittest.TestCase):
             )
         self.assertEqual(ctx.exception.code, 403)
 
+    def test_api_rejects_other_loopback_origin_port(self):
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self.request(
+                "/api/v1/state",
+                self.server.token,
+                headers={"Origin": "http://127.0.0.1:9"},
+            )
+        self.assertEqual(ctx.exception.code, 403)
+
+    def test_api_rejects_null_origin(self):
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self.request(
+                "/api/v1/state",
+                self.server.token,
+                headers={"Origin": "null"},
+            )
+        self.assertEqual(ctx.exception.code, 403)
+
+    def test_api_rejects_spoofed_host(self):
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            self.request(
+                "/api/v1/state",
+                self.server.token,
+                headers={"Host": f"evil.example:{self.server.server_address[1]}"},
+            )
+        self.assertEqual(ctx.exception.code, 403)
+
+    def test_api_accepts_exact_server_origin(self):
+        with self.request(
+            "/api/v1/state/core",
+            self.server.token,
+            headers={"Origin": self.server.origin},
+        ) as response:
+            payload = json.load(response)
+        self.assertIn("version", payload)
+
     def test_adapter_command_maps_uncaught_exceptions(self):
         class BoomAdapter:
             id = "boom"

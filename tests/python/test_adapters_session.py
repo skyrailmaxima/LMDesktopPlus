@@ -36,6 +36,14 @@ class SessionAdapterTests(unittest.TestCase):
             self.assertEqual(flag.read_bytes(), b"")
             self.assertEqual(unrelated.read_text(encoding="utf-8"), "unchanged")
 
+    def test_arm_hyprland_alias_still_works(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data_home = Path(tmp)
+            with patch.dict(os.environ, {"XDG_DATA_HOME": str(data_home)}, clear=False):
+                result = SessionAdapter().command("arm_hyprland", {})
+            self.assertTrue(result["ok"])
+            self.assertTrue((data_home / "lmdesktopplus" / "start-hyprland-once").is_file())
+
     def test_disarm_removes_flag(self):
         with tempfile.TemporaryDirectory() as tmp:
             data_home = Path(tmp)

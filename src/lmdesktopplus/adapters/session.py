@@ -48,7 +48,13 @@ class SessionAdapter:
         return envelope(
             self.id,
             raw,
-            capabilities=("arm_once", "disarm", "status", "verify_configuration"),
+            capabilities=(
+                "arm_once",
+                "arm_hyprland",
+                "disarm",
+                "status",
+                "verify_configuration",
+            ),
         )
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:

@@ -40,7 +40,7 @@ The registry normalizes every snapshot into a typed envelope:
   "backend": null,
   "updated_at": 1710000000.0,
   "stale": false,
-  "capabilities": ["arm_once", "disarm", "status", "verify_configuration"],
+  "capabilities": ["arm_once", "arm_hyprland", "disarm", "status", "verify_configuration"],
   "state": { "...": "adapter-specific fields" },
   "error": null,
   "hyprland_active": false
@@ -78,9 +78,10 @@ default.
 ### Auth and origin checks
 
 The server accepts API calls only from loopback clients carrying the per-launch
-`X-LMDP-Token`. In addition it rejects foreign `Origin` values and
-`Sec-Fetch-Site: cross-site` requests. Command implementations pass argument
-arrays directly to the process runner and clamp or reject user-controlled values.
+`X-LMDP-Token`. In addition it requires an exact match to the bound server
+`Origin` / `Host` (no other localhost ports, no `Origin: null`) and rejects
+`Sec-Fetch-Site: cross-site`. Command implementations pass argument arrays
+directly to the process runner and clamp or reject user-controlled values.
 
 Cache loaders use per-key locks so a slow host probe cannot block unrelated
 state domains.
