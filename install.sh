@@ -14,13 +14,18 @@ source "$REPO_ROOT/lib/packages-apt.sh"
 DRY_RUN="${DRY_RUN:-0}"
 FORCE="${FORCE:-0}"
 CINNAMON_ONLY=0
+WITH_HYPRLAND=0
+NO_UI=0
 
 usage() {
   cat <<'EOF'
-Usage: install.sh [--dry-run] [--cinnamon-only] [--force]
+Usage: install.sh [--dry-run] [--cinnamon-only] [--with-hyprland] [--no-ui] [--force]
 
-  --dry-run        Print planned actions without changing the system.
+  --dry-run         Print planned actions without changing the system.
   --cinnamon-only   Skip Hyprland/waybar setup, even if Hyprland is installed.
+  --with-hyprland   Best-effort install Hyprland (distro package, then
+                    ppa:cppiber/hyprland) before linking configs / session.
+  --no-ui           Install only the rice/configs; skip the machine UI.
   --force           Continue on unsupported OS (same as FORCE=1).
 
 Env: DRY_RUN=1, FORCE=1 are equivalent to the flags above.
@@ -31,12 +36,19 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
     --cinnamon-only) CINNAMON_ONLY=1 ;;
+    --with-hyprland) WITH_HYPRLAND=1 ;;
+    --no-ui) NO_UI=1 ;;
     --force) FORCE=1 ;;
     -h|--help) usage; exit 0 ;;
     *) log_err "Unknown flag: $1"; usage; exit 1 ;;
   esac
   shift
 done
+
+if [[ "$CINNAMON_ONLY" == "1" && "$WITH_HYPRLAND" == "1" ]]; then
+  log_err "Cannot combine --cinnamon-only with --with-hyprland"
+  exit 1
+fi
 
 export DRY_RUN FORCE
 
@@ -62,14 +74,37 @@ WALLPAPER_DEST_PNG="$SHARE_DIR/wallpapers/vapor-matrix.png"
 PALETTE_SRC="$REPO_ROOT/palette/vapor-matrix.theme"
 PALETTE_DEST="$SHARE_DIR/palette/vapor-matrix.theme"
 
-HYPR_AVAILABLE=0
-HYPR_BIN=""
-if command -v Hyprland >/dev/null 2>&1; then
-  HYPR_AVAILABLE=1
-  HYPR_BIN="Hyprland"
-elif command -v hyprland >/dev/null 2>&1; then
-  HYPR_AVAILABLE=1
-  HYPR_BIN="hyprland"
+detect_hyprland() {
+  HYPR_AVAILABLE=0
+  HYPR_BIN=""
+  if command -v Hyprland >/dev/null 2>&1; then
+    HYPR_AVAILABLE=1
+    HYPR_BIN="Hyprland"
+  elif command -v hyprland >/dev/null 2>&1; then
+    HYPR_AVAILABLE=1
+    HYPR_BIN="hyprland"
+  fi
+}
+
+detect_hyprland
+
+### 0. optional Hyprland package install #####################################
+if [[ "$WITH_HYPRLAND" == "1" ]]; then
+  log_info "--with-hyprland: installing compositor (best-effort)"
+  if bash "$REPO_ROOT/scripts/install-hyprland-mint.sh"; then
+    # Refresh PATH detection after apt install.
+    hash -r 2>/dev/null || true
+    detect_hyprland
+    # Dry-run cannot actually put a binary on PATH; still exercise the
+    # Hyprland link/session plan so the user sees what would happen.
+    if [[ "$DRY_RUN" == "1" && "$HYPR_AVAILABLE" != "1" ]]; then
+      HYPR_AVAILABLE=1
+      HYPR_BIN="Hyprland"
+      log_info "[dry-run] assuming Hyprland will be on PATH after package install"
+    fi
+  else
+    log_warn "Hyprland package install failed; continuing with Cinnamon path"
+  fi
 fi
 
 ### 1. apt packages ##########################################################
@@ -144,7 +179,15 @@ materialize_wallpaper() {
 log_info "Materializing wallpaper + palette under $SHARE_DIR"
 materialize_wallpaper
 
-### 4. link shared configs ####################################################
+### 4. machine UI #############################################################
+if [[ "$NO_UI" == "1" ]]; then
+  log_info "--no-ui: skipping LMDesktopPlus machine UI"
+else
+  log_info "Installing LMDesktopPlus machine UI"
+  bash "$REPO_ROOT/scripts/install-ui.sh"
+fi
+
+### 5. link shared configs ####################################################
 link_shared_configs() {
   maybe link_file "$REPO_ROOT/packages/shared/kitty/kitty.conf" "$HOME/.config/kitty/kitty.conf"
   maybe link_file "$REPO_ROOT/packages/shared/rofi/config.rasi" "$HOME/.config/rofi/config.rasi"
@@ -172,12 +215,12 @@ link_shared_configs() {
 log_info "Linking shared configs (kitty, rofi, tmux, starship, gtk, palette)"
 link_shared_configs
 
-### 5. cinnamon assets ########################################################
+### 6. cinnamon assets ########################################################
 # v1 packages/cinnamon ships docs only (no theme tarball yet, see packages/cinnamon/README.md);
 # the wallpaper + gtk-theme/icon-theme hints are applied via gsettings below.
 log_info "Cinnamon package is docs-only in v1; nothing extra to link"
 
-### 6. apply cinnamon gsettings ###############################################
+### 7. apply cinnamon gsettings ###############################################
 # Cinnamon/GTK can render SVG backgrounds; prefer the rasterized PNG when it
 # exists (matches what hyprpaper needs), else fall back to the SVG copy.
 GSETTINGS_WALLPAPER="$WALLPAPER_DEST_PNG"
@@ -187,10 +230,11 @@ fi
 log_info "Applying Cinnamon gsettings (wallpaper, gtk-theme, icon-theme)"
 bash "$REPO_ROOT/scripts/apply-cinnamon-gsettings.sh" "$GSETTINGS_WALLPAPER" || log_warn "gsettings apply script exited non-zero; continuing"
 
-### 7. Hyprland (optional) ####################################################
+### 8. Hyprland (optional) ####################################################
 link_hypr_assets() {
   maybe link_file "$REPO_ROOT/packages/hyprland/hypr/hyprland.conf" "$HOME/.config/hypr/hyprland.conf"
   maybe link_file "$REPO_ROOT/packages/hyprland/hypr/hyprpaper.conf" "$HOME/.config/hypr/hyprpaper.conf"
+  maybe link_file "$REPO_ROOT/packages/hyprland/hypr/scripts/exit-menu.sh" "$HOME/.config/hypr/scripts/exit-menu.sh"
   maybe link_file "$REPO_ROOT/packages/hyprland/waybar/config.jsonc" "$HOME/.config/waybar/config.jsonc"
   maybe link_file "$REPO_ROOT/packages/hyprland/waybar/style.css" "$HOME/.config/waybar/style.css"
 }
@@ -226,34 +270,71 @@ elif [[ "$HYPR_AVAILABLE" == "1" ]]; then
   install_session_desktop
 else
   log_warn "Hyprland not found on PATH; skipping Hyprland/waybar setup."
-  log_warn "See docs/install-notes.md to install Hyprland and re-run install.sh (or install.sh --force)."
+  log_warn "Install it with: ./install.sh --with-hyprland"
+  log_warn "On Mint, LightDM often hides Wayland sessions — after install use:"
+  log_warn "  Ctrl+Alt+F3 → login → ./scripts/start-hyprland-tty.sh"
+  log_warn "Details: docs/install-notes.md"
 fi
 
-### 8. bashrc snippet ##########################################################
+if [[ "$HYPR_AVAILABLE" == "1" && "$CINNAMON_ONLY" != "1" ]]; then
+  log_info "Hyprland ready ($HYPR_BIN). If the login greeter has no Wayland entry,"
+  log_info "start from a TTY: $REPO_ROOT/scripts/start-hyprland-tty.sh"
+fi
+
+### 9. bashrc snippet ##########################################################
 append_bashrc_snippet() {
   local bashrc="$HOME/.bashrc"
-  local marker="# LMDesktopPlus begin"
+  local begin="# LMDesktopPlus begin"
+  local end="# LMDesktopPlus end"
+  local snippet="$REPO_ROOT/packages/shared/bash/bashrc.snippet"
 
-  if [[ -f "$bashrc" ]] && grep -qF "$marker" "$bashrc" 2>/dev/null; then
-    log_info "bashrc already has LMDesktopPlus markers; skipping append"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    if [[ -f "$bashrc" ]] && grep -qF "$begin" "$bashrc" 2>/dev/null; then
+      log_info "[dry-run] would refresh LMDesktopPlus block in $bashrc"
+    else
+      log_info "[dry-run] would append packages/shared/bash/bashrc.snippet to $bashrc"
+    fi
     return 0
   fi
 
-  if [[ "$DRY_RUN" == "1" ]]; then
-    log_info "[dry-run] would append packages/shared/bash/bashrc.snippet to $bashrc"
+  if [[ -f "$bashrc" ]] && grep -qF "$begin" "$bashrc" 2>/dev/null; then
+    local begin_count end_count begin_line end_line
+    begin_count="$(grep -cF "$begin" "$bashrc" || true)"
+    end_count="$(grep -cF "$end" "$bashrc" || true)"
+    if [[ "$begin_count" != "1" || "$end_count" != "1" ]]; then
+      log_warn "Malformed LMDesktopPlus markers in $bashrc; leaving bashrc unchanged"
+      return 0
+    fi
+    begin_line="$(grep -nF "$begin" "$bashrc" | head -1 | cut -d: -f1)"
+    end_line="$(grep -nF "$end" "$bashrc" | head -1 | cut -d: -f1)"
+    if [[ "$begin_line" -ge "$end_line" ]]; then
+      log_warn "LMDesktopPlus end marker precedes begin in $bashrc; leaving unchanged"
+      return 0
+    fi
+    backup_path "$bashrc"
+    {
+      head -n "$((begin_line - 1))" "$bashrc"
+      cat "$snippet"
+      tail -n "+$((end_line + 1))" "$bashrc"
+    } > "${bashrc}.lmdp.tmp"
+    mv "${bashrc}.lmdp.tmp" "$bashrc"
+    log_info "Refreshed LMDesktopPlus snippet in $bashrc"
     return 0
   fi
 
   backup_path "$bashrc"
   {
     echo ""
-    cat "$REPO_ROOT/packages/shared/bash/bashrc.snippet"
+    cat "$snippet"
   } >> "$bashrc"
   log_info "Appended LMDesktopPlus snippet to $bashrc"
 }
 log_info "Updating ~/.bashrc"
 append_bashrc_snippet
 
+if [[ "$NO_UI" != "1" ]]; then
+  log_info "Launch the machine UI with: $HOME/.local/bin/lmdesktopplus"
+fi
 log_info "LMDesktopPlus install complete."
 if [[ "$DRY_RUN" == "1" ]]; then
   log_info "This was a dry run; no changes were made."

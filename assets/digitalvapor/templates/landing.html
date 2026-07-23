@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digitalvapor — Landing template</title>
+<link rel="stylesheet" href="../digitalvapor.css">
+</head>
+<body class="dv-flicker">
+<canvas class="dv-rain" data-dv-rain data-dv-intensity="50"></canvas>
+
+<div class="dv-bar">
+  <div class="dv-bar__group"><span class="dv-jp dv-mag dv-glow" style="font-size:16px">墨</span><span class="dv-ink">NEONFRAME</span></div>
+  <div class="dv-bar__group dv-muted">product · docs · pricing</div>
+  <div class="dv-bar__group"><a href="../index.html" class="dv-bar__stat">← pack</a><button class="dv-btn dv-btn--primary" style="padding:5px 12px">Get started</button></div>
+</div>
+
+<div class="dv-wrap" style="position:relative;z-index:2">
+  <!-- hero -->
+  <section style="padding:80px 0 60px;text-align:center">
+    <div class="dv-jp dv-cyan dv-glow-cyan" style="font-size:16px;letter-spacing:8px">未来のコード環境</div>
+    <h1 style="font-size:4rem;margin-top:12px">Ship at the<br><span class="dv-mag dv-glow">speed of thought</span></h1>
+    <p style="max-width:560px;margin:16px auto 0;font-size:16px">A borderless, agent-native workspace where Claude, Cursor and your editor share one scoped home. Tiled, transparent, and tuned for flow.</p>
+    <div class="dv-row dv-center" style="margin-top:26px">
+      <button class="dv-btn dv-btn--primary">Download the rice</button>
+      <button class="dv-btn dv-btn--outline">Watch demo</button>
+    </div>
+    <div class="dv-row dv-center dv-gap-2" style="margin-top:22px">
+      <span class="dv-tag dv-tag--mint"><span class="dv-tag__dot"></span>wayland</span>
+      <span class="dv-tag dv-tag--cyan">hyprland</span>
+      <span class="dv-tag dv-tag--purple">nix</span>
+      <span class="dv-tag dv-tag--mag">agent-native</span>
+    </div>
+  </section>
+
+  <!-- feature window preview -->
+  <section style="padding:0 0 60px">
+    <div class="dv-window dv-window--borderless" style="height:300px">
+      <div class="dv-window__bar"><span class="dv-mag">⬢</span> kitty — agent session <span class="dv-window__dots"><i></i><i></i><i></i></span></div>
+      <div class="dv-window__body dv-scanlines" style="padding:18px 22px">
+        <div class="dv-prompt" style="font-size:14px">
+          <div class="p1"><span class="dv-cyan"> ~/work/neon-api</span> <span class="dv-amber"> main ✚2</span> <span class="dv-mint"> claude</span></div>
+          <div class="p2">claude <span class="dv-amber">"add rate limiting to the auth guard"</span></div>
+          <div class="dv-mag" style="margin-top:10px">⏺ claude</div>
+          <div class="dv-muted">&nbsp;&nbsp;Editing 3 files under <span class="dv-mint">~/work</span>…</div>
+          <div class="dv-mint">&nbsp;&nbsp;● edit src/middleware/auth.rs +41 −12</div>
+          <div class="dv-mint">&nbsp;&nbsp;● edit src/middleware/limiter.rs +68 −0</div>
+          <div><span class="dv-cyan">&nbsp;&nbsp;◐ run</span> cargo test — <span class="dv-muted">running…</span> <span class="dv-caret"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- feature grid -->
+  <section style="padding:20px 0 60px">
+    <div class="dv-kicker" style="text-align:center">why neonframe</div>
+    <h2 style="text-align:center;margin-bottom:30px">Built for the agent era</h2>
+    <div class="dv-grid dv-grid-3">
+      <div class="dv-card dv-card--mag"><i class="dv-corner tl"></i><i class="dv-corner tr"></i><i class="dv-corner bl"></i><i class="dv-corner br"></i>
+        <div class="dv-jp dv-mag" style="font-size:24px">代</div>
+        <div class="dv-card__title" style="margin-top:8px">Scoped agent homes</div>
+        <p class="dv-muted" style="margin:0">Every agent gets its own <span class="dv-cyan">$HOME</span>, bind-mounted into yours. Shared <span class="dv-amber">~/work</span>, isolated caches.</p>
+      </div>
+      <div class="dv-card"><i class="dv-corner tl"></i><i class="dv-corner tr"></i><i class="dv-corner bl"></i><i class="dv-corner br"></i>
+        <div class="dv-jp dv-cyan" style="font-size:24px">窓</div>
+        <div class="dv-card__title" style="margin-top:8px">Borderless &amp; transparent</div>
+        <p class="dv-muted" style="margin:0">Tiled kitty at 90% opacity, blur passes tuned. Every pixel earns its glow.</p>
+      </div>
+      <div class="dv-card dv-card--purple"><i class="dv-corner tl"></i><i class="dv-corner tr"></i><i class="dv-corner bl"></i><i class="dv-corner br"></i>
+        <div class="dv-jp dv-purple" style="font-size:24px">網</div>
+        <div class="dv-card__title" style="margin-top:8px">Shell + browser agents</div>
+        <p class="dv-muted" style="margin:0">Call for assistance from the terminal, tmux, Pulsar, or a page-aware browser side-panel.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- spec plate -->
+  <section style="padding:20px 0 60px">
+    <div class="dv-panel" style="padding:30px 34px">
+      <div class="dv-between" style="flex-wrap:wrap;gap:20px">
+        <div><div class="dv-kicker">spec sheet</div><h2 style="margin:0">The stack</h2></div>
+        <a href="../index.html" class="dv-btn dv-btn--outline">View components →</a>
+      </div>
+      <div class="dv-grid dv-grid-4" style="margin-top:24px">
+        <div><div class="dv-disp dv-mag" style="font-size:30px">01</div><div class="dv-muted">Hyprland · wayland compositor, blur + animations</div></div>
+        <div><div class="dv-disp dv-cyan" style="font-size:30px">02</div><div class="dv-muted">kitty · 90% opacity, bash + starship</div></div>
+        <div><div class="dv-disp dv-mint" style="font-size:30px">03</div><div class="dv-muted">Pulsar · themed IDE with docked agent</div></div>
+        <div><div class="dv-disp dv-purple" style="font-size:30px">04</div><div class="dv-muted">nix + stow · reproducible dotfiles</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section style="padding:40px 0 80px;text-align:center">
+    <div class="dv-jp dv-mint dv-glow-mint" style="font-size:40px">起動</div>
+    <h2 style="font-size:2.4rem;margin-top:10px">Boot the ultimate coding environment</h2>
+    <div class="dv-row dv-center" style="margin-top:20px">
+      <button class="dv-btn dv-btn--primary">Download</button>
+      <button class="dv-btn dv-btn--ghost">Read the dotfiles →</button>
+    </div>
+  </section>
+
+  <footer style="padding:24px 0;border-top:1px solid var(--dv-line-soft);color:var(--dv-muted);font-size:12px" class="dv-between">
+    <span>NEONFRAME · vapor//matrix</span><span class="dv-jp dv-mag">墨 現実</span>
+  </footer>
+</div>
+
+<script src="../digitalvapor.js" defer></script>
+</body>
+</html>
