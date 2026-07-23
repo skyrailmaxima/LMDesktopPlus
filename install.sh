@@ -14,14 +14,27 @@ source "$REPO_ROOT/lib/packages-apt.sh"
 DRY_RUN="${DRY_RUN:-0}"
 FORCE="${FORCE:-0}"
 CINNAMON_ONLY=0
+WITH_HYPRLAND=0
+ALLOW_COMMUNITY_PPA=0
+HYPRLAND_SOURCE=""
 
 usage() {
   cat <<'EOF'
-Usage: install.sh [--dry-run] [--cinnamon-only] [--force]
+Usage: install.sh [--dry-run] [--cinnamon-only] [--with-hyprland]
+                  [--allow-community-ppa] [--hyprland-source=distro|ppa|existing]
+                  [--force]
 
-  --dry-run        Print planned actions without changing the system.
-  --cinnamon-only   Skip Hyprland/waybar setup, even if Hyprland is installed.
-  --force           Continue on unsupported OS (same as FORCE=1).
+  --dry-run                 Print planned actions without changing the system.
+  --cinnamon-only           Skip Hyprland/waybar setup, even if Hyprland is installed.
+  --with-hyprland           Best-effort install Hyprland from distro packages only,
+                            then link configs / session when available.
+  --allow-community-ppa     With --with-hyprland: if distro packages fail, allow
+                            adding ppa:cppiber/hyprland (explicit opt-in).
+  --hyprland-source=distro  Only try distro/universe packages (default with --with-hyprland).
+  --hyprland-source=ppa     Allow community PPA (implies --allow-community-ppa).
+  --hyprland-source=existing
+                            Require Hyprland already on PATH; do not install packages.
+  --force                   Continue on unsupported OS (same as FORCE=1).
 
 Env: DRY_RUN=1, FORCE=1 are equivalent to the flags above.
 EOF
@@ -31,12 +44,35 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
     --cinnamon-only) CINNAMON_ONLY=1 ;;
+    --with-hyprland) WITH_HYPRLAND=1 ;;
+    --allow-community-ppa) ALLOW_COMMUNITY_PPA=1 ;;
+    --hyprland-source=distro) HYPRLAND_SOURCE=distro ;;
+    --hyprland-source=ppa) HYPRLAND_SOURCE=ppa; ALLOW_COMMUNITY_PPA=1 ;;
+    --hyprland-source=existing) HYPRLAND_SOURCE=existing ;;
+    --hyprland-source=*)
+      log_err "Unknown hyprland source: ${1#*=} (use distro|ppa|existing)"
+      usage
+      exit 1
+      ;;
     --force) FORCE=1 ;;
     -h|--help) usage; exit 0 ;;
     *) log_err "Unknown flag: $1"; usage; exit 1 ;;
   esac
   shift
 done
+
+if [[ "$CINNAMON_ONLY" == "1" && "$WITH_HYPRLAND" == "1" ]]; then
+  log_err "Cannot combine --cinnamon-only with --with-hyprland"
+  exit 1
+fi
+if [[ -n "$HYPRLAND_SOURCE" && "$WITH_HYPRLAND" != "1" ]]; then
+  log_err "--hyprland-source requires --with-hyprland"
+  exit 1
+fi
+if [[ "$ALLOW_COMMUNITY_PPA" == "1" && "$WITH_HYPRLAND" != "1" ]]; then
+  log_err "--allow-community-ppa requires --with-hyprland"
+  exit 1
+fi
 
 export DRY_RUN FORCE
 
@@ -62,14 +98,41 @@ WALLPAPER_DEST_PNG="$SHARE_DIR/wallpapers/vapor-matrix.png"
 PALETTE_SRC="$REPO_ROOT/palette/vapor-matrix.theme"
 PALETTE_DEST="$SHARE_DIR/palette/vapor-matrix.theme"
 
-HYPR_AVAILABLE=0
-HYPR_BIN=""
-if command -v Hyprland >/dev/null 2>&1; then
-  HYPR_AVAILABLE=1
-  HYPR_BIN="Hyprland"
-elif command -v hyprland >/dev/null 2>&1; then
-  HYPR_AVAILABLE=1
-  HYPR_BIN="hyprland"
+detect_hyprland() {
+  HYPR_AVAILABLE=0
+  HYPR_BIN=""
+  if command -v Hyprland >/dev/null 2>&1; then
+    HYPR_AVAILABLE=1
+    HYPR_BIN="Hyprland"
+  elif command -v hyprland >/dev/null 2>&1; then
+    HYPR_AVAILABLE=1
+    HYPR_BIN="hyprland"
+  fi
+}
+
+detect_hyprland
+
+### 0. optional Hyprland package install #####################################
+if [[ "$WITH_HYPRLAND" == "1" ]]; then
+  log_info "--with-hyprland: installing compositor (source=${HYPRLAND_SOURCE:-distro})"
+  hypr_install_args=()
+  if [[ "$ALLOW_COMMUNITY_PPA" == "1" ]]; then
+    hypr_install_args+=(--allow-community-ppa)
+  fi
+  if [[ -n "$HYPRLAND_SOURCE" ]]; then
+    hypr_install_args+=(--hyprland-source="$HYPRLAND_SOURCE")
+  fi
+  if DRY_RUN="$DRY_RUN" bash "$REPO_ROOT/scripts/install-hyprland-mint.sh" "${hypr_install_args[@]}"; then
+    hash -r 2>/dev/null || true
+    detect_hyprland
+    if [[ "$DRY_RUN" == "1" && "$HYPR_AVAILABLE" != "1" ]]; then
+      HYPR_AVAILABLE=1
+      HYPR_BIN="Hyprland"
+      log_info "[dry-run] assuming Hyprland will be on PATH after package install"
+    fi
+  else
+    log_warn "Hyprland package install failed; continuing with Cinnamon path"
+  fi
 fi
 
 ### 1. apt packages ##########################################################
@@ -188,11 +251,37 @@ log_info "Applying Cinnamon gsettings (wallpaper, gtk-theme, icon-theme)"
 bash "$REPO_ROOT/scripts/apply-cinnamon-gsettings.sh" "$GSETTINGS_WALLPAPER" || log_warn "gsettings apply script exited non-zero; continuing"
 
 ### 7. Hyprland (optional) ####################################################
+ensure_hypr_generated_overlay() {
+  # hyprland.conf sources this path unconditionally; keep an empty stub so a
+  # fresh Mint TTY install does not fail before the machine UI writes theme CSS.
+  local dest="$HOME/.config/lmdesktopplus/hypr-generated.conf"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log_info "[dry-run] would ensure empty Hyprland overlay stub -> $dest"
+    return 0
+  fi
+  ensure_dir "$(dirname "$dest")"
+  if [[ ! -e "$dest" ]]; then
+    cat >"$dest" <<'EOF'
+# LMDesktopPlus UI-generated appearance overlay.
+# Empty stub created by install.sh; the machine UI may overwrite this file.
+EOF
+    log_info "Created empty Hyprland overlay stub -> $dest"
+  fi
+}
+
+install_tty_launcher() {
+  local dest="$HOME/.local/share/lmdesktopplus/bin/start-hyprland-tty.sh"
+  maybe link_file "$REPO_ROOT/scripts/start-hyprland-tty.sh" "$dest"
+}
+
 link_hypr_assets() {
   maybe link_file "$REPO_ROOT/packages/hyprland/hypr/hyprland.conf" "$HOME/.config/hypr/hyprland.conf"
   maybe link_file "$REPO_ROOT/packages/hyprland/hypr/hyprpaper.conf" "$HOME/.config/hypr/hyprpaper.conf"
+  maybe link_file "$REPO_ROOT/packages/hyprland/hypr/scripts/exit-menu.sh" "$HOME/.config/hypr/scripts/exit-menu.sh"
   maybe link_file "$REPO_ROOT/packages/hyprland/waybar/config.jsonc" "$HOME/.config/waybar/config.jsonc"
   maybe link_file "$REPO_ROOT/packages/hyprland/waybar/style.css" "$HOME/.config/waybar/style.css"
+  ensure_hypr_generated_overlay
+  install_tty_launcher
 }
 
 install_session_desktop() {
@@ -226,28 +315,59 @@ elif [[ "$HYPR_AVAILABLE" == "1" ]]; then
   install_session_desktop
 else
   log_warn "Hyprland not found on PATH; skipping Hyprland/waybar setup."
-  log_warn "See docs/install-notes.md to install Hyprland and re-run install.sh (or install.sh --force)."
+  log_warn "Install with: ./install.sh --with-hyprland"
+  log_warn "Community PPA (opt-in): ./install.sh --with-hyprland --allow-community-ppa"
+  log_warn "Or see docs/install-notes.md / scripts/start-hyprland-tty.sh for the Mint TTY path."
 fi
 
 ### 8. bashrc snippet ##########################################################
 append_bashrc_snippet() {
   local bashrc="$HOME/.bashrc"
-  local marker="# LMDesktopPlus begin"
-
-  if [[ -f "$bashrc" ]] && grep -qF "$marker" "$bashrc" 2>/dev/null; then
-    log_info "bashrc already has LMDesktopPlus markers; skipping append"
-    return 0
-  fi
+  local marker_begin="# LMDesktopPlus begin"
+  local marker_end="# LMDesktopPlus end"
+  local snippet="$REPO_ROOT/packages/shared/bash/bashrc.snippet"
 
   if [[ "$DRY_RUN" == "1" ]]; then
-    log_info "[dry-run] would append packages/shared/bash/bashrc.snippet to $bashrc"
+    if [[ -f "$bashrc" ]] && grep -qF "$marker_begin" "$bashrc" 2>/dev/null; then
+      log_info "[dry-run] would refresh LMDesktopPlus block in $bashrc"
+    else
+      log_info "[dry-run] would append packages/shared/bash/bashrc.snippet to $bashrc"
+    fi
     return 0
   fi
 
   backup_path "$bashrc"
+  ensure_dir "$(dirname "$bashrc")"
+  touch "$bashrc"
+
+  if grep -qF "$marker_begin" "$bashrc" 2>/dev/null && grep -qF "$marker_end" "$bashrc" 2>/dev/null; then
+    local begin_count end_count begin_line end_line tmp
+    begin_count="$(grep -cF "$marker_begin" "$bashrc" 2>/dev/null || true)"
+    end_count="$(grep -cF "$marker_end" "$bashrc" 2>/dev/null || true)"
+    if [[ "$begin_count" -ne 1 || "$end_count" -ne 1 ]]; then
+      log_warn "Found $begin_count begin and $end_count end markers in $bashrc; leaving bashrc untouched"
+      return 0
+    fi
+    begin_line="$(grep -nF "$marker_begin" "$bashrc" | cut -d: -f1)"
+    end_line="$(grep -nF "$marker_end" "$bashrc" | cut -d: -f1)"
+    if [[ "$begin_line" -ge "$end_line" ]]; then
+      log_warn "LMDesktopPlus markers in $bashrc are out of order; leaving bashrc untouched"
+      return 0
+    fi
+    tmp="$(mktemp)"
+    {
+      sed -n "1,$((begin_line - 1))p" "$bashrc"
+      cat "$snippet"
+      sed -n "$((end_line + 1)),\$p" "$bashrc"
+    } >"$tmp"
+    mv "$tmp" "$bashrc"
+    log_info "Refreshed LMDesktopPlus snippet in $bashrc"
+    return 0
+  fi
+
   {
     echo ""
-    cat "$REPO_ROOT/packages/shared/bash/bashrc.snippet"
+    cat "$snippet"
   } >> "$bashrc"
   log_info "Appended LMDesktopPlus snippet to $bashrc"
 }

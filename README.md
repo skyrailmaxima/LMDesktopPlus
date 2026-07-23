@@ -38,12 +38,17 @@ to [`docs/install-notes.md`](docs/install-notes.md) for manual setup.
 git clone https://github.com/skyrailmaxima/LMDesktopPlus.git
 cd LMDesktopPlus
 ./install.sh
+# optional: also install Hyprland from distro packages
+./install.sh --with-hyprland
+# optional: allow community PPA only if you explicitly opt in
+./install.sh --with-hyprland --allow-community-ppa
 ```
 
-Then log out and back in:
+Then:
 
-- Pick **Cinnamon** for the themed daily-driver desktop (works out of the box).
-- Pick **Hyprland** at the login greeter if it was detected and registered.
+- Stay on **Cinnamon** for the themed daily-driver desktop (works out of the box).
+- On Mint, start Hyprland from a TTY (`Ctrl+Alt+F3` → `./scripts/start-hyprland-tty.sh`)
+  because LightDM often hides Wayland sessions — see [`docs/install-notes.md`](docs/install-notes.md).
 
 Re-running `./install.sh` is idempotent — existing correct symlinks are left
 alone. Existing **config targets** that would be replaced are backed up first
@@ -63,17 +68,23 @@ See [Uninstall](#uninstall) for what is and is not removed.
 
 | Flag | Env equivalent | Effect |
 |------|-----------------|--------|
-| `--dry-run` | `DRY_RUN=1` | Print every planned action (apt installs, symlinks, gsettings, bashrc append, session registration) without touching the system. |
-| `--cinnamon-only` | — | Skip the Hyprland/waybar apt packages, config symlinks, and wayland-session registration entirely, even if Hyprland is present. |
+| `--dry-run` | `DRY_RUN=1` | Print every planned action without touching the system. |
+| `--cinnamon-only` | — | Skip Hyprland/waybar apt packages, config symlinks, and wayland-session registration. |
+| `--with-hyprland` | — | Best-effort install Hyprland from **distro packages only**, then link configs/session. |
+| `--allow-community-ppa` | — | With `--with-hyprland`: if distro packages fail, allow adding `ppa:cppiber/hyprland`. |
+| `--hyprland-source=distro\|ppa\|existing` | — | Deterministic install source (`ppa` implies community PPA opt-in). |
 | `--force` | `FORCE=1` | Continue installing on a non-Mint, non-Debian-family OS instead of refusing. |
 | `-h`, `--help` | — | Print usage and exit. |
 
 Examples:
 
 ```bash
-./install.sh --dry-run              # see what would happen, change nothing
-./install.sh --cinnamon-only        # Cinnamon-only box, skip Hyprland entirely
-FORCE=1 ./install.sh                # override the Mint/Debian-family check
+./install.sh --dry-run
+./install.sh --cinnamon-only
+./install.sh --with-hyprland
+./install.sh --with-hyprland --allow-community-ppa
+./install.sh --with-hyprland --hyprland-source=existing
+FORCE=1 ./install.sh
 ```
 
 ## What gets installed

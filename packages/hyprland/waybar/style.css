@@ -49,6 +49,7 @@ window#waybar {
 #cpu,
 #memory,
 #network,
+#custom-exit,
 #tray {
   background-color: #0b0817;
   color: #8dffbe;
@@ -70,7 +71,6 @@ window#waybar {
 #network {
   color: #01cdfe;
   border: 1px solid #01cdfe;
-  margin-right: 6px;
 }
 
 #network.disconnected {
@@ -78,8 +78,22 @@ window#waybar {
   border-color: #ff2e97;
 }
 
+#custom-exit {
+  color: #ff2e97;
+  border: 1px solid #ff2e97;
+  font-weight: bold;
+  letter-spacing: 1px;
+  margin-right: 4px;
+}
+
+#custom-exit:hover {
+  background-color: #ff2e97;
+  color: #ffffff;
+}
+
 #tray {
   border: 1px solid #b967ff;
+  margin-right: 6px;
 }
 
 #tray > .passive {

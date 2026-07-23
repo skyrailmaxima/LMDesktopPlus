@@ -10,7 +10,7 @@
 
   "modules-left": ["hyprland/workspaces"],
   "modules-center": ["clock"],
-  "modules-right": ["cpu", "memory", "network", "tray"],
+  "modules-right": ["cpu", "memory", "network", "custom/exit", "tray"],
 
   "hyprland/workspaces": {
     "format": "{name}",
@@ -46,6 +46,12 @@
     "format-ethernet": " {ifname}",
     "format-disconnected": "⚠ offline",
     "tooltip-format": "{ifname}: {ipaddr}/{cidr}"
+  },
+
+  "custom/exit": {
+    "format": "EXIT",
+    "tooltip": "Exit Hyprland (Super+E). Super+Shift+E exits immediately.",
+    "on-click": "~/.config/hypr/scripts/exit-menu.sh"
   },
 
   "tray": {

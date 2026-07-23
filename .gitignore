@@ -3,3 +3,5 @@ _extracted_template.html
 *.swp
 .DS_Store
 .superpowers/
+build/
+dist/
