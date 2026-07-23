@@ -70,6 +70,35 @@ else
   echo "OK: start-hyprland-tty.sh records startup log"
 fi
 
+# One-shot arm must be consumed by bashrc (prefer hardened launcher).
+if ! grep -q 'start-hyprland-once' "$ROOT/packages/shared/bash/bashrc.snippet"; then
+  echo "FAIL: bashrc.snippet does not consume start-hyprland-once"
+  fail=1
+else
+  echo "OK: bashrc.snippet consumes start-hyprland-once"
+fi
+if ! grep -q 'bin/start-hyprland-tty.sh' "$ROOT/packages/shared/bash/bashrc.snippet"; then
+  echo "FAIL: bashrc.snippet does not prefer hardened TTY launcher"
+  fail=1
+else
+  echo "OK: bashrc.snippet prefers hardened TTY launcher"
+fi
+
+# Fresh installs must stub the generated overlay that hyprland.conf sources.
+if ! grep -q 'hypr-generated.conf' "$ROOT/install.sh"; then
+  echo "FAIL: install.sh does not ensure hypr-generated.conf stub"
+  fail=1
+else
+  echo "OK: install.sh ensures hypr-generated.conf stub"
+fi
+if ! grep -q 'source = ~/.config/lmdesktopplus/hypr-generated.conf' \
+  "$ROOT/packages/hyprland/hypr/hyprland.conf"; then
+  echo "FAIL: hyprland.conf missing generated overlay source"
+  fail=1
+else
+  echo "OK: hyprland.conf sources generated overlay path"
+fi
+
 if [[ "$fail" -ne 0 ]]; then
   exit 1
 fi

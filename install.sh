@@ -251,12 +251,37 @@ log_info "Applying Cinnamon gsettings (wallpaper, gtk-theme, icon-theme)"
 bash "$REPO_ROOT/scripts/apply-cinnamon-gsettings.sh" "$GSETTINGS_WALLPAPER" || log_warn "gsettings apply script exited non-zero; continuing"
 
 ### 7. Hyprland (optional) ####################################################
+ensure_hypr_generated_overlay() {
+  # hyprland.conf sources this path unconditionally; keep an empty stub so a
+  # fresh Mint TTY install does not fail before the machine UI writes theme CSS.
+  local dest="$HOME/.config/lmdesktopplus/hypr-generated.conf"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log_info "[dry-run] would ensure empty Hyprland overlay stub -> $dest"
+    return 0
+  fi
+  ensure_dir "$(dirname "$dest")"
+  if [[ ! -e "$dest" ]]; then
+    cat >"$dest" <<'EOF'
+# LMDesktopPlus UI-generated appearance overlay.
+# Empty stub created by install.sh; the machine UI may overwrite this file.
+EOF
+    log_info "Created empty Hyprland overlay stub -> $dest"
+  fi
+}
+
+install_tty_launcher() {
+  local dest="$HOME/.local/share/lmdesktopplus/bin/start-hyprland-tty.sh"
+  maybe link_file "$REPO_ROOT/scripts/start-hyprland-tty.sh" "$dest"
+}
+
 link_hypr_assets() {
   maybe link_file "$REPO_ROOT/packages/hyprland/hypr/hyprland.conf" "$HOME/.config/hypr/hyprland.conf"
   maybe link_file "$REPO_ROOT/packages/hyprland/hypr/hyprpaper.conf" "$HOME/.config/hypr/hyprpaper.conf"
   maybe link_file "$REPO_ROOT/packages/hyprland/hypr/scripts/exit-menu.sh" "$HOME/.config/hypr/scripts/exit-menu.sh"
   maybe link_file "$REPO_ROOT/packages/hyprland/waybar/config.jsonc" "$HOME/.config/waybar/config.jsonc"
   maybe link_file "$REPO_ROOT/packages/hyprland/waybar/style.css" "$HOME/.config/waybar/style.css"
+  ensure_hypr_generated_overlay
+  install_tty_launcher
 }
 
 install_session_desktop() {
@@ -298,22 +323,51 @@ fi
 ### 8. bashrc snippet ##########################################################
 append_bashrc_snippet() {
   local bashrc="$HOME/.bashrc"
-  local marker="# LMDesktopPlus begin"
-
-  if [[ -f "$bashrc" ]] && grep -qF "$marker" "$bashrc" 2>/dev/null; then
-    log_info "bashrc already has LMDesktopPlus markers; skipping append"
-    return 0
-  fi
+  local marker_begin="# LMDesktopPlus begin"
+  local marker_end="# LMDesktopPlus end"
+  local snippet="$REPO_ROOT/packages/shared/bash/bashrc.snippet"
 
   if [[ "$DRY_RUN" == "1" ]]; then
-    log_info "[dry-run] would append packages/shared/bash/bashrc.snippet to $bashrc"
+    if [[ -f "$bashrc" ]] && grep -qF "$marker_begin" "$bashrc" 2>/dev/null; then
+      log_info "[dry-run] would refresh LMDesktopPlus block in $bashrc"
+    else
+      log_info "[dry-run] would append packages/shared/bash/bashrc.snippet to $bashrc"
+    fi
     return 0
   fi
 
   backup_path "$bashrc"
+  ensure_dir "$(dirname "$bashrc")"
+  touch "$bashrc"
+
+  if grep -qF "$marker_begin" "$bashrc" 2>/dev/null && grep -qF "$marker_end" "$bashrc" 2>/dev/null; then
+    local begin_count end_count begin_line end_line tmp
+    begin_count="$(grep -cF "$marker_begin" "$bashrc" 2>/dev/null || true)"
+    end_count="$(grep -cF "$marker_end" "$bashrc" 2>/dev/null || true)"
+    if [[ "$begin_count" -ne 1 || "$end_count" -ne 1 ]]; then
+      log_warn "Found $begin_count begin and $end_count end markers in $bashrc; leaving bashrc untouched"
+      return 0
+    fi
+    begin_line="$(grep -nF "$marker_begin" "$bashrc" | cut -d: -f1)"
+    end_line="$(grep -nF "$marker_end" "$bashrc" | cut -d: -f1)"
+    if [[ "$begin_line" -ge "$end_line" ]]; then
+      log_warn "LMDesktopPlus markers in $bashrc are out of order; leaving bashrc untouched"
+      return 0
+    fi
+    tmp="$(mktemp)"
+    {
+      sed -n "1,$((begin_line - 1))p" "$bashrc"
+      cat "$snippet"
+      sed -n "$((end_line + 1)),\$p" "$bashrc"
+    } >"$tmp"
+    mv "$tmp" "$bashrc"
+    log_info "Refreshed LMDesktopPlus snippet in $bashrc"
+    return 0
+  fi
+
   {
     echo ""
-    cat "$REPO_ROOT/packages/shared/bash/bashrc.snippet"
+    cat "$snippet"
   } >> "$bashrc"
   log_info "Appended LMDesktopPlus snippet to $bashrc"
 }
