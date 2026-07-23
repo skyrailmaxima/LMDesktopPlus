@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="lmdp-token" content="__LMDP_TOKEN__">
+  <title>LMDesktopPlus</title>
+  <link rel="stylesheet" href="digitalvapor.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dv-crt">
+  <canvas id="matrix-rain" class="dv-rain" data-dv-rain data-dv-intensity="55" aria-hidden="true"></canvas>
+  <div id="vignette" aria-hidden="true"></div>
+
+  <section id="lock-screen" class="lock-screen" tabindex="0" aria-label="Unlock LMDesktopPlus">
+    <div class="lock-kanji dv-jp dv-flicker">仮想現実</div>
+    <div id="lock-clock" class="lock-clock dv-disp dv-glow-cyan">--:--</div>
+    <div id="lock-date" class="lock-date dv-jp">loading</div>
+    <div class="lock-terminal dv-window dv-window--borderless">
+      <div class="dv-window__bar">
+        <span class="dv-window__title">agent://vaporframe/session</span>
+        <span class="dv-window__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      </div>
+      <div class="dv-window__body terminal compact">
+        <span class="prompt">root@vaporframe</span><span class="muted"> ~</span><br>
+        <span class="caret">❯</span> <span class="typed">agent spawn claude</span><span class="dv-caret"></span>
+      </div>
+    </div>
+    <button id="unlock-button" class="dv-btn dv-btn--ghost unlock-button">PRESS ANY KEY · CLICK TO UNLOCK</button>
+  </section>
+
+  <div id="machine-ui" class="machine-ui hidden">
+    <header class="topbar dv-bar">
+      <div class="workspace-strip dv-bar__group" id="workspace-strip"></div>
+      <div class="window-title"><span class="dv-cyan">◈</span> <span id="window-title">~ workspace</span></div>
+      <div class="status-strip dv-bar__group">
+        <span id="status-cpu" class="dv-purple dv-bar__stat">CPU --%</span>
+        <span id="status-ram" class="dv-mint dv-bar__stat">RAM --%</span>
+        <span id="status-net" class="dv-cyan dv-bar__stat">↓ --</span>
+        <button id="status-audio" class="dv-btn dv-btn--ghost audio-status" data-audio-mute title="Toggle mute" aria-label="Toggle audio mute">
+          <img data-audio-icon data-asset-id="audio.volume" alt="" aria-hidden="true">
+          <span data-bind="adapters.audio.volume">VOL --</span>
+        </button>
+        <span id="status-brightness" class="dv-cyan dv-bar__stat" data-bind="adapters.display.brightness" title="Display brightness">BRT --</span>
+        <span id="status-updates" class="dv-amber dv-bar__stat" data-bind="adapters.updates.count" title="Pending package updates">UPD --</span>
+        <span id="status-battery" class="dv-amber dv-bar__stat">BAT --</span>
+        <span id="status-clock" class="dv-bar__stat">--:--</span>
+        <button class="dv-btn dv-btn--ghost icon-button" data-action="lock" title="Lock system" aria-label="Lock system">鎖</button>
+      </div>
+    </header>
+
+    <main id="scene" class="scene" aria-live="polite"></main>
+    <nav id="dock" class="dock dv-dock" aria-label="LMDesktopPlus workspaces"></nav>
+    <div id="toast-stack" class="toast-stack dv-toasts" aria-live="polite"></div>
+  </div>
+
+  <div id="wifi-dialog" class="dv-dialog-backdrop" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="wifi-dialog-title">
+    <form id="wifi-form" class="dv-dialog" autocomplete="off">
+      <div class="dv-dialog__bar">
+        <span class="dv-cyan">網</span>
+        <span id="wifi-dialog-title">CONNECT TO WI-FI</span>
+        <button type="button" class="dv-dialog__close" data-dv-close aria-label="Close">×</button>
+      </div>
+      <div class="dv-dialog__body">
+        <input type="hidden" name="ssid">
+        <p>Enter the password for <strong id="wifi-dialog-ssid" class="dv-ink"></strong>.</p>
+        <div class="dv-field">
+          <label for="wifi-password">Password</label>
+          <input id="wifi-password" class="dv-input" name="password" type="password" autocomplete="new-password" autofocus>
+        </div>
+        <p class="dv-muted dialog-note">The password is passed directly to NetworkManager and is not stored by LMDesktopPlus.</p>
+      </div>
+      <div class="dv-dialog__actions">
+        <button type="button" class="dv-btn dv-btn--ghost" data-dv-close>CANCEL</button>
+        <button type="submit" class="dv-btn dv-btn--primary">CONNECT</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="confirm-dialog" class="dv-dialog-backdrop" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="confirm-dialog-title">
+    <div class="dv-dialog">
+      <div class="dv-dialog__bar">
+        <span class="dv-mag">!</span>
+        <span id="confirm-dialog-title">CONFIRM ACTION</span>
+        <button type="button" class="dv-dialog__close" data-dv-close aria-label="Close">×</button>
+      </div>
+      <div id="confirm-dialog-body" class="dv-dialog__body"></div>
+      <div class="dv-dialog__actions">
+        <button type="button" class="dv-btn dv-btn--ghost" data-dv-close>CANCEL</button>
+        <button id="confirm-dialog-accept" type="button" class="dv-btn dv-btn--danger">CONFIRM</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="digitalvapor.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

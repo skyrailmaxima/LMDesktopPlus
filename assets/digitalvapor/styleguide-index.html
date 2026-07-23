@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digitalvapor — vapor//matrix theme pack</title>
+<link rel="stylesheet" href="digitalvapor.css">
+<style>
+  /* docs-page-only chrome (not part of the pack) */
+  .doc-nav{position:sticky;top:var(--dv-bar-h);align-self:start;width:190px;flex:none;padding:20px 0;font-size:13px}
+  .doc-nav a{display:block;padding:5px 14px;color:var(--dv-muted);border-left:2px solid transparent}
+  .doc-nav a:hover{color:var(--dv-text);text-shadow:none}
+  .doc-sec{scroll-margin-top:60px;padding:34px 0;border-bottom:1px solid var(--dv-line-soft)}
+  .swatch{height:64px;display:flex;align-items:flex-end;padding:6px 8px;font-size:10px;color:#05060a;font-weight:700}
+  .dv-code{margin:12px 0 0;padding:12px 14px;background:rgba(4,7,10,.6);border-left:2px solid var(--dv-cyan);
+    font-size:11.5px;line-height:1.6;color:var(--dv-grn2);overflow:auto;white-space:pre;border-radius:var(--dv-radius)}
+  .demo{padding:18px;border:1px dashed var(--dv-line-soft);display:flex;flex-wrap:wrap;gap:12px;align-items:center;background:rgba(6,8,14,.35)}
+  .comp{margin-bottom:22px}
+  .comp > h4{font-family:var(--dv-mono);font-size:12px;letter-spacing:2px;color:var(--dv-cyan);text-transform:uppercase;margin:0 0 10px}
+</style>
+</head>
+<template id="__bundler_thumbnail" data-bg-color="#05060a">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1200" height="800" fill="#05060a"/>
+    <text x="600" y="330" font-family="sans-serif" font-size="150" fill="#b967ff" text-anchor="middle" opacity="0.9">墨</text>
+    <text x="600" y="470" font-family="monospace" font-size="72" fill="#ff2e97" text-anchor="middle" font-weight="700">DIGITALVAPOR</text>
+    <text x="600" y="540" font-family="monospace" font-size="34" fill="#01cdfe" text-anchor="middle">vapor // matrix theme pack</text>
+    <rect x="470" y="590" width="260" height="6" fill="#05ffa1"/>
+  </svg>
+</template>
+<body class="dv-flicker">
+<canvas class="dv-rain" data-dv-rain data-dv-intensity="55"></canvas>
+
+<!-- top bar -->
+<div class="dv-bar">
+  <div class="dv-bar__group">
+    <span class="dv-jp dv-mag dv-glow" style="font-size:16px;padding-right:6px">墨</span>
+    <span class="dv-ink">Digitalvapor</span>
+    <span class="dv-tag dv-tag--cyan">v1.0</span>
+  </div>
+  <div class="dv-bar__group dv-muted"><span class="dv-cyan">◈</span> vapor // matrix // 現</div>
+  <div class="dv-bar__group">
+    <a href="templates/landing.html" class="dv-bar__stat">landing</a>
+    <a href="templates/app-shell.html" class="dv-bar__stat">app shell</a>
+    <a href="templates/settings.html" class="dv-bar__stat">settings</a>
+  </div>
+</div>
+
+<div class="dv-wrap" style="position:relative;z-index:2">
+  <!-- hero -->
+  <header class="doc-sec" style="border:0;padding-top:52px">
+    <div class="dv-jp dv-cyan dv-glow-cyan" style="font-size:18px;letter-spacing:6px">仮想現実 · アセットパック</div>
+    <h1 style="font-size:3.2rem;margin-top:8px">DIGITALVAPOR</h1>
+    <p style="max-width:620px;font-size:15px">A vapor//matrix theme pack — tokens, utilities, components and window chrome in one drop-in stylesheet. Paste <code class="dv-cyan">digitalvapor.css</code>, link it, and build webpages or app UIs in the same neon-on-black grammar. Add <code class="dv-cyan">digitalvapor.js</code> for the matrix rain and zero-config interactions.</p>
+    <div class="dv-row" style="margin-top:18px">
+      <a href="#tokens" class="dv-btn dv-btn--primary">Get the tokens</a>
+      <a href="#components" class="dv-btn dv-btn--outline">Browse components</a>
+      <span class="dv-btn dv-btn--ghost" data-dv-dialog="demoDialog">Try a dialog →</span>
+    </div>
+  </header>
+
+  <div class="dv-row" style="align-items:flex-start;gap:28px">
+    <!-- side nav -->
+    <nav class="doc-nav">
+      <div class="dv-kicker" style="padding:0 14px 6px">CONTENTS</div>
+      <a href="#tokens">Tokens</a>
+      <a href="#color">Color</a>
+      <a href="#type">Type</a>
+      <a href="#effects">Effects</a>
+      <a href="#components">Components</a>
+      <a href="#chrome">Window chrome</a>
+      <a href="#templates">Templates</a>
+    </nav>
+
+    <main style="flex:1;min-width:0">
+
+      <!-- TOKENS -->
+      <section id="tokens" class="doc-sec">
+        <div class="dv-kicker">01 · Foundation</div>
+        <h2>Tokens &amp; setup</h2>
+        <p>Everything reads CSS custom properties. Override them on <code>:root</code> (or any scope) to re-skin an entire build — swap the accent, soften corners, dial the blur.</p>
+        <div class="dv-code">&lt;link rel="stylesheet" href="digitalvapor.css"&gt;
+&lt;script src="digitalvapor.js" defer&gt;&lt;/script&gt;
+
+/* re-skin in one place */
+:root{
+  --dv-accent: var(--dv-cyan);   /* magenta → cyan */
+  --dv-radius: 4px;              /* soften corners */
+  --dv-blur: 14px;              /* heavier frost */
+}</div>
+      </section>
+
+      <!-- COLOR -->
+      <section id="color" class="doc-sec">
+        <div class="dv-kicker">02 · Foundation</div>
+        <h2>Color</h2>
+        <p>Neon primaries over near-black. <span class="dv-mag">Magenta</span> is the default accent; <span class="dv-cyan">cyan</span> the secondary. Green is the matrix substrate for text.</p>
+        <div class="dv-grid dv-grid-4">
+          <div><div class="swatch" style="background:var(--dv-mag)">--dv-mag</div></div>
+          <div><div class="swatch" style="background:var(--dv-cyan)">--dv-cyan</div></div>
+          <div><div class="swatch" style="background:var(--dv-mint)">--dv-mint</div></div>
+          <div><div class="swatch" style="background:var(--dv-purple)">--dv-purple</div></div>
+          <div><div class="swatch" style="background:var(--dv-pink)">--dv-pink</div></div>
+          <div><div class="swatch" style="background:var(--dv-amber)">--dv-amber</div></div>
+          <div><div class="swatch" style="background:var(--dv-grn2);color:#05060a">--dv-grn2</div></div>
+          <div><div class="swatch" style="background:var(--dv-bg);color:var(--dv-grn2);border:1px solid var(--dv-line)">--dv-bg</div></div>
+        </div>
+      </section>
+
+      <!-- TYPE -->
+      <section id="type" class="doc-sec">
+        <div class="dv-kicker">03 · Foundation</div>
+        <h2>Typography</h2>
+        <div class="dv-grid dv-grid-3">
+          <div class="dv-card"><div class="dv-disp" style="font-size:30px;color:#fff">Aa 現</div><div class="dv-muted" style="margin-top:8px">Zen Dots · <code>--dv-disp</code><br>display / headings</div></div>
+          <div class="dv-card"><div class="dv-mono" style="font-size:30px;color:#fff">Aa 現</div><div class="dv-muted" style="margin-top:8px">JetBrains Mono · <code>--dv-mono</code><br>body / code / UI</div></div>
+          <div class="dv-card"><div class="dv-jp" style="font-size:30px;color:#fff">現実仮想</div><div class="dv-muted" style="margin-top:8px">DotGothic16 · <code>--dv-jp</code><br>japanese accents</div></div>
+        </div>
+      </section>
+
+      <!-- EFFECTS -->
+      <section id="effects" class="doc-sec">
+        <div class="dv-kicker">04 · Foundation</div>
+        <h2>Effects</h2>
+        <p>Toggle-able utility classes — mix freely.</p>
+        <div class="demo">
+          <span class="dv-mag dv-glow" style="font-size:20px">.dv-glow</span>
+          <span class="dv-cyan dv-glow-cyan" style="font-size:20px">.dv-glow-cyan</span>
+          <span class="dv-panel dv-blur" style="padding:10px 16px;color:#fff">.dv-blur panel</span>
+          <span class="dv-scanlines" style="padding:10px 16px;border:1px solid var(--dv-line);color:var(--dv-mint)">.dv-scanlines</span>
+          <span class="dv-jp dv-float dv-purple" style="font-size:26px">.dv-float 動</span>
+        </div>
+        <div class="dv-code">&lt;body class="dv-crt"&gt;  &lt;!-- full-screen scanlines --&gt;
+&lt;canvas class="dv-rain" data-dv-rain data-dv-intensity="55"&gt;&lt;/canvas&gt;</div>
+      </section>
+
+      <!-- COMPONENTS -->
+      <section id="components" class="doc-sec">
+        <div class="dv-kicker">05 · Library</div>
+        <h2>Components</h2>
+
+        <div class="comp">
+          <h4>Buttons</h4>
+          <div class="demo">
+            <button class="dv-btn dv-btn--primary">Primary</button>
+            <button class="dv-btn dv-btn--outline">Outline</button>
+            <button class="dv-btn dv-btn--ghost">Ghost</button>
+            <button class="dv-btn dv-btn--outline" disabled>Disabled</button>
+          </div>
+          <div class="dv-code">&lt;button class="dv-btn dv-btn--primary"&gt;Primary&lt;/button&gt;
+&lt;button class="dv-btn dv-btn--outline"&gt;Outline&lt;/button&gt;
+&lt;button class="dv-btn dv-btn--ghost"&gt;Ghost&lt;/button&gt;</div>
+        </div>
+
+        <div class="comp">
+          <h4>Tags &amp; badges</h4>
+          <div class="demo">
+            <span class="dv-tag dv-tag--mag">agent</span>
+            <span class="dv-tag dv-tag--cyan">wayland</span>
+            <span class="dv-tag dv-tag--mint"><span class="dv-tag__dot"></span>online</span>
+            <span class="dv-tag dv-tag--purple">nix</span>
+            <span class="dv-tag">v1.0</span>
+          </div>
+          <div class="dv-code">&lt;span class="dv-tag dv-tag--mint"&gt;&lt;span class="dv-tag__dot"&gt;&lt;/span&gt;online&lt;/span&gt;</div>
+        </div>
+
+        <div class="comp">
+          <h4>Inputs</h4>
+          <div class="demo" style="flex-direction:column;align-items:stretch">
+            <div class="dv-field"><label>Workspace</label><input class="dv-input" value="~/work/neon-api"></div>
+            <div class="dv-field"><label>Search</label><input class="dv-input" placeholder="search packages…"></div>
+          </div>
+          <div class="dv-code">&lt;div class="dv-field"&gt;
+  &lt;label&gt;Workspace&lt;/label&gt;
+  &lt;input class="dv-input" value="~/work"&gt;
+&lt;/div&gt;</div>
+        </div>
+
+        <div class="comp">
+          <h4>Toggle · radio · check</h4>
+          <div class="demo">
+            <label class="dv-toggle"><input type="checkbox" checked><span class="dv-track"></span></label>
+            <label class="dv-choice dv-radio"><input type="radio" name="r" checked><span class="dv-mark"></span>Blur</label>
+            <label class="dv-choice dv-radio"><input type="radio" name="r"><span class="dv-mark"></span>Opaque</label>
+            <label class="dv-choice"><input type="checkbox" checked><span class="dv-mark"></span>Gaps</label>
+          </div>
+          <div class="dv-code">&lt;label class="dv-toggle"&gt;&lt;input type="checkbox" checked&gt;&lt;span class="dv-track"&gt;&lt;/span&gt;&lt;/label&gt;
+&lt;label class="dv-choice dv-radio"&gt;&lt;input type="radio" name="r"&gt;&lt;span class="dv-mark"&gt;&lt;/span&gt;Blur&lt;/label&gt;</div>
+        </div>
+
+        <div class="comp">
+          <h4>Segmented · slider</h4>
+          <div class="demo" style="flex-direction:column;align-items:stretch">
+            <div class="dv-seg">
+              <label class="dv-seg__opt"><input type="radio" name="seg" checked>tiled</label>
+              <label class="dv-seg__opt"><input type="radio" name="seg">floating</label>
+              <label class="dv-seg__opt"><input type="radio" name="seg">tabbed</label>
+            </div>
+            <input type="range" class="dv-slider" min="0" max="100" value="64">
+            <input type="range" class="dv-slider dv-slider--cyan" min="0" max="24" value="9">
+          </div>
+          <div class="dv-code">&lt;input type="range" class="dv-slider" min="0" max="100" value="64"&gt;</div>
+        </div>
+
+        <div class="comp">
+          <h4>Tabs</h4>
+          <div class="demo" style="flex-direction:column;align-items:stretch">
+            <div class="dv-tabs" data-dv-tabs data-dv-panels="#tabDemo">
+              <div class="dv-tab is-active" data-dv-panel="a">Preview</div>
+              <div class="dv-tab" data-dv-panel="b">Config</div>
+              <div class="dv-tab" data-dv-panel="c">Logs</div>
+            </div>
+            <div id="tabDemo" style="padding:12px 2px;color:var(--dv-muted)">
+              <div data-dv-panel-content="a">Live preview pane.</div>
+              <div data-dv-panel-content="b" style="display:none">key = value · config.toml</div>
+              <div data-dv-panel-content="c" style="display:none">GET /health 200 · 1ms</div>
+            </div>
+          </div>
+          <div class="dv-code">&lt;div class="dv-tabs" data-dv-tabs data-dv-panels="#out"&gt;
+  &lt;div class="dv-tab is-active" data-dv-panel="a"&gt;Preview&lt;/div&gt; …
+&lt;/div&gt;</div>
+        </div>
+
+        <div class="comp">
+          <h4>Progress · spinner</h4>
+          <div class="demo" style="flex-direction:column;align-items:stretch">
+            <div class="dv-progress"><div class="dv-progress__bar" style="width:72%"></div></div>
+            <div class="dv-row" style="align-items:center"><span class="dv-spinner"></span><span class="dv-muted">syncing…</span></div>
+          </div>
+          <div class="dv-code">&lt;div class="dv-progress"&gt;&lt;div class="dv-progress__bar" style="width:72%"&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;span class="dv-spinner"&gt;&lt;/span&gt;</div>
+        </div>
+
+        <div class="comp">
+          <h4>Dropdown (auto-wired)</h4>
+          <div class="demo" style="align-items:flex-start">
+            <div class="dv-dropdown" data-dv-dropdown style="width:220px">
+              <div class="dv-dropdown__toggle"><span>kitty</span><span class="dv-cyan">▾</span></div>
+              <div class="dv-dropdown__list">
+                <div class="dv-dropdown__item is-active">kitty</div>
+                <div class="dv-dropdown__item">alacritty</div>
+                <div class="dv-dropdown__item">wezterm</div>
+                <div class="dv-dropdown__item">foot</div>
+              </div>
+            </div>
+          </div>
+          <div class="dv-code">&lt;div class="dv-dropdown" data-dv-dropdown&gt;
+  &lt;div class="dv-dropdown__toggle"&gt;&lt;span&gt;kitty&lt;/span&gt;&lt;span&gt;▾&lt;/span&gt;&lt;/div&gt;
+  &lt;div class="dv-dropdown__list"&gt;&lt;div class="dv-dropdown__item"&gt;alacritty&lt;/div&gt;…&lt;/div&gt;
+&lt;/div&gt;</div>
+        </div>
+
+        <div class="comp">
+          <h4>Dialog &amp; toast (auto-wired)</h4>
+          <div class="demo">
+            <button class="dv-btn dv-btn--outline" data-dv-dialog="demoDialog">Open dialog</button>
+            <button class="dv-btn dv-btn--outline" onclick="Digitalvapor.toast({title:'claude',body:'cargo test passed · 41 ok',tone:'mint'})">Fire toast</button>
+          </div>
+          <div class="dv-code">&lt;button data-dv-dialog="myDialog"&gt;Open&lt;/button&gt;
+Digitalvapor.toast({title:'claude', body:'done', tone:'mint'});</div>
+        </div>
+
+        <div class="comp">
+          <h4>Context menu (right-click the box)</h4>
+          <div class="demo" data-dv-menu style="min-height:90px">
+            <span class="dv-muted">right-click anywhere in this panel</span>
+            <div class="dv-menu">
+              <div class="dv-menu__item">Open in Pulsar</div>
+              <div class="dv-menu__item">New terminal here</div>
+              <div class="dv-menu__item">Spawn agent…</div>
+              <div class="dv-menu__sep"></div>
+              <div class="dv-menu__item">Properties</div>
+            </div>
+          </div>
+          <div class="dv-code">&lt;div data-dv-menu&gt;
+  … content …
+  &lt;div class="dv-menu"&gt;&lt;div class="dv-menu__item"&gt;Open&lt;/div&gt;…&lt;/div&gt;
+&lt;/div&gt;</div>
+        </div>
+      </section>
+
+      <!-- CHROME -->
+      <section id="chrome" class="doc-sec">
+        <div class="dv-kicker">06 · Library</div>
+        <h2>Window chrome</h2>
+        <p>Assemble desktop-app and rice-style UIs from bars, windows, panels and a dock.</p>
+        <div class="dv-window dv-window--borderless" style="height:220px;margin-bottom:16px">
+          <div class="dv-window__bar"><span class="dv-mag">⬢</span> kitty — agent session
+            <span class="dv-window__dots"><i></i><i></i><i></i></span></div>
+          <div class="dv-window__body" style="padding:14px">
+            <div class="dv-prompt">
+              <div class="p1"><span class="dv-cyan"> ~/work</span> <span class="dv-amber"> main</span></div>
+              <div class="p2">agent spawn claude --scope ~/work<span class="dv-caret"></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="dv-code">&lt;div class="dv-window dv-window--borderless"&gt;
+  &lt;div class="dv-window__bar"&gt;title &lt;span class="dv-window__dots"&gt;&lt;i&gt;&lt;/i&gt;&lt;i&gt;&lt;/i&gt;&lt;i&gt;&lt;/i&gt;&lt;/span&gt;&lt;/div&gt;
+  &lt;div class="dv-window__body"&gt;…&lt;/div&gt;
+&lt;/div&gt;
+
+&lt;div class="dv-bar"&gt;…waybar…&lt;/div&gt;   &lt;div class="dv-dock"&gt;…dock…&lt;/div&gt;</div>
+      </section>
+
+      <!-- TEMPLATES -->
+      <section id="templates" class="doc-sec" style="border:0">
+        <div class="dv-kicker">07 · Starters</div>
+        <h2>Templates</h2>
+        <p>Pre-themed pages to fork. Each links the same two files.</p>
+        <div class="dv-grid dv-grid-3">
+          <a href="templates/landing.html" class="dv-card dv-card--mag" style="display:block">
+            <i class="dv-corner tl"></i><i class="dv-corner tr"></i><i class="dv-corner bl"></i><i class="dv-corner br"></i>
+            <div class="dv-jp dv-mag" style="font-size:26px">網</div>
+            <div class="dv-card__title" style="margin-top:8px">Landing page</div>
+            <div class="dv-muted">Marketing hero, feature grid, spec plate, CTA.</div>
+          </a>
+          <a href="templates/app-shell.html" class="dv-card" style="display:block">
+            <i class="dv-corner tl"></i><i class="dv-corner tr"></i><i class="dv-corner bl"></i><i class="dv-corner br"></i>
+            <div class="dv-jp dv-cyan" style="font-size:26px">盤</div>
+            <div class="dv-card__title" style="margin-top:8px">App shell</div>
+            <div class="dv-muted">Waybar, sidebar nav, panels, live widgets.</div>
+          </a>
+          <a href="templates/settings.html" class="dv-card dv-card--purple" style="display:block">
+            <i class="dv-corner tl"></i><i class="dv-corner tr"></i><i class="dv-corner bl"></i><i class="dv-corner br"></i>
+            <div class="dv-jp dv-purple" style="font-size:26px">設</div>
+            <div class="dv-card__title" style="margin-top:8px">Settings window</div>
+            <div class="dv-muted">Category nav, forms, every control in situ.</div>
+          </a>
+        </div>
+      </section>
+
+      <footer style="padding:30px 0;color:var(--dv-muted);font-size:12px">
+        Digitalvapor · vapor//matrix theme pack · <span class="dv-jp dv-mag">墨</span> build 20260721
+      </footer>
+    </main>
+  </div>
+</div>
+
+<!-- demo dialog -->
+<div class="dv-dialog-backdrop" id="demoDialog">
+  <div class="dv-dialog">
+    <div class="dv-dialog__bar"><span class="dv-jp dv-mag">確認</span> Spawn agent</div>
+    <div class="dv-dialog__body">Mount a scoped <span class="dv-cyan">$HOME</span> at <span class="dv-mint">~/agents/claude</span> with <span class="dv-amber">rw</span> on <span class="dv-amber">~/work</span>. Continue?</div>
+    <div class="dv-dialog__actions">
+      <button class="dv-btn dv-btn--ghost" data-dv-close>Cancel</button>
+      <button class="dv-btn dv-btn--primary" data-dv-close>Spawn</button>
+    </div>
+  </div>
+</div>
+
+<script src="digitalvapor.js" defer></script>
+</body>
+</html>
