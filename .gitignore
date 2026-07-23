@@ -3,5 +3,19 @@ _extracted_template.html
 *.swp
 .DS_Store
 .superpowers/
-build/
+.review-home/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
 dist/
+build/
+*.whl
+*.deb
+*.zip
+Digitalvapor - Styleguide.html
+Digitalvapor - Styleguide (2).html
+NeonRice - Vaporwave Matrix Rice.html
+UIRB.zip
+lmdesktopplus-*-py3-none-any.whl_FILES/
+assets/preview/NeonRice-Vaporwave-Matrix-Rice.html

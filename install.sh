@@ -17,12 +17,13 @@ CINNAMON_ONLY=0
 WITH_HYPRLAND=0
 ALLOW_COMMUNITY_PPA=0
 HYPRLAND_SOURCE=""
+NO_UI=0
 
 usage() {
   cat <<'EOF'
 Usage: install.sh [--dry-run] [--cinnamon-only] [--with-hyprland]
                   [--allow-community-ppa] [--hyprland-source=distro|ppa|existing]
-                  [--force]
+                  [--no-ui] [--force]
 
   --dry-run                 Print planned actions without changing the system.
   --cinnamon-only           Skip Hyprland/waybar setup, even if Hyprland is installed.
@@ -34,6 +35,7 @@ Usage: install.sh [--dry-run] [--cinnamon-only] [--with-hyprland]
   --hyprland-source=ppa     Allow community PPA (implies --allow-community-ppa).
   --hyprland-source=existing
                             Require Hyprland already on PATH; do not install packages.
+  --no-ui                   Install only the rice/configs; skip the machine UI.
   --force                   Continue on unsupported OS (same as FORCE=1).
 
 Env: DRY_RUN=1, FORCE=1 are equivalent to the flags above.
@@ -54,6 +56,7 @@ while [[ $# -gt 0 ]]; do
       usage
       exit 1
       ;;
+    --no-ui) NO_UI=1 ;;
     --force) FORCE=1 ;;
     -h|--help) usage; exit 0 ;;
     *) log_err "Unknown flag: $1"; usage; exit 1 ;;
@@ -207,7 +210,15 @@ materialize_wallpaper() {
 log_info "Materializing wallpaper + palette under $SHARE_DIR"
 materialize_wallpaper
 
-### 4. link shared configs ####################################################
+### 4. machine UI #############################################################
+if [[ "$NO_UI" == "1" ]]; then
+  log_info "--no-ui: skipping LMDesktopPlus machine UI"
+else
+  log_info "Installing LMDesktopPlus machine UI"
+  bash "$REPO_ROOT/scripts/install-ui.sh"
+fi
+
+### 5. link shared configs ####################################################
 link_shared_configs() {
   maybe link_file "$REPO_ROOT/packages/shared/kitty/kitty.conf" "$HOME/.config/kitty/kitty.conf"
   maybe link_file "$REPO_ROOT/packages/shared/rofi/config.rasi" "$HOME/.config/rofi/config.rasi"
@@ -373,6 +384,10 @@ append_bashrc_snippet() {
 }
 log_info "Updating ~/.bashrc"
 append_bashrc_snippet
+
+if [[ "$NO_UI" != "1" ]]; then
+  log_info "Launch the machine UI with: $HOME/.local/bin/lmdesktopplus"
+fi
 
 log_info "LMDesktopPlus install complete."
 if [[ "$DRY_RUN" == "1" ]]; then
