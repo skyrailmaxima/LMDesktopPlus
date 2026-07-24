@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from ..util import executable, run_capture
+from .base import dispatch_command
 
 _MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}$")
 _DEVICE_RE = re.compile(
@@ -101,22 +102,41 @@ class BluetoothAdapter:
         return snapshot.copy()
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
-        if name not in {"power", "scan", "connect", "disconnect"}:
-            return {"ok": False, "error": f"unknown bluetooth command: {name}"}
+        return dispatch_command(self._commands(), name, payload, adapter_id=self.id)
+
+    def _commands(self) -> dict[str, Any]:
+        return {
+            "power": self._cmd_power,
+            "scan": self._cmd_scan,
+            "connect": lambda payload: self._cmd_device("connect", payload),
+            "disconnect": lambda payload: self._cmd_device("disconnect", payload),
+        }
+
+    def _require_bluetoothctl(self, action):
         if not self.available():
             return {"ok": False, "error": "bluetoothctl is not installed"}
+        return action()
 
-        if name == "power":
-            on = payload.get("on")
-            if not isinstance(on, bool):
-                return {"ok": False, "error": "on must be a boolean"}
-            return self._power(on)
-        if name == "scan":
-            return self._scan()
-        mac = normalize_mac(payload.get("mac"))
-        if mac is None:
-            return {"ok": False, "error": "mac must be a Bluetooth address"}
-        return self._connect_or_disconnect(name, mac)
+    def _cmd_power(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._require_bluetoothctl(lambda: self._power_payload(payload))
+
+    def _power_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        on = payload.get("on")
+        if not isinstance(on, bool):
+            return {"ok": False, "error": "on must be a boolean"}
+        return self._power(on)
+
+    def _cmd_scan(self, _payload: dict[str, Any]) -> dict[str, Any]:
+        return self._require_bluetoothctl(self._scan)
+
+    def _cmd_device(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
+        def run() -> dict[str, Any]:
+            mac = normalize_mac(payload.get("mac"))
+            if mac is None:
+                return {"ok": False, "error": "mac must be a Bluetooth address"}
+            return self._connect_or_disconnect(action, mac)
+
+        return self._require_bluetoothctl(run)
 
     def _power(self, on: bool) -> dict[str, Any]:
         state = "on" if on else "off"

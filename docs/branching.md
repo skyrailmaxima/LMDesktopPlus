@@ -15,8 +15,7 @@ Preferred base branch: `feature/lmdesktopplus`.
 
 | Branch | Scope |
 |---|---|
-| `cursor/stage-c-power-user-081e` | Stage C adapters: VPN, storage, processes (0.4.4); next: dispatch refactor then agent CRUD / keybinds / vault → 0.5.0 |
-| *(planned)* `cursor/dispatch-refactor-081e` | Optional split PR: hashmap/bindings deconvolution before Tasks 16–18 |
+| `cursor/stage-c-power-user-081e` | 0.4.4 adapters + dispatch Tranches 1–3; next: Tranche 4 keybinds (interim plan) → agent CRUD / vault → 0.5.0 |
 
 ## Landed on `feature/lmdesktopplus`
 

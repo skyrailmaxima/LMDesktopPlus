@@ -208,12 +208,15 @@ def dispatch_command(
     return handler(payload)
 ```
 
-- [ ] Each adapter exposes `COMMANDS` property or module-level table bound in
+- [x] Each adapter exposes `COMMANDS` property or module-level table bound in
       `__init__` / `command()`
-- [ ] Unit tests keep mocking `run_capture`; only wiring changes
+- [x] Unit tests keep mocking `run_capture`; only wiring changes
 - [ ] Commit: `refactor: hashmap command dispatch for stage C adapters`
 
-**Defer:** full audio/capture argv matrix unless a touch is required — consistency
+**Done for:** vpn, storage, processes, bluetooth, clipboard, capture via
+`dispatch_command` + `_commands()` maps.
+
+**Defer:** full audio/display/session/updates/wallpaper argv matrices — consistency
 nice-to-have, not blocking Tasks 16–18.
 
 ---
@@ -221,6 +224,10 @@ nice-to-have, not blocking Tasks 16–18.
 ## Tranche 4 — Connect Task 17: Keybind editor
 
 **Depends on:** Tranche 1 (`SETTINGS_TABS`, `SCENE_BINDINGS`) + Tranche 2 (POST route)
+
+**Interim design:** [`2026-07-24-tranche-4-keybinds-interim.md`](2026-07-24-tranche-4-keybinds-interim.md)
+(DEFAULT_BINDS map, KeybindsAdapter + `dispatch_command`, owned `hypr-binds.conf`,
+UI via existing settings/bindings rails).
 
 **Files:** new adapter or small `keybinds.py` service; generated
 `~/.config/lmdesktopplus/hypr-binds.conf`; Settings → Keybinds UI; tests

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ..util import ensure_private_dir, executable, run_capture, spawn
+from .base import dispatch_command
 
 _GEOM_RE = re.compile(r"^\d+,\d+\s+\d+x\d+$")
 
@@ -85,15 +86,16 @@ class CaptureAdapter:
         return snapshot.copy()
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
-        if name not in {"full", "region", "open_folder"}:
-            return {"ok": False, "error": f"unknown capture command: {name}"}
         if "path" in payload:
             return {"ok": False, "error": "client paths are not accepted"}
-        if name == "open_folder":
-            return self._open_folder()
-        if name == "full":
-            return self._capture(region=False)
-        return self._capture(region=True)
+        return dispatch_command(self._commands(), name, payload, adapter_id=self.id)
+
+    def _commands(self) -> dict[str, Any]:
+        return {
+            "full": lambda _payload: self._capture(region=False),
+            "region": lambda _payload: self._capture(region=True),
+            "open_folder": lambda _payload: self._open_folder(),
+        }
 
     def _target_path(self) -> Path:
         ensure_private_dir(self.save_dir)

@@ -7,7 +7,7 @@ import time
 from typing import Any
 
 from ..util import executable, run_capture
-from .base import command_error
+from .base import command_error, dispatch_command
 
 # Removable/hotplug partitions and whole disks only — never system roots by path alone.
 _DEVICE_RE = re.compile(
@@ -140,22 +140,41 @@ class RemovableStorageAdapter:
         return snapshot.copy()
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
-        if name not in {"mount", "unmount", "refresh"}:
-            return command_error("unavailable", f"unknown storage command: {name}")
+        return dispatch_command(self._commands(), name, payload, adapter_id=self.id)
+
+    def _commands(self) -> dict[str, Any]:
+        return {
+            "mount": lambda payload: self._require_lsblk(
+                lambda: self._require_udisks(lambda: self._device_action("mount", payload))
+            ),
+            "unmount": lambda payload: self._require_lsblk(
+                lambda: self._require_udisks(lambda: self._device_action("unmount", payload))
+            ),
+            "refresh": lambda _payload: self._require_lsblk(self._refresh),
+        }
+
+    def _require_lsblk(self, action):
         if not self.available():
             return command_error("unavailable", "lsblk is not installed")
-        if name == "refresh":
-            self._cached_snapshot = None
-            return {"ok": True, **self.snapshot()}
+        return action()
+
+    def _require_udisks(self, action):
         if not self.udisksctl:
             return command_error("unavailable", "udisksctl is not installed")
+        return action()
+
+    def _refresh(self) -> dict[str, Any]:
+        self._cached_snapshot = None
+        return {"ok": True, **self.snapshot()}
+
+    def _device_action(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
         device = normalize_device(payload.get("device") or payload.get("path"))
         if device is None:
             return command_error(
                 "invalid_argument",
                 "device must be an allowlisted removable partition path",
             )
-        return self._mount_or_unmount(name, device)
+        return self._mount_or_unmount(action, device)
 
     def _mount_or_unmount(self, action: str, device: str) -> dict[str, Any]:
         # Confirm the device still looks removable before invoking udisks.

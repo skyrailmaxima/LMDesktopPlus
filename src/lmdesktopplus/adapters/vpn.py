@@ -7,7 +7,7 @@ from typing import Any
 
 from ..network import _split_nmcli
 from ..util import executable, run_capture
-from .base import command_error
+from .base import command_error, dispatch_command
 
 _VPN_TYPES = frozenset({"vpn", "wireguard"})
 _NAME_RE = re.compile(r"^[\w .@+()\[\]-]{1,128}$")
@@ -112,17 +112,29 @@ class VpnAdapter:
         return snapshot.copy()
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
-        if name not in {"up", "down", "refresh"}:
-            return command_error("unavailable", f"unknown vpn command: {name}")
+        return dispatch_command(self._commands(), name, payload, adapter_id=self.id)
+
+    def _commands(self) -> dict[str, Any]:
+        return {
+            "up": lambda payload: self._require_nmcli(lambda: self._connect_named("up", payload)),
+            "down": lambda payload: self._require_nmcli(lambda: self._connect_named("down", payload)),
+            "refresh": lambda _payload: self._require_nmcli(self._refresh),
+        }
+
+    def _require_nmcli(self, action):
         if not self.available():
             return command_error("unavailable", "nmcli is not installed")
-        if name == "refresh":
-            self._cached_snapshot = None
-            return {"ok": True, **self.snapshot()}
+        return action()
+
+    def _refresh(self) -> dict[str, Any]:
+        self._cached_snapshot = None
+        return {"ok": True, **self.snapshot()}
+
+    def _connect_named(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
         connection = normalize_connection_name(payload.get("name") or payload.get("connection"))
         if connection is None:
             return command_error("invalid_argument", "connection name is invalid")
-        return self._up_or_down(name, connection)
+        return self._up_or_down(action, connection)
 
     def _up_or_down(self, action: str, connection: str) -> dict[str, Any]:
         try:

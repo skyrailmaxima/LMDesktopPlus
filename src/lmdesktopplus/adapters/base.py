@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
 
@@ -12,6 +13,28 @@ class Adapter(Protocol):
     def snapshot(self) -> dict[str, Any]: ...
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]: ...
+
+
+CommandHandler = Callable[[dict[str, Any]], dict[str, Any]]
+
+
+def dispatch_command(
+    commands: Mapping[str, CommandHandler],
+    name: str,
+    payload: dict[str, Any],
+    *,
+    adapter_id: str | None = None,
+) -> dict[str, Any]:
+    """Resolve adapter commands through a name → handler map."""
+    handler = commands.get(name)
+    if handler is None:
+        label = (
+            f"unknown {adapter_id} command: {name}"
+            if adapter_id
+            else f"unknown command: {name}"
+        )
+        return command_error("unavailable", label)
+    return handler(payload)
 
 
 class NullAdapter:

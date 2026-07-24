@@ -7,6 +7,7 @@ from collections import deque
 from typing import Any
 
 from ..util import executable, run_capture
+from .base import dispatch_command
 
 MAX_COPY_BYTES = 64 * 1024
 PREVIEW_LIMIT = 500
@@ -83,18 +84,30 @@ class ClipboardAdapter:
         return snapshot.copy()
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
-        if name not in {"peek", "copy", "clear", "history"}:
-            return {"ok": False, "error": f"unknown clipboard command: {name}"}
-        if name == "history":
-            return {"ok": True, "items": list(self._history)}
-        if name == "peek":
-            self._cached_snapshot = None
-            snap = self.snapshot()
-            if not snap.get("available"):
-                return {"ok": False, "error": snap.get("last_error") or "clipboard unavailable"}
-            return {"ok": True, **snap}
-        if name == "clear":
-            return self._copy_text("")
+        return dispatch_command(self._commands(), name, payload, adapter_id=self.id)
+
+    def _commands(self) -> dict[str, Any]:
+        return {
+            "history": self._cmd_history,
+            "peek": self._cmd_peek,
+            "clear": self._cmd_clear,
+            "copy": self._cmd_copy,
+        }
+
+    def _cmd_history(self, _payload: dict[str, Any]) -> dict[str, Any]:
+        return {"ok": True, "items": list(self._history)}
+
+    def _cmd_peek(self, _payload: dict[str, Any]) -> dict[str, Any]:
+        self._cached_snapshot = None
+        snap = self.snapshot()
+        if not snap.get("available"):
+            return {"ok": False, "error": snap.get("last_error") or "clipboard unavailable"}
+        return {"ok": True, **snap}
+
+    def _cmd_clear(self, _payload: dict[str, Any]) -> dict[str, Any]:
+        return self._copy_text("")
+
+    def _cmd_copy(self, payload: dict[str, Any]) -> dict[str, Any]:
         text = payload.get("text")
         if not isinstance(text, str):
             return {"ok": False, "error": "text must be a string"}

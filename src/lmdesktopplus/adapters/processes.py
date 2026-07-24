@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .base import command_error
+from .base import command_error, dispatch_command
 
 _PROC = Path("/proc")
 
@@ -152,12 +152,17 @@ class ProcessAdapter:
         }
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
-        if name not in {"refresh", "terminate"}:
-            return command_error("unavailable", f"unknown processes command: {name}")
-        if name == "refresh":
-            self._cached_snapshot = None
-            return {"ok": True, **self.snapshot()}
-        return self._terminate(payload)
+        return dispatch_command(self._commands(), name, payload, adapter_id=self.id)
+
+    def _commands(self) -> dict[str, Any]:
+        return {
+            "refresh": self._refresh,
+            "terminate": self._terminate,
+        }
+
+    def _refresh(self, _payload: dict[str, Any]) -> dict[str, Any]:
+        self._cached_snapshot = None
+        return {"ok": True, **self.snapshot()}
 
     def _terminate(self, payload: dict[str, Any]) -> dict[str, Any]:
         pid_raw = payload.get("pid")
