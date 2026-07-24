@@ -5,6 +5,7 @@ cd "$ROOT"
 ./tests/smoke-structure.sh
 ./tests/test-common.sh
 ./tests/frontend-assets.sh
+./tests/stow-mode.sh
 python3 -m compileall -q src/lmdesktopplus
 PYTHONPATH=src python3 -m unittest discover -s tests/python -v
 if command -v node >/dev/null 2>&1; then

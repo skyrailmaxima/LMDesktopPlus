@@ -91,15 +91,23 @@ class LiveWallpaperAdapterTests(unittest.TestCase):
             self.assertTrue(stopped.get("ok"))
             self.assertFalse(store["features"]["live_wallpaper"])
 
-    def test_default_feature_off_in_snapshot(self):
+    def test_default_feature_on_in_snapshot(self):
         adapter = LiveWallpaperAdapter(
             settings_get=lambda: {"features": {}, "appearance": {}},
             mpvpaper="",
         )
         snap = adapter.snapshot()
         self.assertTrue(snap["available"])
-        self.assertFalse(snap["enabled"])
+        self.assertTrue(snap["enabled"])
         self.assertIn("html", snap["backends"])
+        self.assertFalse(snap["running"])
+
+    def test_explicit_feature_off_in_snapshot(self):
+        adapter = LiveWallpaperAdapter(
+            settings_get=lambda: {"features": {"live_wallpaper": False}, "appearance": {}},
+            mpvpaper="",
+        )
+        self.assertFalse(adapter.snapshot()["enabled"])
 
 
 if __name__ == "__main__":

@@ -360,10 +360,11 @@ git commit -m "feat: add icon asset hash map for machine UI chrome"
 ### Task 21: Logs viewer — `journalctl --user -n 200` capped text panel (escape HTML)
 **Status:** shipped in **0.6.0** (Monitor → USER JOURNAL panel).
 
-### Task 22: Live matrix wallpaper (optional HTML wallpaper window or `mpvpaper`) — feature-flagged; default off
-**Status:** shipped in **0.6.1** (`LiveWallpaperAdapter`, `--live-wallpaper`, owned hypr rules).
+### Task 22: Live matrix wallpaper (optional HTML wallpaper window or `mpvpaper`) — feature-flagged; default on
+**Status:** shipped in **0.6.1** (`LiveWallpaperAdapter`, `--live-wallpaper`, owned hypr rules); default **on** in **0.6.2** (START still explicit).
 
 ### Task 23: Stow mode / packaging Suggests tidy / UI kit stories for each new control
+**Status:** shipped in **0.6.2** (`docs/suggests.md`, `./stow.sh`, kit Stage C/D stories).
 
 ---
 

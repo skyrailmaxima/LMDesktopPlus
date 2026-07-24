@@ -1,10 +1,22 @@
 # Changelog
 
+## 0.6.2 — Stage D Task 23 + live wallpaper default on
+
+- `features.live_wallpaper` default **on** (START from Appearance remains
+  explicit; stop still clears the flag).
+- Added `docs/suggests.md` mapping Debian Suggests → adapters / vault.
+- Added optional `./stow.sh` GNU stow frontend (`--materialize-only` for CI);
+  `./install.sh` remains the primary installer.
+- Digitalvapor kit Stage C/D stories for idle, printers, logs, live wallpaper,
+  vault, chords, peers, and vpn/storage/process chrome.
+- Stage D Tasks 19–23 complete.
+
 ## 0.6.1 — Live matrix wallpaper (Stage D Task 22)
 
 - Added feature-flagged `LiveWallpaperAdapter` (`features.live_wallpaper`,
-  default **off**): HTML/WebKit `DV.rain` window via `--live-wallpaper`, with
-  optional `mpvpaper` when `live-matrix.mp4` is present.
+  default **off** in 0.6.1; flipped default **on** in 0.6.2): HTML/WebKit
+  `DV.rain` window via `--live-wallpaper`, with optional `mpvpaper` when
+  `live-matrix.mp4` is present.
 - Owned `hypr-live-wallpaper.conf` window rules + launcher script; source line
   appended only into LMDesktopPlus-owned `hyprland.conf`.
 - Settings → Appearance live wallpaper panel; Apps vault catalog entry.
@@ -15,8 +27,7 @@
   Display timers for lock/sleep, best-effort Cinnamon gsettings idle-delay.
 - Added `PrintersAdapter`: read-only `lpstat` status + open printer settings UI.
 - Added `LogsAdapter`: capped `journalctl --user` panel on Monitor (HTML-escaped).
-- Stage D plan: `docs/superpowers/plans/2026-07-24-stage-d-polish.md`
-  (Tasks 22–23 remain later).
+- Stage D plan: `docs/superpowers/plans/2026-07-24-stage-d-polish.md`.
 
 ## 0.5.0 — Stage C power user complete
 

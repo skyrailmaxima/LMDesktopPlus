@@ -1,8 +1,9 @@
 """Live matrix wallpaper — HTML/DV.rain window or optional mpvpaper (Stage D Task 22).
 
-Feature-flagged (`features.live_wallpaper`, default off). Writes only owned files
+Feature-flagged (`features.live_wallpaper`, default on). Writes only owned files
 under `~/.config/lmdesktopplus/` and appends a hypr `source=` line when the
-hyprland.conf is already LMDesktopPlus-owned.
+hyprland.conf is already LMDesktopPlus-owned. Start is still explicit from the UI
+so enabling the flag alone does not spawn a wallpaper process.
 """
 
 from __future__ import annotations
@@ -114,7 +115,7 @@ def etch_launcher_script(
 
 
 class LiveWallpaperAdapter:
-    """Start/stop feature-flagged live matrix wallpaper (default off)."""
+    """Start/stop feature-flagged live matrix wallpaper (default on)."""
 
     id = "live_wallpaper"
 
@@ -152,9 +153,11 @@ class LiveWallpaperAdapter:
 
     def _feature_enabled(self) -> bool:
         if not self._settings_get:
-            return False
+            return True
         settings = self._settings_get() or {}
         features = settings.get("features") or {}
+        if "live_wallpaper" not in features:
+            return True
         return bool(features.get("live_wallpaper"))
 
     def _intensity(self) -> int:

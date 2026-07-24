@@ -123,6 +123,8 @@ A live under `static/icons/` rather than inside that HTML pack.
 
 ## Optional Suggests (not hard Depends)
 
+Canonical Suggest → adapter map: [`docs/suggests.md`](suggests.md).
+
 | Concern | Preferred tools | Notes |
 |---|---|---|
 | Bluetooth | `bluez`, `bluez-utils` | Provides `bluetoothctl` |
@@ -130,6 +132,7 @@ A live under `static/icons/` rather than inside that HTML pack.
 | Clipboard | `wl-clipboard`, `xclip` | Session-routed |
 | Screenshots | `grim`, `slurp`, `gnome-screenshot` | Hyprland vs Cinnamon |
 | Updates | `mintupdate` | Launcher only; counting uses `apt` |
+| Printers / idle / live wallpaper | `cups-client`, `swayidle`, `mpvpaper` | Stage D optional tools |
 
 ## Stage C matrix
 
@@ -189,12 +192,20 @@ common interpreters so the UI cannot mint arbitrary code execution.
 | `idle` | owned swayidle script + Cinnamon `gsettings` | note file only | `status`, `apply` | always | Always available; never edits foreign swayidle configs |
 | `printers` | `lpstat -p -d` | — | `refresh`, `open` | 5s | Unavailable without CUPS `lpstat`; open needs printer UI or `xdg-open` |
 | `logs` | `journalctl --user -n 200` | — | `refresh` | 3s | Unavailable without journalctl; lines capped + control-stripped |
-| `live_wallpaper` | HTML/`DV.rain` WebKit window | `mpvpaper` + `live-matrix.mp4` | `status`, `start`/`stop` (`pulse_on`/`pulse_off`) | always | Feature default **off**; owned hypr window rules only on LMDP-owned configs |
+| `live_wallpaper` | HTML/`DV.rain` WebKit window | `mpvpaper` + `live-matrix.mp4` | `status`, `start`/`stop` (`pulse_on`/`pulse_off`) | always | Feature default **on**; START still explicit from UI; owned hypr window rules only on LMDP-owned configs |
 
-## Stage C status
+## Suggests tidy + stow (Task 23)
 
-Stage C power-user surface completed in **0.5.0**. Stage D Tasks 19–21 ship in
-**0.6.0**; live wallpaper and packaging tidy remain later.
+Optional Debian Suggests are mapped in [`docs/suggests.md`](suggests.md)
+(source of packaging truth: `packaging/build-deb.sh`). `./stow.sh` is an
+optional GNU stow frontend for `packages/{shared,hyprland}`; `./install.sh`
+remains primary. The Digitalvapor kit scene includes Stage C/D control stories.
+
+## Stage D status
+
+Stage C power-user surface completed in **0.5.0**. Stage D Tasks 19–23 ship
+through **0.6.2** (idle, printers, logs, live wallpaper default-on, Suggests /
+stow / UI kit stories).
 
 Adapters must continue to fail soft across Cinnamon and Hyprland sessions. A
 binary being present is not sufficient: non-zero exits and timeouts are

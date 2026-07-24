@@ -56,7 +56,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "starship": True,
         "hyprland": False,
         "bluetooth": True,
-        "live_wallpaper": False,
+        "live_wallpaper": True,
     },
 }
 

@@ -6,17 +6,18 @@ Hyprland session, and supplies a local control center for system telemetry,
 application launchers, agent workspaces, NetworkManager, media, settings, and
 desktop integration.
 
-Version **0.6.1** continues Stage D polish: idle/lock snippets, printers, user
-journal, and a feature-flagged live matrix wallpaper (HTML/`DV.rain`, optional
-`mpvpaper`; default **off**). Stage C remains complete. The control center
-retains the shared Digitalvapor component and semantic-token layer from 0.3.0.
+Version **0.6.2** completes Stage D polish: idle/lock snippets, printers, user
+journal, live matrix wallpaper (HTML/`DV.rain`, optional `mpvpaper`; feature
+default **on**, START still explicit), Suggests tidy, optional `./stow.sh`, and
+UI kit Stage C/D stories. Stage C remains complete. The control center retains
+the shared Digitalvapor component and semantic-token layer from 0.3.0.
 
 ## Install the machine UI
 
 The Debian package is the cleanest system-wide installation:
 
 ```bash
-sudo apt install ./lmdesktopplus_0.6.1_all.deb
+sudo apt install ./lmdesktopplus_0.6.2_all.deb
 lmdesktopplus
 ```
 
@@ -38,12 +39,16 @@ For a user-local installation from source:
 ## Install the complete Mint rice
 
 ```bash
-./install.sh                  # Cinnamon theme + machine UI
+./install.sh                  # Cinnamon theme + machine UI (primary)
 ./install.sh --with-hyprland  # distro Hyprland packages only, then link configs
 ./install.sh --with-hyprland --allow-community-ppa  # opt-in community PPA fallback
 ./install.sh --no-ui          # rice/configuration only
 ./install.sh --dry-run        # print the complete plan without changing files
+./stow.sh --dry-run           # optional GNU stow frontend (install.sh remains primary)
 ```
+
+Optional Debian Suggests (Bluetooth, CUPS, swayidle, mpvpaper, …) are mapped in
+[`docs/suggests.md`](docs/suggests.md).
 
 On Mint, LightDM often hides Wayland sessions — start Hyprland from a TTY
 (`Ctrl+Alt+F3` → `./scripts/start-hyprland-tty.sh`). See
