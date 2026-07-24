@@ -146,7 +146,7 @@ function bindSceneEvents(root) {
     `patchMonitorCollections`
 - [x] Load `bindings.js` before `app.js` in `index.html` (same CSP `script-src 'self'`)
 - [x] `node --check` both files; `./tests/run-all.sh`
-- [ ] Commit: `refactor: dispatch tables and bindings.js for machine UI events`
+- [x] Commit: `refactor: dispatch tables and bindings.js for machine UI events`
 
 **Exit criteria:** No new `if (app.settingsTab === …)` chain; `bindSceneEvents` is a
 loop over a table; Stage C UI behavior unchanged.
