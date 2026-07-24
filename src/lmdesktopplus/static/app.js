@@ -544,7 +544,22 @@ function renderMonitor() {
       ${panel("DISK", `<div class="kpi"><span data-live="monitor.disk.percent">${Math.round(m.disk.percent)}</span><small>% used</small></div><div class="progress dv-progress"><span class="dv-progress__bar" data-live="monitor.disk.width" style="width:${clamp(m.disk.percent,0,100)}%"></span></div>${liveStatRow("monitor.disk.free","Free",humanBytes(m.disk.free))}`)}
       ${panel("THERMALS", `<div data-live-thermals>${m.temperatures?.length ? m.temperatures.slice(0,6).map(t=>statRow(t.label,`${t.celsius} °C`)).join("") : `<p class="muted">No readable thermal zones.</p>`}</div>`)}
       ${panel("POWER", `<div data-live-power>${m.battery ? `${statRow("Battery",`${m.battery.percent}%`)}${statRow("Status",m.battery.status)}` : `<div class="kpi" style="font-size:30px">AC<small>no battery detected</small></div>`}</div>`)}
-    </div>`;
+    </div>
+    ${processMonitorPanel()}`;
+}
+
+function processMonitorPanel() {
+  const procs = app.state?.adapters?.processes || {};
+  if (!procs.available) {
+    return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><h3>PROCESSES</h3><p class="muted">/proc unavailable.</p></div>`;
+  }
+  const rows = (procs.processes || []).map(p => {
+    const terminate = p.owned
+      ? `<button class="btn danger dv-btn dv-btn--danger" data-process-terminate="${p.pid}" data-process-name="${esc(p.name)}">TERM</button>`
+      : `<span class="muted">—</span>`;
+    return `<div class="network-row"><div><strong class="white">${esc(p.name)}</strong><div class="muted">pid ${p.pid}${p.owned ? "" : " · other uid"}</div></div><div class="signal"><small>${Number(p.cpu_percent).toFixed(1)}% · ${humanBytes(p.rss_bytes)}</small></div>${terminate}</div>`;
+  }).join("");
+  return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><div class="card-title"><h3>TOP PROCESSES</h3><button class="btn dv-btn dv-btn--outline" data-process-refresh>REFRESH</button></div><p class="muted">Terminate is limited to processes owned by your UID. Confirm before SIGTERM.</p><div style="margin-top:12px">${rows || '<p class="muted">No process samples yet.</p>'}</div></div>`;
 }
 
 function setLiveText(binding, value) {
@@ -690,7 +705,10 @@ function patchMonitorCollections(metrics) {
   }
 }
 
-function patchMonitorBindings() {
+function patchMonitorBindings(changedPaths=[]) {
+  if (changedPaths.some(path => path === "adapters.processes" || path.startsWith("adapters.processes."))) {
+    return false;
+  }
   const m = app.state.metrics;
   const maxNet = Math.max(1024*1024, ...app.history.down, ...app.history.up);
   setLiveText("monitor.cpu.title", `CPU · ${Math.round(m.cpu.percent)}%`);
@@ -714,7 +732,7 @@ function patchMonitorBindings() {
 }
 
 app.renderer.register("desktop", ["metrics","media","adapters.session","agents","identity","assets"], patchDesktopBindings);
-app.renderer.register("monitor", ["metrics"], patchMonitorBindings);
+app.renderer.register("monitor", ["metrics","adapters.processes"], patchMonitorBindings);
 app.renderer.register("terminal", ["agents"], () => false);
 
 function renderApps() {
@@ -778,6 +796,7 @@ function renderSettingsTab() {
       ${notificationsSettingsPanel()}
       ${clipboardSettingsPanel()}
       ${captureSettingsPanel()}
+      ${storageSettingsPanel()}
       ${toggleControl("Start fullscreen","Open the embedded machine UI fullscreen","behavior.start_fullscreen",behavior.start_fullscreen)}
       ${toggleControl("Show shortcut hints","Show keyboard hints on the desktop scene","behavior.show_hints",behavior.show_hints)}
       ${control("Poll interval",`${behavior.poll_interval_ms} ms`,`<input class="dv-slider" type="range" min="500" max="5000" step="250" value="${behavior.poll_interval_ms}" data-setting="behavior.poll_interval_ms" data-number>`)}
@@ -798,7 +817,22 @@ function renderNetworkSettings() {
   const active = current.connections?.length ? current.connections.map(c=>`${esc(c.name)} (${esc(c.device)})`).join(", ") : "not connected";
   const networks = app.networkScan?.networks || [];
   const rows = networks.map(n=>`<div class="network-row"><div><strong class="white">${esc(n.ssid)}</strong><div class="muted">${esc(n.security)} · ${esc(n.device)} ${n.active?"· active":""}</div></div><div class="signal"><div class="progress dv-progress"><span class="dv-progress__bar" style="width:${clamp(n.signal,0,100)}%"></span></div><small>${n.signal}%</small></div><button class="btn dv-btn dv-btn--outline" data-connect-ssid="${encodeURIComponent(n.ssid)}">${n.active?"ACTIVE":"CONNECT"}</button></div>`).join("");
-  return `<div class="setting-group"><h3>NetworkManager</h3>${statRow("Active",active)}${statRow("Adapter",current.available?"nmcli":"unavailable")}</div><div class="button-row"><button class="btn primary dv-btn dv-btn--primary" data-network-scan>SCAN WI-FI</button>${current.connections?.filter(c=>c.device).map(c=>`<button class="btn danger dv-btn dv-btn--danger" data-disconnect="${esc(c.device)}">DISCONNECT ${esc(c.device)}</button>`).join("") || ""}</div><div style="margin-top:16px">${app.networkScan ? (rows || `<p class="muted">No networks returned.</p>`) : `<p class="muted">Scan to populate live SSIDs. Passwords are sent directly to nmcli and are not persisted by LMDesktopPlus.</p>`}</div>${bluetoothSettingsPanel()}`;
+  return `<div class="setting-group"><h3>NetworkManager</h3>${statRow("Active",active)}${statRow("Adapter",current.available?"nmcli":"unavailable")}</div><div class="button-row"><button class="btn primary dv-btn dv-btn--primary" data-network-scan>SCAN WI-FI</button>${current.connections?.filter(c=>c.device).map(c=>`<button class="btn danger dv-btn dv-btn--danger" data-disconnect="${esc(c.device)}">DISCONNECT ${esc(c.device)}</button>`).join("") || ""}</div><div style="margin-top:16px">${app.networkScan ? (rows || `<p class="muted">No networks returned.</p>`) : `<p class="muted">Scan to populate live SSIDs. Passwords are sent directly to nmcli and are not persisted by LMDesktopPlus.</p>`}</div>${vpnSettingsPanel()}${bluetoothSettingsPanel()}`;
+}
+
+function vpnSettingsPanel() {
+  const vpn = app.state?.adapters?.vpn || {};
+  const icon = assetIcon("vpn", "session-icon");
+  if (!vpn.available) {
+    return `<div class="setting-group" style="margin-top:24px"><h3>VPN</h3>${icon}<p class="muted">nmcli unavailable. Install NetworkManager.</p>${vpn.last_error ? `<p class="muted">${esc(vpn.last_error)}</p>` : ""}</div>`;
+  }
+  const connections = (vpn.connections || []).map(c => {
+    const action = c.active ? "down" : "up";
+    const label = c.active ? "DISCONNECT" : "CONNECT";
+    const btnClass = c.active ? "btn danger dv-btn dv-btn--danger" : "btn dv-btn dv-btn--outline";
+    return `<div class="network-row"><div><strong class="white">${esc(c.name)}</strong><div class="muted">${esc(c.type)}${c.device ? ` · ${esc(c.device)}` : ""}${c.active ? " · active" : ""}</div></div><button class="${btnClass}" data-vpn-name="${esc(c.name)}" data-vpn-action="${action}">${label}</button></div>`;
+  }).join("");
+  return `<div class="setting-group" style="margin-top:24px"><h3>VPN</h3><div class="audio-control__header">${icon}<span class="badge dv-tag ${vpn.active_count ? "ok dv-tag--mint" : "dv-tag--cyan"}">${vpn.active_count || 0} active</span></div><div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" data-vpn-refresh>REFRESH</button></div><div style="margin-top:16px">${connections || '<p class="muted">No VPN or WireGuard profiles found. Credentials stay in NetworkManager — LMDesktopPlus never stores them.</p>'}</div></div>`;
 }
 
 function bluetoothSettingsPanel() {
@@ -852,6 +886,23 @@ function captureSettingsPanel() {
   }
   const regionDisabled = cap.region_available ? "" : "disabled";
   return `${control("Screenshots", `${cap.backend} · ${esc(cap.save_dir || "~/Pictures/lmdesktopplus")}`, `<div class="button-row">${icon}<button class="btn primary dv-btn dv-btn--primary" data-capture="full">FULL</button><button class="btn dv-btn dv-btn--outline" data-capture="region" ${regionDisabled}>REGION</button><button class="btn dv-btn dv-btn--outline" data-capture-folder>OPEN FOLDER</button></div>${cap.last_path ? `<p class="muted" style="margin-top:8px">Last: ${esc(cap.last_path)}</p>` : ""}`)}`;
+}
+
+function storageSettingsPanel() {
+  const storage = app.state?.adapters?.storage || {};
+  const icon = assetIcon("usb", "session-icon");
+  if (!storage.available) {
+    return `<div class="setting-group" style="margin-top:24px"><h3>Removable storage</h3>${icon}<p class="muted">lsblk unavailable.</p>${storage.last_error ? `<p class="muted">${esc(storage.last_error)}</p>` : ""}</div>`;
+  }
+  const devices = (storage.devices || []).map(d => {
+    const action = d.mounted ? "unmount" : "mount";
+    const label = d.mounted ? "UNMOUNT" : "MOUNT";
+    const disabled = (!storage.can_mount || !d.allowlisted) ? "disabled" : "";
+    const btnClass = d.mounted ? "btn danger dv-btn dv-btn--danger" : "btn dv-btn dv-btn--outline";
+    const meta = [d.size, d.fstype, d.label, d.mounted ? d.mountpoint : null].filter(Boolean).map(esc).join(" · ");
+    return `<div class="network-row"><div><strong class="white">${esc(d.path)}</strong><div class="muted">${meta || d.type}</div></div><button class="${btnClass}" data-storage-device="${esc(d.path)}" data-storage-action="${action}" ${disabled}>${label}</button></div>`;
+  }).join("");
+  return `<div class="setting-group" style="margin-top:24px"><h3>Removable storage</h3><div class="audio-control__header">${icon}<span class="muted">${storage.can_mount ? "udisksctl" : "read-only · install udisks2"}</span></div><div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" data-storage-refresh>REFRESH</button></div><div style="margin-top:16px">${devices || '<p class="muted">No removable USB/MMC volumes detected.</p>'}</div></div>`;
 }
 
 function renderAgentSettings() {
@@ -1221,6 +1272,88 @@ function requestConfirmation(action) {
   window.Digitalvapor?.openDialog("confirm-dialog");
 }
 
+function requestProcessTerminate(pid, name) {
+  app.pendingConfirm = () => terminateProcess(pid);
+  $("#confirm-dialog-title").textContent = "CONFIRM SIGTERM";
+  $("#confirm-dialog-body").textContent = `Send SIGTERM to ${name} (pid ${pid})? Only your own processes can be terminated.`;
+  $("#confirm-dialog-accept").textContent = "TERMINATE";
+  window.Digitalvapor?.openDialog("confirm-dialog");
+}
+
+async function sendVpnCommand(name, payload={}) {
+  return api("/api/v1/adapter/vpn", {method:"POST", body:{name, payload}});
+}
+
+async function vpnAction(action, connectionName) {
+  try {
+    await sendVpnCommand(action, {name: connectionName});
+    toast(action === "up" ? "VPN connecting" : "VPN disconnecting", connectionName);
+    renderScene(true);
+  } catch (error) {
+    toast(`VPN ${action} failed`, error.message, true);
+  }
+}
+
+async function vpnRefresh() {
+  try {
+    const result = await sendVpnCommand("refresh", {});
+    if (app.state?.adapters?.vpn) Object.assign(app.state.adapters.vpn, result);
+    toast("VPN list refreshed", `${result.active_count ?? 0} active`);
+    renderScene(true);
+  } catch (error) {
+    toast("VPN refresh failed", error.message, true);
+  }
+}
+
+async function sendStorageCommand(name, payload={}) {
+  return api("/api/v1/adapter/storage", {method:"POST", body:{name, payload}});
+}
+
+async function storageAction(action, device) {
+  try {
+    const result = await sendStorageCommand(action, {device});
+    toast(action === "mount" ? "Volume mounted" : "Volume unmounted", result.mountpoint || device);
+    renderScene(true);
+  } catch (error) {
+    toast(`Storage ${action} failed`, error.message, true);
+  }
+}
+
+async function storageRefresh() {
+  try {
+    const result = await sendStorageCommand("refresh", {});
+    if (app.state?.adapters?.storage) Object.assign(app.state.adapters.storage, result);
+    toast("Storage refreshed", `${(result.devices || []).length} volume(s)`);
+    renderScene(true);
+  } catch (error) {
+    toast("Storage refresh failed", error.message, true);
+  }
+}
+
+async function sendProcessCommand(name, payload={}) {
+  return api("/api/v1/adapter/processes", {method:"POST", body:{name, payload}});
+}
+
+async function processRefresh() {
+  try {
+    const result = await sendProcessCommand("refresh", {});
+    if (app.state?.adapters?.processes) Object.assign(app.state.adapters.processes, result);
+    renderScene(true);
+  } catch (error) {
+    toast("Process refresh failed", error.message, true);
+  }
+}
+
+async function terminateProcess(pid) {
+  try {
+    await sendProcessCommand("terminate", {pid: Number(pid)});
+    toast("SIGTERM sent", `pid ${pid}`);
+    renderScene(true);
+  } catch (error) {
+    toast("Terminate failed", error.message, true);
+  }
+}
+
 function bindSceneEvents() {
   const root = $("#scene");
   $$('[data-launch]', root).forEach(n=>n.addEventListener("click",()=>runAction("launch",n.dataset.launch)));
@@ -1265,6 +1398,12 @@ function bindSceneEvents() {
   $$('[data-clipboard-clear]', root).forEach(n=>n.addEventListener("click",clipboardClear));
   $$('[data-capture]', root).forEach(n=>n.addEventListener("click",()=>captureScreen(n.dataset.capture)));
   $$('[data-capture-folder]', root).forEach(n=>n.addEventListener("click",openCaptureFolder));
+  $$('[data-vpn-refresh]', root).forEach(n=>n.addEventListener("click",vpnRefresh));
+  $$('[data-vpn-name]', root).forEach(n=>n.addEventListener("click",()=>vpnAction(n.dataset.vpnAction, n.dataset.vpnName)));
+  $$('[data-storage-refresh]', root).forEach(n=>n.addEventListener("click",storageRefresh));
+  $$('[data-storage-device]', root).forEach(n=>n.addEventListener("click",()=>storageAction(n.dataset.storageAction, n.dataset.storageDevice)));
+  $$('[data-process-refresh]', root).forEach(n=>n.addEventListener("click",processRefresh));
+  $$('[data-process-terminate]', root).forEach(n=>n.addEventListener("click",()=>requestProcessTerminate(n.dataset.processTerminate, n.dataset.processName || n.dataset.processTerminate)));
   $$('[data-connect-ssid]', root).forEach(n=>n.addEventListener("click",()=>{
     const ssid=decodeURIComponent(n.dataset.connectSsid);
     const network=(app.networkScan?.networks||[]).find(x=>x.ssid===ssid);

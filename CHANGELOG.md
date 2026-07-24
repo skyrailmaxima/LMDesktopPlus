@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.4 — Stage C adapters (VPN, storage, processes)
+
+- Added VpnAdapter (`nmcli`) for VPN/WireGuard profile list, connect, and
+  disconnect without storing credentials.
+- Added RemovableStorageAdapter (`lsblk` + `udisksctl`) with device-path
+  allowlisting for mount/unmount of removable volumes.
+- Added ProcessAdapter (`/proc`) top-N process list and UID-scoped SIGTERM with
+  a confirmation dialog in Monitor.
+- Documented the Stage C adapter matrix; agent CRUD, keybind editor, and app
+  vault installs remain planned for 0.5.0.
+
 ## 0.4.3 — Adapter contract hardening
 
 - Normalized adapter snapshots into a typed envelope (`id`, `status`,

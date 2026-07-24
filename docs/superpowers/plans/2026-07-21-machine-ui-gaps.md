@@ -325,12 +325,15 @@ git commit -m "feat: add icon asset hash map for machine UI chrome"
 
 ### Task 13: VpnAdapter
 - NM VPN connection list/up/down via `nmcli`; no secret storage in LMDP.
+- [x] Commit `feat: vpn adapter`
 
 ### Task 14: RemovableStorageAdapter
 - `lsblk -J` parse + `udisksctl mount/unmount` allowlist by device node pattern.
+- [x] Commit `feat: removable storage adapter`
 
 ### Task 15: ProcessAdapter
 - Top-N from `/proc` (CPU% approx); `terminate` only for UID==self; confirm dialog.
+- [x] Commit `feat: process list adapter`
 
 ### Task 16: Agent CRUD API
 - `POST /api/v1/agents` create/update/delete with `safe_name`; UI form on Agents settings tab.

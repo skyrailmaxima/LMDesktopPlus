@@ -131,12 +131,21 @@ A live under `static/icons/` rather than inside that HTML pack.
 | Screenshots | `grim`, `slurp`, `gnome-screenshot` | Hyprland vs Cinnamon |
 | Updates | `mintupdate` | Launcher only; counting uses `apt` |
 
+## Stage C matrix
+
+| Adapter | Preferred integration | Fallback | Commands | TTL | Missing-tool behavior |
+|---|---|---|---|---|---|
+| `vpn` | `nmcli` VPN / WireGuard profiles | — | `up`, `down`, `refresh` | 5s | Unavailable without NetworkManager; no secrets stored by LMDP |
+| `storage` | `lsblk -J` + `udisksctl` | read-only list without udisks | `mount`, `unmount`, `refresh` | 5s | Lists USB/MMC/hotplug volumes; mount/unmount only for allowlisted `/dev/sd*N`, `/dev/vd*N`, `/dev/nvme*pN`, `/dev/mmcblk*pN` |
+| `processes` | `/proc` sampling | — | `refresh`, `terminate` (SIGTERM) | 2s | Always available on Linux; terminate limited to current UID; refuses pid 1 and self |
+
 ## Stage C+ (still planned)
 
 | Concern | Preferred tools | Fallback or limitation |
 |---|---|---|
-| VPN | `nmcli` | No credentials are stored by LMDesktopPlus |
-| Removable storage | `lsblk`, `udisksctl` | Operations remain device-allowlisted |
+| Agent CRUD | `agents.json` API | Safe-name validation; no arbitrary shell |
+| Keybind editor | generated `hypr-binds.conf` | Does not rewrite arbitrary user binds |
+| App vault installs | `pkexec apt-get install` | Explicit confirm only; never silent root |
 
 Adapters must continue to fail soft across Cinnamon and Hyprland sessions. A
 binary being present is not sufficient: non-zero exits and timeouts are

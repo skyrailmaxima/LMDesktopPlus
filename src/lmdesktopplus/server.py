@@ -22,8 +22,11 @@ from .adapters.capture import CaptureAdapter
 from .adapters.clipboard import ClipboardAdapter
 from .adapters.display import DisplayAdapter
 from .adapters.notifications import NotificationsAdapter
+from .adapters.processes import ProcessAdapter
 from .adapters.session import SessionAdapter
+from .adapters.storage import RemovableStorageAdapter
 from .adapters.updates import UpdatesAdapter
+from .adapters.vpn import VpnAdapter
 from .adapters.wallpaper import WallpaperAdapter
 from .agents import AgentRegistry
 from .assets import AssetCatalog
@@ -52,6 +55,9 @@ class ApplicationState:
         self.adapters.register(UpdatesAdapter())
         self.adapters.register(ClipboardAdapter())
         self.adapters.register(CaptureAdapter())
+        self.adapters.register(VpnAdapter())
+        self.adapters.register(RemovableStorageAdapter())
+        self.adapters.register(ProcessAdapter())
         self.wallpaper = WallpaperAdapter()
         self.adapters.register(self.wallpaper)
         self.assets = AssetCatalog(self.wallpaper.wallpaper_map)

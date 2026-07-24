@@ -11,6 +11,12 @@ Preferred base branch: `feature/lmdesktopplus`.
 5. Community PPAs require explicit opt-in (`--allow-community-ppa` or
    `--hyprland-source=ppa`).
 
+## In flight
+
+| Branch | Scope |
+|---|---|
+| `cursor/stage-c-power-user-081e` | Stage C adapters: VPN, storage, processes (0.4.4); agent CRUD / keybinds / vault still open for 0.5.0 |
+
 ## Landed on `feature/lmdesktopplus`
 
 | Topic | Notes |
@@ -18,17 +24,14 @@ Preferred base branch: `feature/lmdesktopplus`.
 | Hyprland Mint install (PR #3) | Distro packages by default; community PPA opt-in; one-shot bashrc; `hypr-generated.conf` stub |
 | Debian packaging (PR #5) | `pyproject.toml`, desktop entry, `packaging/build-deb.sh` |
 | Control center (PR #8 / promoted #6) | Loopback machine UI + Digitalvapor + Stage A/B adapters |
-
-## In flight
-
-| Branch | Scope |
-|---|---|
-| `cursor/feature-adapter-contract-17f1` | Envelope, domain state, locks, Origin/Host checks, session arm/disarm |
+| Adapter contract (PR #9) | Envelope, domain state, locks, Origin/Host checks, session arm/disarm |
+| VM lab | QEMU/KVM Mint guest scripts under `scripts/vm/` |
 
 ## Superseded
 
 | Branch / PR | Status |
 |---|---|
+| `cursor/feature-adapter-contract-17f1` | Merged via PR #9 |
 | `fix/install-hyprland-on-mint` (PR #1) | Close — Hyprland successor merged |
 | `cursor/stage-b-control-center-17f1` (PR #2) | Close — control center promoted via PR #8 |
 | `cursor/feature-debian-packaging-17f1` tip after #6 | Control center mistakenly merged here; content promoted via PR #8 |

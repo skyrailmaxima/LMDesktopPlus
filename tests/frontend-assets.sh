@@ -26,6 +26,12 @@ grep -q 'app.renderer.update(app.scene, changedPaths)' "$STATIC/app.js"
 grep -q 'app.renderer.register("desktop"' "$STATIC/app.js"
 grep -q 'app.renderer.register("monitor"' "$STATIC/app.js"
 grep -q 'data-live-chart=' "$STATIC/app.js"
+grep -q '"/api/v1/adapter/vpn"' "$STATIC/app.js"
+grep -q 'data-vpn-name' "$STATIC/app.js"
+grep -q '"/api/v1/adapter/storage"' "$STATIC/app.js"
+grep -q 'data-storage-device' "$STATIC/app.js"
+grep -q '"/api/v1/adapter/processes"' "$STATIC/app.js"
+grep -q 'data-process-terminate' "$STATIC/app.js"
 if grep -Eq '<script[^>]*>[^<]*window\.LMDP_TOKEN' "$STATIC/index.html"; then
   echo "inline token script remains in index.html" >&2
   exit 1
