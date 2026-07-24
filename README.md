@@ -6,18 +6,17 @@ Hyprland session, and supplies a local control center for system telemetry,
 application launchers, agent workspaces, NetworkManager, media, settings, and
 desktop integration.
 
-Version **0.6.0** starts Stage D polish on top of the Stage C power-user stack:
-idle/lock generated snippets, read-only printers (`lpstat`), and a capped user
-journal panel. Stage C remains complete (VPN, storage, processes, chords, agent
-CRUD, app vault + `fncache`). The control center retains the shared Digitalvapor
-component and semantic-token layer introduced in 0.3.0.
+Version **0.6.1** continues Stage D polish: idle/lock snippets, printers, user
+journal, and a feature-flagged live matrix wallpaper (HTML/`DV.rain`, optional
+`mpvpaper`; default **off**). Stage C remains complete. The control center
+retains the shared Digitalvapor component and semantic-token layer from 0.3.0.
 
 ## Install the machine UI
 
 The Debian package is the cleanest system-wide installation:
 
 ```bash
-sudo apt install ./lmdesktopplus_0.6.0_all.deb
+sudo apt install ./lmdesktopplus_0.6.1_all.deb
 lmdesktopplus
 ```
 
