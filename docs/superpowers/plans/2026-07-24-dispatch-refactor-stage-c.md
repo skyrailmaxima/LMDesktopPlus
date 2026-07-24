@@ -66,7 +66,7 @@ branches.
 | **1** | Frontend dispatch + split | `bindings.js` + `SETTINGS_TABS` + `adapterCommand`; `app.js` shrinks | no bump (refactor) |
 | **2** | Server + action dispatch | `POST_ROUTES` / `GET_ROUTES` / `ACTION_HANDLERS` | no bump |
 | **3** | Adapter command tables | shared `dispatch_command` helper; vpn/storage/processes first | no bump |
-| **4** | Connect Task 17 keybinds | generated `hypr-binds.conf` on dispatch rails | 0.4.5 or fold into 0.5.0 |
+| **4** | Connect Task 17 keybinds | vapor//matrix `ChordAdapter` + `hypr-binds.conf` | **0.4.5 done** |
 | **5** | Connect Task 16 agent CRUD | `POST /api/v1/agents` + Agents tab form | toward 0.5.0 |
 | **6** | Connect Task 18 app vault | `FEATURE_PACKAGES` + confirm/`pkexec` | **0.5.0** release |
 
