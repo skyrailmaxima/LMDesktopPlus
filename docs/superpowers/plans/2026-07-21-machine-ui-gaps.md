@@ -352,10 +352,13 @@ git commit -m "feat: add icon asset hash map for machine UI chrome"
 ## Stage D — Polish / post-v1
 
 ### Task 19: Idle / lock timer settings → cinnamon-screensaver / swayidle snippets (generated files only)
+**Status:** shipped in **0.6.0** (`IdleAdapter`, Display timers, owned `swayidle-generated.sh`).
 
 ### Task 20: PrintersAdapter via `lpstat` (status read-only + open `system-config-printer`)
+**Status:** shipped in **0.6.0**.
 
 ### Task 21: Logs viewer — `journalctl --user -n 200` capped text panel (escape HTML)
+**Status:** shipped in **0.6.0** (Monitor → USER JOURNAL panel).
 
 ### Task 22: Live matrix wallpaper (optional HTML wallpaper window or `mpvpaper`) — feature-flagged; default off
 

@@ -13,9 +13,9 @@ arbitrary shell or rewriting foreign desktop configs.
 
 | Task | Deliverable | Version |
 |---|---|---|
-| **19** | Idle / lock timers → owned generated snippets + Cinnamon gsettings | 0.6.0 |
-| **20** | `PrintersAdapter` (`lpstat` read-only + open printer UI) | 0.6.0 |
-| **21** | Logs viewer (`journalctl --user -n 200`, escaped panel) | 0.6.0 |
+| **19** | Idle / lock timers → owned generated snippets + Cinnamon gsettings | **0.6.0 done** |
+| **20** | `PrintersAdapter` (`lpstat` read-only + open printer UI) | **0.6.0 done** |
+| **21** | Logs viewer (`journalctl --user -n 200`, escaped panel) | **0.6.0 done** |
 | **22** | Live matrix wallpaper (feature-flagged, default off) | later |
 | **23** | Stow / Suggests tidy / UI kit stories | later |
 
