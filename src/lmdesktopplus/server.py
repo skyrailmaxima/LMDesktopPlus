@@ -27,6 +27,7 @@ from .adapters.session import SessionAdapter
 from .adapters.storage import RemovableStorageAdapter
 from .adapters.updates import UpdatesAdapter
 from .adapters.keybinds import ChordAdapter
+from .adapters.vault import VaultAdapter
 from .adapters.vpn import VpnAdapter
 from .adapters.wallpaper import WallpaperAdapter
 from .agents import AgentRegistry
@@ -60,6 +61,7 @@ class ApplicationState:
         self.adapters.register(RemovableStorageAdapter())
         self.adapters.register(ProcessAdapter())
         self.adapters.register(ChordAdapter())
+        self.adapters.register(VaultAdapter())
         self.wallpaper = WallpaperAdapter()
         self.adapters.register(self.wallpaper)
         self.assets = AssetCatalog(self.wallpaper.wallpaper_map)

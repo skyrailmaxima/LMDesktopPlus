@@ -4,6 +4,8 @@ import time
 from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
+from ..fncache import UseLevel, register_fn
+
 
 class Adapter(Protocol):
     id: str
@@ -18,6 +20,11 @@ class Adapter(Protocol):
 CommandHandler = Callable[[dict[str, Any]], dict[str, Any]]
 
 
+@register_fn(
+    "adapters.dispatch_command",
+    UseLevel.HIGH,
+    "O(1) adapter command hashmap dispatch for UI→host operations",
+)
 def dispatch_command(
     commands: Mapping[str, CommandHandler],
     name: str,
@@ -27,9 +34,9 @@ def dispatch_command(
 ) -> dict[str, Any]:
     """Resolve adapter commands through a name → handler map (no if/elif chains).
 
+    @use: high use — purpose: every Settings/Monitor adapter click lands here.
     Looks up `name` in `commands`, runs the handler with `payload`, and returns a
-    stable `command_error` when the name is unknown. Prefer this helper over
-    branched command switches so new Stage C ops are one map entry.
+    stable `command_error` when the name is unknown.
     """
     # Hash-map lookup replaces cascading conditionals.
     handler = commands.get(name)

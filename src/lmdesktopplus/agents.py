@@ -26,6 +26,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
+from .fncache import UseLevel, register_fn
 from .util import (
     app_config_dir,
     app_data_dir,
@@ -97,9 +98,15 @@ _ARGV_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+/=@:-]{0,127}$|^--?[A-Za-
 _MAX_PEER_ARGV = 12
 
 
+@register_fn(
+    "agents.tune_peer_argv",
+    UseLevel.MEDIUM,
+    "Allowlist peer command argv (bare binary + safe flags only)",
+)
 def tune_peer_argv(raw: Any) -> list[str] | None:
     """Validate and normalize a peer command into an allowlisted argv list.
 
+    @use: medium use — purpose: forge/retune peer command validation.
     Accepts a string (shlex-split) or a list of strings. The first token must be
     a bare binary name (`safe_name`); paths, shells, and metacharacters are refused.
     """
@@ -180,12 +187,20 @@ def weave_peer_roster(rows: list[Any]) -> list[dict[str, Any]]:
     return result
 
 
+@register_fn(
+    "agents.dispatch_peer_op",
+    UseLevel.MEDIUM,
+    "Peer roster CRUD op map (forge/retune/melt + plan aliases)",
+)
 def dispatch_peer_op(
     registry: "AgentRegistry",
     op: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Route roster CRUD through a vapor op map (create/update/delete aliases)."""
+    """Route roster CRUD through a vapor op map (create/update/delete aliases).
+
+    @use: medium use — purpose: Settings → Agents forge/retune/melt HTTP entry.
+    """
     # Normalize op token for the lookup table.
     key = str(op or "").strip().lower()
     # Map both plan names and vapor typology names onto registry methods.

@@ -23,6 +23,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from ..fncache import UseLevel, register_fn
 from ..util import (
     app_config_dir,
     atomic_write_json,
@@ -107,8 +108,16 @@ _GENERATED_HEADER = (
 )
 
 
+@register_fn(
+    "keybinds.tune_neon_chord",
+    UseLevel.MEDIUM,
+    "Normalize/validate Hyprland neon combo strings from Settings",
+)
 def tune_neon_chord(raw: Any) -> str | None:
-    """Normalize a neon combo; reject empty / metachar / modifier-less values."""
+    """Normalize a neon combo; reject empty / metachar / modifier-less values.
+
+    @use: medium use — purpose: Keybinds tune/melt validation before synth.
+    """
     # Only strings are accepted from the UI / vapor JSON.
     if not isinstance(raw, str):
         return None

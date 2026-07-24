@@ -139,6 +139,7 @@ A live under `static/icons/` rather than inside that HTML pack.
 | `storage` | `lsblk -J` + `udisksctl` | read-only list without udisks | `mount`, `unmount`, `refresh` | 5s | Lists USB/MMC/hotplug volumes; mount/unmount only for allowlisted `/dev/sd*N`, `/dev/vd*N`, `/dev/nvme*pN`, `/dev/mmcblk*pN` |
 | `processes` | `/proc` sampling | — | `refresh`, `terminate` (SIGTERM) | 2s | Always available on Linux; terminate limited to current UID; refuses pid 1 and self |
 | `keybinds` | owned `hypr-binds.conf` + `keybinds.json` | — | `scan`, `tune`, `melt`, `synth` | always | Always available; only edits LMDP-owned overlay; vapor//matrix chord typology (`ChordAdapter`) |
+| `vault` | `FEATURE_PACKAGES` + `pkexec apt-get` | toggles-only when tools missing | `scan`/`probe`, `install`/`forge_pack` | 5s | Catalog always available; install only allowlisted apt names after UI confirm |
 
 ### Vapor//matrix chord typology (`keybinds`)
 
@@ -154,6 +155,19 @@ Dispatch targets stay on the matrix catalog — the UI may only tune neon combos
 `synth` appends `source = …/hypr-binds.conf` only into Hyprland configs already
 marked `LMDesktopPlus`, then best-effort `hyprctl reload`.
 
+### App vault (`vault`)
+
+`FEATURE_PACKAGES` is the single hashmap for Apps cards and installs. Clients send
+a feature **id** only — package names never come from the UI. Install is
+`pkexec apt-get install -y -- <allowlisted…>` and fails soft without pkexec/apt.
+
+### Function use-level cache (`fncache`)
+
+Hot UI→operation callables register into `FUNCTION_CACHE` / `LMDPFnCache` with
+levels **high use**, **medium use**, or **low use** plus a purpose string.
+`resolve_fn(name)` / `LMDPFnCache.resolve(name)` are O(1) hashmap lookups for
+dispatch speed on poll/click paths.
+
 ### Agent peer roster (`POST /api/v1/agents`)
 
 Vapor typology: **peer** (one agent), **roster** (`agents.json`), **forge / retune /
@@ -168,11 +182,11 @@ melt** (create / update / delete), **scan / spawn** (list / launch).
 Launch remains `POST /api/v1/agents/launch`. Denied binaries include shells and
 common interpreters so the UI cannot mint arbitrary code execution.
 
-## Stage C+ (still planned)
+## Stage C status
 
-| Concern | Preferred tools | Fallback or limitation |
-|---|---|---|
-| App vault installs | `pkexec apt-get install` | Explicit confirm only; never silent root |
+Stage C power-user surface is complete in **0.5.0** (VPN, storage, processes,
+keybind chords, agent peer CRUD, app vault installs). Stage D items remain
+planned in the machine-UI gaps doc.
 
 Adapters must continue to fail soft across Cinnamon and Hyprland sessions. A
 binary being present is not sufficient: non-zero exits and timeouts are

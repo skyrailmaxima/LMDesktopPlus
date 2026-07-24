@@ -68,7 +68,7 @@ branches.
 | **3** | Adapter command tables | shared `dispatch_command` helper; vpn/storage/processes first | no bump |
 | **4** | Connect Task 17 keybinds | vapor//matrix `ChordAdapter` + `hypr-binds.conf` | **0.4.5 done** |
 | **5** | Connect Task 16 agent CRUD | peer roster forge/retune/melt + Agents form | **0.4.6 done** |
-| **6** | Connect Task 18 app vault | `FEATURE_PACKAGES` + confirm/`pkexec` | **0.5.0** release |
+| **6** | Connect Task 18 app vault | `FEATURE_PACKAGES` + pkexec + fncache | **0.5.0 done** |
 
 Recommended order for feature connection after rails: **17 → 16 → 18**
 (keybinds grow settings bindings hardest; agents need new POST routes; vault needs
@@ -263,24 +263,21 @@ UI via existing settings/bindings rails; commands `scan` / `tune` / `melt` / `sy
 
 ## Tranche 6 — Connect Task 18: App vault installs + 0.5.0
 
+**Status:** shipped as **0.5.0** with `VaultAdapter`, `FEATURE_PACKAGES`, and
+`fncache` use-level memory hashmap.
+
 **Depends on:** Tranche 1 feature row helpers; confirm dialog pattern
 
-**Files:** `FEATURE_PACKAGES` map (Python + mirrored UI ids), `renderApps`, packaging
-Suggests notes, tests
+**Files:** `adapters/vault.py`, `fncache.py`, `renderApps` / `mapVaultFeatureCards`,
+packaging Suggests, tests
 
-```python
-FEATURE_PACKAGES = {
-    "hyprland": {"apt": ["hyprland"], "label": "Hyprland session"},
-    "bluetooth": {"apt": ["bluez"], "label": "Bluetooth tools"},
-    # …
-}
-```
-
-- [ ] Unify `renderApps` entries with this map (capabilities + install affordance)
-- [ ] Install only via explicit confirm + `pkexec apt-get install`; never silent root
-- [ ] Fail soft when `pkexec`/apt missing
-- [ ] `CHANGELOG` + version **0.5.0**; README Stage C complete note
-- [ ] Commit: `release: 0.5.0 stage C power user`
+- [x] Unify `renderApps` entries with `FEATURE_PACKAGES` (capabilities + install)
+- [x] Install only via explicit confirm + `pkexec apt-get install`; never silent root
+- [x] Fail soft when `pkexec`/apt missing
+- [x] Function use-level comments (`high|medium|low use`) + `FUNCTION_CACHE` /
+      `LMDPFnCache` for O(1) UI→operation resolve
+- [x] `CHANGELOG` + version **0.5.0**; README Stage C complete note
+- [x] Commit: `release: 0.5.0 stage C power user`
 
 ---
 

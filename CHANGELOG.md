@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 — Stage C power user complete
+
+- Added `VaultAdapter` with `FEATURE_PACKAGES` hashmap driving the Apps vault;
+  install via explicit confirm + `pkexec apt-get install` (never silent root).
+- Unified Apps cards with vault detect/installable/apt fields; Debian Suggests
+  list optional host tools the vault can request.
+- Added `fncache` memory hashmap (`FUNCTION_CACHE` / `LMDPFnCache`) with
+  **high use / medium use / low use** function annotations for O(1) UI→operation
+  resolve on hot paths (`dispatch_command`, bindings, adapterCommand).
+- Stage C complete: VPN, storage, processes, keybind chords, agent peer CRUD,
+  and app-vault installs.
+
 ## 0.4.6 — Agent peer CRUD (vapor roster)
 
 - Added `POST /api/v1/agents` with ops `create|update|delete` (vapor aliases

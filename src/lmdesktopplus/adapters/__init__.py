@@ -20,6 +20,7 @@ ADAPTER_CAPABILITIES: dict[str, tuple[str, ...]] = {
     "storage": ("mount", "unmount", "refresh"),
     "processes": ("refresh", "terminate"),
     "keybinds": ("scan", "tune", "melt", "synth"),
+    "vault": ("scan", "probe", "install", "forge_pack"),
 }
 
 

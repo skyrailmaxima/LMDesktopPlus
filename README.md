@@ -6,17 +6,19 @@ Hyprland session, and supplies a local control center for system telemetry,
 application launchers, agent workspaces, NetworkManager, media, settings, and
 desktop integration.
 
-Version **0.4.4** adds Stage C machine adapters (VPN, removable storage, and
-process list/terminate) on top of Stage B control-center adapters and the 0.4.3
-adapter contract hardening. The control center retains the shared Digitalvapor
-component and semantic-token layer introduced in 0.3.0.
+Version **0.5.0** completes Stage C power-user depth: VPN, removable storage,
+process terminate, Hyprland chord editor, agent peer CRUD, and an app vault that
+can `pkexec`-install allowlisted packages after confirm. Hot UI→operation
+callables register in a use-level memory hashmap (`fncache` / `LMDPFnCache`) for
+fast dispatch. The control center retains the shared Digitalvapor component and
+semantic-token layer introduced in 0.3.0.
 
 ## Install the machine UI
 
 The Debian package is the cleanest system-wide installation:
 
 ```bash
-sudo apt install ./lmdesktopplus_0.4.4_all.deb
+sudo apt install ./lmdesktopplus_0.5.0_all.deb
 lmdesktopplus
 ```
 
@@ -80,6 +82,8 @@ The local control center includes:
 - NetworkManager Wi-Fi scanning, connection, and disconnection.
 - MPRIS media status and controls through `playerctl`.
 - Persistent appearance, behavior, feature, and agent configuration.
+- App vault (`FEATURE_PACKAGES`) with optional confirmed `pkexec` apt installs.
+- Generated Hyprland chord overlay editor and agent peer roster CRUD.
 - Generated GTK 3, GTK 4, and Hyprland appearance overlays.
 - A live Digitalvapor component laboratory for checking new panel features
   before they are wired into production screens.

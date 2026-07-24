@@ -52,6 +52,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "waybar": True,
         "rofi": True,
         "starship": True,
+        "hyprland": False,
+        "bluetooth": True,
     },
 }
 

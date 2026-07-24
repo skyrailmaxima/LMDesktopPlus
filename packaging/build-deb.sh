@@ -62,10 +62,12 @@ Architecture: $ARCH
 Maintainer: LMDesktopPlus contributors
 Depends: python3 (>= 3.10), python3-gi, gir1.2-gtk-3.0, gir1.2-webkit2-4.1 | gir1.2-webkit2-4.0, network-manager
 Recommends: kitty, rofi, tmux, btop, playerctl, bubblewrap
+Suggests: hyprland, waybar, bluez, starship, policykit-1, grim, slurp, wl-clipboard, xclip, libnotify-bin, mintupdate
 Description: Digitalvapor machine UI for Linux Mint
  A local vapor//matrix control center for real system metrics, application launchers,
- persistent appearance settings, NetworkManager, media controls, and scoped
- agent workspaces. It complements the LMDesktopPlus Cinnamon/Hyprland rice.
+ persistent appearance settings, NetworkManager, media controls, scoped agent
+ workspaces, and an app vault that can pkexec-install allowlisted Suggests.
+ It complements the LMDesktopPlus Cinnamon/Hyprland rice.
 CONTROL
 cat > "$BUILD/DEBIAN/postinst" <<'POSTINST'
 #!/bin/sh

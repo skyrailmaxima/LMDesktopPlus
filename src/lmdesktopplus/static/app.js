@@ -680,20 +680,40 @@ app.renderer.register("desktop", ["metrics","media","adapters.session","agents",
 app.renderer.register("monitor", ["metrics","adapters.processes"], patchMonitorBindings);
 app.renderer.register("terminal", ["agents"], () => false);
 
-function renderApps() {
-  const caps = app.state.capabilities;
-  const features = app.state.settings.features;
-  const entries = [
-    ["kitty","Terminal","terminal"],["tmux","Persistent sessions","tmux"],["rofi","Application launcher","rofi"],["waybar","Hyprland bar","hyprctl"],
-    ["claude","Claude agent","bubblewrap"],["cursor","Cursor editor","editor"],["aider","Aider agent","bubblewrap"],["starship","Shell prompt",null],
-    ["rust","Rust tooling",null],["minimap","Editor minimap",null],["gitn","Git integration",null],["vapor","Vapor theme",null],
-  ];
-  const cards = entries.map(([id,label,cap])=>{
-    const enabled = !!features[id];
-    const available = cap ? !!caps[cap]?.available : true;
-    return `<div class="app-card dv-card"><div class="app-head"><strong>${esc(label)}</strong><span class="badge dv-tag ${available?"ok dv-tag--mint":"warn dv-tag--warn"}">${available?"detected":"optional"}</span></div><p class="muted">${esc(id)}</p><label class="toggle dv-toggle"><input type="checkbox" data-feature="${id}" ${enabled?"checked":""}><span class="toggle-track dv-track"><span class="toggle-knob"></span></span><span>${enabled?"ENABLED":"OFF"}</span></label></div>`;
+/** @use: high use — purpose: map FEATURE_PACKAGES vault rows into Apps cards */
+function mapVaultFeatureCards(vault, settingsFeatures, caps) {
+  const features = vault.features || {};
+  const order = Array.isArray(vault.feature_order) && vault.feature_order.length
+    ? vault.feature_order
+    : Object.keys(features);
+  return order.map((id) => {
+    const row = features[id] || { id, label: id };
+    const enabled = !!settingsFeatures[id];
+    const cap = row.cap;
+    const capOk = cap ? !!caps[cap]?.available : row.detected;
+    const badge = row.installed || row.detected || capOk
+      ? "ok dv-tag--mint"
+      : "warn dv-tag--warn";
+    const badgeText = row.installed ? "installed" : row.detected || capOk ? "detected" : "optional";
+    const installBtn = row.installable
+      ? `<button class="btn dv-btn dv-btn--outline" type="button" data-vault-install="${esc(id)}" data-vault-label="${esc(row.label || id)}" data-vault-packages="${esc((row.apt || []).join(" "))}" ${vault.can_install ? "" : "disabled"}>INSTALL</button>`
+      : "";
+    return `<div class="app-card dv-card"><div class="app-head"><strong>${esc(row.label || id)}</strong><span class="badge dv-tag ${badge}">${badgeText}</span></div><p class="muted">${esc(id)}${row.apt?.length ? ` · apt: ${esc(row.apt.join(" "))}` : ""}</p><label class="toggle dv-toggle"><input type="checkbox" data-feature="${esc(id)}" ${enabled ? "checked" : ""}><span class="toggle-track dv-track"><span class="toggle-knob"></span></span><span>${enabled ? "ENABLED" : "OFF"}</span></label><div class="button-row" style="margin-top:12px">${installBtn}</div></div>`;
   }).join("");
-  return heading("拡張蔵", "APP VAULT", "Feature switches are persisted; capability badges reflect installed executables.") + `<div class="app-grid">${cards}</div>`;
+}
+
+/** @use: medium use — purpose: Apps scene from vault adapter FEATURE_PACKAGES map */
+function renderApps() {
+  const caps = app.state.capabilities || {};
+  const settingsFeatures = app.state.settings?.features || {};
+  const vault = app.state.adapters?.vault || {};
+  const cards = vault.features
+    ? mapVaultFeatureCards(vault, settingsFeatures, caps)
+    : `<p class="muted">Vault adapter unavailable.</p>`;
+  const note = vault.can_install
+    ? "Install requests pkexec apt-get for allowlisted packages only — never silent root."
+    : "Install disabled (pkexec/apt-get missing). Feature toggles still persist.";
+  return heading("拡張蔵", "APP VAULT", `FEATURE_PACKAGES catalog with capability badges. ${note}`) + `<div class="app-grid">${cards}</div>`;
 }
 
 const settingTabs = [
@@ -1004,8 +1024,38 @@ async function runAction(action,target="") {
   } catch (error) { toast("Action failed", error.message, true); }
 }
 
+/** @use: high use — purpose: UI→adapter POST; resolved via LMDPFnCache when warm */
 async function adapterCommand(adapterId, name, payload = {}) {
   return api(`/api/v1/adapter/${adapterId}`, { method: "POST", body: { name, payload } });
+}
+
+function requestVaultInstall(featureId, label, packages) {
+  // @use: low use — purpose: confirm dialog before pkexec apt install
+  const pkgList = packages || featureId;
+  app.pendingConfirm = () => forgeVaultPack(featureId);
+  $("#confirm-dialog-title").textContent = "CONFIRM APT INSTALL";
+  $("#confirm-dialog-body").textContent =
+    `Install “${label}” via pkexec apt-get install ${pkgList}? This requests administrator privileges and only allowlisted packages from FEATURE_PACKAGES.`;
+  $("#confirm-dialog-accept").textContent = "INSTALL";
+  window.Digitalvapor?.openDialog("confirm-dialog");
+}
+
+async function forgeVaultPack(featureId) {
+  // @use: low use — purpose: run vault install after explicit confirm
+  try {
+    toast("Vault install", `Installing ${featureId}…`);
+    const result = await adapterCommand("vault", "install", { id: featureId });
+    if (app.state?.adapters?.vault && result.features) {
+      Object.assign(app.state.adapters.vault, {
+        features: result.features,
+        can_install: result.can_install ?? app.state.adapters.vault.can_install,
+      });
+    }
+    toast("Vault install complete", (result.packages || []).join(" ") || featureId);
+    renderScene(true);
+  } catch (error) {
+    toast("Vault install failed", error.message, true);
+  }
 }
 
 async function bluetoothPower(on) {
@@ -1575,6 +1625,7 @@ const SCENE_BINDINGS = [
   { sel: "[data-chord-melt]", run: (el) => meltNeonChord(el.dataset.chordMelt) },
   { sel: "[data-chord-melt-all]", run: () => meltAllNeonChords() },
   { sel: "[data-chord-synth]", run: () => synthNeonChords() },
+  { sel: "[data-vault-install]", run: (el) => requestVaultInstall(el.dataset.vaultInstall, el.dataset.vaultLabel || el.dataset.vaultInstall, el.dataset.vaultPackages || "") },
   { sel: "[data-connect-ssid]", run: connectSsidFromEl },
   { sel: "[data-disconnect]", run: disconnectFromEl },
   { sel: "[data-power]", run: (el) => requestConfirmation(el.dataset.power) },
@@ -1625,7 +1676,22 @@ function bindGlobal() {
   $(".topbar [data-action=\"lock\"]").addEventListener("click",()=>runAction("lock"));
 }
 
+/** Register hot UI→operation callables into the memory hashmap for O(1) resolve. */
+function warmUiFnCache() {
+  const cache = window.LMDPFnCache;
+  if (!cache?.register) return;
+  cache.register("ui.adapterCommand", "high use", "POST /api/v1/adapter/<id> from any control", adapterCommand);
+  cache.register("ui.api", "high use", "Tokenized loopback fetch helper", api);
+  cache.register("ui.renderScene", "high use", "Rebuild or patch the active scene", renderScene);
+  cache.register("ui.mapVaultFeatureCards", "high use", "Apps vault cards from FEATURE_PACKAGES", mapVaultFeatureCards);
+  cache.register("ui.forgePeerFromForm", "medium use", "Settings → Agents forge peer", forgePeerFromForm);
+  cache.register("ui.tuneNeonChord", "medium use", "Settings → Keybinds tune combo", tuneNeonChord);
+  cache.register("ui.forgeVaultPack", "low use", "Confirmed pkexec apt install for vault feature", forgeVaultPack);
+  cache.register("ui.requestVaultInstall", "low use", "Confirm dialog before vault install", requestVaultInstall);
+}
+
 setClock();
 setInterval(setClock,1000);
+warmUiFnCache();
 bindGlobal();
 poll();
