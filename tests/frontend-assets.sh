@@ -75,6 +75,12 @@ grep -q 'data-logs-refresh' "$STATIC/app.js"
 grep -q 'adapterCommand("idle"' "$STATIC/app.js"
 grep -q 'adapterCommand("printers"' "$STATIC/app.js"
 grep -q 'adapterCommand("logs"' "$STATIC/app.js"
+grep -q 'live-wallpaper.html' "$ROOT/src/lmdesktopplus/server.py"
+test -f "$STATIC/live-wallpaper.html"
+grep -q 'function liveWallpaperPanel' "$STATIC/app.js"
+grep -q 'data-live-wallpaper-start' "$STATIC/app.js"
+grep -q 'adapterCommand("live_wallpaper"' "$STATIC/app.js"
+grep -q 'Digitalvapor' "$STATIC/live-wallpaper.html" || grep -q 'digitalvapor.js' "$STATIC/live-wallpaper.html"
 if grep -Eq '<script[^>]*>[^<]*window\.LMDP_TOKEN' "$STATIC/index.html"; then
   echo "inline token script remains in index.html" >&2
   exit 1

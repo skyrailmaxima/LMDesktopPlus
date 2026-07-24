@@ -5,6 +5,7 @@ import signal
 import sys
 import time
 import webbrowser
+from importlib.resources import as_file, files
 
 from . import __version__
 from .agents import AgentRegistry
@@ -17,6 +18,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--kiosk", action="store_true", help="open the embedded window fullscreen")
     parser.add_argument("--print-url", action="store_true", help="print the local UI URL")
     parser.add_argument("--agent-run", metavar="NAME", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--live-wallpaper",
+        action="store_true",
+        help="open the feature-flagged live matrix wallpaper window (no control-center server)",
+    )
+    parser.add_argument(
+        "--rain-intensity",
+        type=int,
+        default=55,
+        help="matrix rain intensity 0–100 for --live-wallpaper",
+    )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser
 
@@ -28,6 +40,50 @@ def run_browser(url: str) -> int:
             time.sleep(3600)
     except KeyboardInterrupt:
         return 0
+
+
+def run_live_wallpaper(intensity: int) -> int:
+    """Fullscreen WebKit window running packaged live-wallpaper.html (DV.rain)."""
+    try:
+        import gi
+
+        gi.require_version("Gtk", "3.0")
+        try:
+            gi.require_version("WebKit2", "4.1")
+        except ValueError:
+            gi.require_version("WebKit2", "4.0")
+        from gi.repository import Gtk, WebKit2
+    except (ImportError, ValueError) as exc:
+        print(f"Live wallpaper WebKit unavailable ({exc}).", file=sys.stderr)
+        return 1
+
+    clamped = max(0, min(100, int(intensity)))
+    static_root = files("lmdesktopplus").joinpath("static")
+    with as_file(static_root) as static_dir:
+        html_path = static_dir / "live-wallpaper.html"
+        if not html_path.is_file():
+            print("Packaged live-wallpaper.html is missing.", file=sys.stderr)
+            return 1
+        uri = html_path.resolve().as_uri() + f"?i={clamped}"
+
+        window = Gtk.Window(title="LMDesktopPlus Live Wallpaper")
+        window.set_default_size(1280, 720)
+        window.set_icon_name("lmdesktopplus")
+        try:
+            # X11 / XWayland class matched by owned hypr-live-wallpaper.conf rules.
+            window.set_wmclass("lmdesktopplus-livewall", "lmdesktopplus-livewall")
+        except Exception:  # noqa: BLE001 — optional on pure Wayland
+            pass
+        view = WebKit2.WebView()
+        settings = view.get_settings()
+        settings.set_property("enable-developer-extras", False)
+        view.load_uri(uri)
+        window.add(view)
+        window.connect("destroy", Gtk.main_quit)
+        window.fullscreen()
+        window.show_all()
+        Gtk.main()
+    return 0
 
 
 def run_gtk(url: str, kiosk: bool, start_fullscreen: bool) -> int:
@@ -78,6 +134,8 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.agent_run:
         return AgentRegistry().exec_agent(args.agent_run)
+    if args.live_wallpaper:
+        return run_live_wallpaper(args.rain_intensity)
 
     server, thread, url = start_server()
     if args.print_url:

@@ -738,11 +738,31 @@ function renderSettings() {
   return heading("設定系", "SYSTEM SETTINGS", "Appearance changes persist immediately and generate GTK/Hyprland overlays.") + `<div class="settings-layout"><nav class="panel settings-nav dv-panel dv-sidepanel">${nav}</nav><section class="panel card dv-panel dv-card">${renderSettingsTab()}</section></div>`;
 }
 
+/** @use: medium use — purpose: Appearance live matrix wallpaper controls (default off) */
+function liveWallpaperPanel() {
+  const live = app.state?.adapters?.live_wallpaper || {};
+  const enabled = !!app.state?.settings?.features?.live_wallpaper || !!live.enabled;
+  const running = !!live.running;
+  const backend = live.backend || "html";
+  const note = live.mpvpaper_available && live.video_present
+    ? "mpvpaper video preferred when ~/.local/share/lmdesktopplus/wallpapers/live-matrix.mp4 exists."
+    : "HTML/WebKit rain window (DV.rain). Hyprland uses owned hypr-live-wallpaper.conf rules.";
+  return `<div class="setting-group" style="margin-top:24px"><h3>Live matrix wallpaper</h3>
+    <p class="muted">Feature-flagged · default off. ${esc(note)} Backend: <span class="cyan">${esc(backend)}</span>${running ? " · running" : ""}.</p>
+    <label class="toggle dv-toggle"><input type="checkbox" data-live-wallpaper-toggle ${enabled ? "checked" : ""}><span class="toggle-track dv-track"><span class="toggle-knob"></span></span><span>${enabled ? "ON" : "OFF"}</span></label>
+    <div class="button-row" style="margin-top:12px">
+      <button class="btn primary dv-btn dv-btn--primary" type="button" data-live-wallpaper-start ${running ? "disabled" : ""}>START</button>
+      <button class="btn dv-btn dv-btn--outline" type="button" data-live-wallpaper-stop ${running ? "" : "disabled"}>STOP</button>
+    </div>
+  </div>`;
+}
+
 function renderAppearanceSettings() {
   const ap = app.state.settings.appearance;
   const swatches = Object.entries(app.state.accents).map(([name,hex])=>`<label class="dv-choice dv-radio accent-choice ${name===ap.accent?"is-active":""}" title="${esc(name)}"><input type="radio" name="lmdp-accent" data-accent="${esc(name)}" ${name===ap.accent?"checked":""}><span class="dv-mark" style="width:30px;height:30px;background:${esc(hex)};border-color:${esc(hex)};box-shadow:0 0 10px ${esc(hex)}"></span></label>`).join("");
   const modes = ["tiled","floating","tabbed"].map(x=>`<button class="segment dv-seg__opt ${ap.window_mode===x?"active":""}" data-window-mode="${x}">${x}</button>`).join("");
   return `<div class="setting-group"><h3>Wallpaper</h3>${wallpaperPicker()}</div>
+    ${liveWallpaperPanel()}
     <div class="setting-group"><h3>Accent</h3><div class="swatches dv-row dv-gap-2">${swatches}</div></div>
     ${control("Interface font","Applied to the machine UI",`<select class="dv-input" data-setting="appearance.font"><option ${ap.font==="JetBrains Mono"?"selected":""}>JetBrains Mono</option><option ${ap.font==="DotGothic16"?"selected":""}>DotGothic16</option><option ${ap.font==="Zen Dots"?"selected":""}>Zen Dots</option><option ${ap.font==="System UI"?"selected":""}>System UI</option></select>`)}
     ${control("Surface opacity",`${ap.opacity}%`,`<input class="dv-slider" type="range" min="40" max="100" value="${ap.opacity}" data-setting="appearance.opacity" data-number>`)}
@@ -1151,6 +1171,37 @@ async function logsRefresh() {
   } catch (error) {
     toast("Journal refresh failed", error.message, true);
   }
+}
+
+/** @use: low use — purpose: start feature-flagged live matrix wallpaper */
+async function startLiveWallpaper() {
+  try {
+    const intensity = app.state?.settings?.appearance?.rain_intensity ?? 55;
+    const result = await adapterCommand("live_wallpaper", "start", { intensity });
+    if (app.state?.adapters?.live_wallpaper) Object.assign(app.state.adapters.live_wallpaper, result);
+    if (app.state?.settings?.features) app.state.settings.features.live_wallpaper = true;
+    toast("Live wallpaper", result.backend || "started");
+    renderScene(true);
+  } catch (error) {
+    toast("Live wallpaper start failed", error.message, true);
+  }
+}
+
+async function stopLiveWallpaper() {
+  try {
+    const result = await adapterCommand("live_wallpaper", "stop", {});
+    if (app.state?.adapters?.live_wallpaper) Object.assign(app.state.adapters.live_wallpaper, result);
+    if (app.state?.settings?.features) app.state.settings.features.live_wallpaper = false;
+    toast("Live wallpaper stopped");
+    renderScene(true);
+  } catch (error) {
+    toast("Live wallpaper stop failed", error.message, true);
+  }
+}
+
+async function toggleLiveWallpaper(on) {
+  if (on) await startLiveWallpaper();
+  else await stopLiveWallpaper();
 }
 
 async function bluetoothPower(on) {
@@ -1725,6 +1776,9 @@ const SCENE_BINDINGS = [
   { sel: "[data-printers-refresh]", run: () => printersRefresh() },
   { sel: "[data-printers-open]", run: () => printersOpen() },
   { sel: "[data-logs-refresh]", run: () => logsRefresh() },
+  { sel: "[data-live-wallpaper-start]", run: () => startLiveWallpaper() },
+  { sel: "[data-live-wallpaper-stop]", run: () => stopLiveWallpaper() },
+  { sel: "[data-live-wallpaper-toggle]", type: "change", run: (el) => toggleLiveWallpaper(el.checked) },
   { sel: "[data-connect-ssid]", run: connectSsidFromEl },
   { sel: "[data-disconnect]", run: disconnectFromEl },
   { sel: "[data-power]", run: (el) => requestConfirmation(el.dataset.power) },

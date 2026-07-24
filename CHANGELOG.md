@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.1 — Live matrix wallpaper (Stage D Task 22)
+
+- Added feature-flagged `LiveWallpaperAdapter` (`features.live_wallpaper`,
+  default **off**): HTML/WebKit `DV.rain` window via `--live-wallpaper`, with
+  optional `mpvpaper` when `live-matrix.mp4` is present.
+- Owned `hypr-live-wallpaper.conf` window rules + launcher script; source line
+  appended only into LMDesktopPlus-owned `hyprland.conf`.
+- Settings → Appearance live wallpaper panel; Apps vault catalog entry.
+
 ## 0.6.0 — Stage D polish (idle, printers, logs)
 
 - Added `IdleAdapter`: owned `swayidle-generated.sh` + `idle-generated.conf`,

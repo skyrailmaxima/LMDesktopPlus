@@ -16,7 +16,7 @@ arbitrary shell or rewriting foreign desktop configs.
 | **19** | Idle / lock timers → owned generated snippets + Cinnamon gsettings | **0.6.0 done** |
 | **20** | `PrintersAdapter` (`lpstat` read-only + open printer UI) | **0.6.0 done** |
 | **21** | Logs viewer (`journalctl --user -n 200`, escaped panel) | **0.6.0 done** |
-| **22** | Live matrix wallpaper (feature-flagged, default off) | later |
+| **22** | Live matrix wallpaper (feature-flagged, default off) | **0.6.1 done** |
 | **23** | Stow / Suggests tidy / UI kit stories | later |
 
 ## Task 19 — Idle
@@ -46,8 +46,18 @@ Commands: `apply`, `status` via `IdleAdapter` (`id = idle`).
 - Command: `refresh`
 - UI: Monitor scene panel under processes; HTML escaped with existing `esc()`
 
+## Task 22 — Live wallpaper
+
+- Flag: `features.live_wallpaper` default **false**
+- Primary backend: packaged `live-wallpaper.html` + `digitalvapor.js` rain via
+  `lmdesktopplus --live-wallpaper`
+- Optional: `mpvpaper` + `~/.local/share/lmdesktopplus/wallpapers/live-matrix.mp4`
+- Owned: `hypr-live-wallpaper.conf`, `live-wallpaper-generated.sh`, pid file
+- UI: Settings → Appearance
+
 ## Non-goals
 
-- Task 22/23 in this tranche
+- Task 23 in this tranche
 - Editing foreign swayidle/hyprland configs without LMDesktopPlus ownership markers
 - Root journal access or unbounded log pulls
+- Shipping a large loop video for mpvpaper

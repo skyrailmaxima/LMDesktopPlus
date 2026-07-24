@@ -24,6 +24,7 @@ ADAPTER_CAPABILITIES: dict[str, tuple[str, ...]] = {
     "idle": ("status", "apply"),
     "printers": ("refresh", "open"),
     "logs": ("refresh",),
+    "live_wallpaper": ("status", "start", "stop", "pulse_on", "pulse_off"),
 }
 
 

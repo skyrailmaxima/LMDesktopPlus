@@ -189,6 +189,7 @@ common interpreters so the UI cannot mint arbitrary code execution.
 | `idle` | owned swayidle script + Cinnamon `gsettings` | note file only | `status`, `apply` | always | Always available; never edits foreign swayidle configs |
 | `printers` | `lpstat -p -d` | — | `refresh`, `open` | 5s | Unavailable without CUPS `lpstat`; open needs printer UI or `xdg-open` |
 | `logs` | `journalctl --user -n 200` | — | `refresh` | 3s | Unavailable without journalctl; lines capped + control-stripped |
+| `live_wallpaper` | HTML/`DV.rain` WebKit window | `mpvpaper` + `live-matrix.mp4` | `status`, `start`/`stop` (`pulse_on`/`pulse_off`) | always | Feature default **off**; owned hypr window rules only on LMDP-owned configs |
 
 ## Stage C status
 

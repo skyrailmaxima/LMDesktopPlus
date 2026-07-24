@@ -100,6 +100,12 @@ FEATURE_PACKAGES: dict[str, dict[str, Any]] = {
         "detect": None,
         "cap": None,
     },
+    "live_wallpaper": {
+        "apt": [],
+        "label": "Live matrix wallpaper",
+        "detect": None,
+        "cap": None,
+    },
 }
 
 

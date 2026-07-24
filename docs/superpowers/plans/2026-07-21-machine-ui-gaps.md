@@ -361,6 +361,7 @@ git commit -m "feat: add icon asset hash map for machine UI chrome"
 **Status:** shipped in **0.6.0** (Monitor → USER JOURNAL panel).
 
 ### Task 22: Live matrix wallpaper (optional HTML wallpaper window or `mpvpaper`) — feature-flagged; default off
+**Status:** shipped in **0.6.1** (`LiveWallpaperAdapter`, `--live-wallpaper`, owned hypr rules).
 
 ### Task 23: Stow mode / packaging Suggests tidy / UI kit stories for each new control
 

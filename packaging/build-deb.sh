@@ -62,7 +62,7 @@ Architecture: $ARCH
 Maintainer: LMDesktopPlus contributors
 Depends: python3 (>= 3.10), python3-gi, gir1.2-gtk-3.0, gir1.2-webkit2-4.1 | gir1.2-webkit2-4.0, network-manager
 Recommends: kitty, rofi, tmux, btop, playerctl, bubblewrap
-Suggests: hyprland, waybar, bluez, starship, policykit-1, grim, slurp, wl-clipboard, xclip, libnotify-bin, mintupdate, cups-client, system-config-printer, swayidle
+Suggests: hyprland, waybar, bluez, starship, policykit-1, grim, slurp, wl-clipboard, xclip, libnotify-bin, mintupdate, cups-client, system-config-printer, swayidle, mpvpaper
 Description: Digitalvapor machine UI for Linux Mint
  A local vapor//matrix control center for real system metrics, application launchers,
  persistent appearance settings, NetworkManager, media controls, scoped agent

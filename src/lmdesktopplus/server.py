@@ -28,6 +28,7 @@ from .adapters.storage import RemovableStorageAdapter
 from .adapters.updates import UpdatesAdapter
 from .adapters.idle import IdleAdapter
 from .adapters.keybinds import ChordAdapter
+from .adapters.live_wallpaper import LiveWallpaperAdapter
 from .adapters.logs import LogsAdapter
 from .adapters.printers import PrintersAdapter
 from .adapters.vault import VaultAdapter
@@ -73,6 +74,12 @@ class ApplicationState:
         )
         self.adapters.register(PrintersAdapter())
         self.adapters.register(LogsAdapter())
+        self.adapters.register(
+            LiveWallpaperAdapter(
+                settings_get=self.settings.get,
+                settings_update=self.settings.update,
+            )
+        )
         self.wallpaper = WallpaperAdapter()
         self.adapters.register(self.wallpaper)
         self.assets = AssetCatalog(self.wallpaper.wallpaper_map)
@@ -445,6 +452,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             "style.css",
             "digitalvapor.css",
             "digitalvapor.js",
+            "live-wallpaper.html",
         }
         if ".." in parts or not self._allowed_static_path(rel, parts, allowed_static):
             self.send_error(HTTPStatus.NOT_FOUND)
