@@ -172,6 +172,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     POST_ROUTES: dict[str, str] = {
         "/api/v1/settings": "_post_settings",
         "/api/v1/action": "_post_action",
+        "/api/v1/agents": "_post_agents",
         "/api/v1/agents/launch": "_post_agents_launch",
         "/api/v1/media": "_post_media",
         "/api/v1/network/connect": "_post_network_connect",
@@ -266,8 +267,26 @@ class RequestHandler(BaseHTTPRequestHandler):
         )
         self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
 
+    def _post_agents(self, body: dict[str, Any]) -> None:
+        """Roster CRUD: body.op ∈ create|update|delete (vapor: forge|retune|melt)."""
+        from .agents import dispatch_peer_op
+
+        # Prefer explicit `op`; accept vapor aliases via dispatch_peer_op.
+        op = str(body.get("op") or body.get("action") or "").strip()
+        # Payload may be nested or flat beside `op`.
+        payload = body.get("payload")
+        if not isinstance(payload, dict):
+            payload = {key: value for key, value in body.items() if key not in {"op", "action", "payload"}}
+        result = dispatch_peer_op(self.server.state.agents, op, payload)
+        # Refresh cached aggregate state so the next poll sees roster changes.
+        with self.server.state._cache_lock:
+            self.server.state._cache.pop("core", None)
+            self.server.state._cache.pop("full", None)
+        self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
+
     def _post_agents_launch(self, body: dict[str, Any]) -> None:
-        result = self.server.state.agents.launch(str(body.get("name", "")))
+        # Spawn keeps its own path so a stray CRUD click cannot launch.
+        result = self.server.state.agents.spawn_peer(str(body.get("name", "")))
         self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
 
     def _post_media(self, body: dict[str, Any]) -> None:

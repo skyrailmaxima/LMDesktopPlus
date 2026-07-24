@@ -863,8 +863,46 @@ function storageSettingsPanel() {
   return `<div class="setting-group" style="margin-top:24px"><h3>Removable storage</h3><div class="audio-control__header">${icon}<span class="muted">${storage.can_mount ? "udisksctl" : "read-only · install udisks2"}</span></div><div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" data-storage-refresh>REFRESH</button></div><div style="margin-top:16px">${devices || '<p class="muted">No removable USB/MMC volumes detected.</p>'}</div></div>`;
 }
 
+/** Map one peer row into an editable roster card (retune / melt / spawn). */
+function mapPeerRosterCard(peer) {
+  const name = peer.name || "";
+  const ready = peer.available ? "ok dv-tag--mint" : "warn dv-tag--warn";
+  const cmd = Array.isArray(peer.command) ? peer.command.join(" ") : "";
+  return `<div class="app-card dv-card" data-peer-card="${esc(name)}">
+    <div class="app-head"><strong>${esc(peer.label || name)}</strong><span class="badge dv-tag ${ready}">${peer.available ? "ready" : "missing"}</span></div>
+    <div class="dv-field"><label>Label</label><input class="dv-input" data-peer-field="label" data-peer-name="${esc(name)}" value="${esc(peer.label || "")}"></div>
+    <div class="dv-field"><label>Command</label><input class="dv-input" data-peer-field="command" data-peer-name="${esc(name)}" value="${esc(cmd)}" spellcheck="false"></div>
+    <div class="dv-field"><label>Workspace</label><input class="dv-input" data-peer-field="workspace" data-peer-name="${esc(name)}" value="${esc(peer.workspace || "~/work")}"></div>
+    <div class="dv-field"><label>Description</label><input class="dv-input" data-peer-field="description" data-peer-name="${esc(name)}" value="${esc(peer.description || "")}"></div>
+    <label class="dv-toggle"><input type="checkbox" data-peer-field="sandbox" data-peer-name="${esc(name)}" ${peer.sandbox ? "checked" : ""}><span class="dv-track"></span><span style="margin-left:9px">sandbox (bwrap)</span></label>
+    <label class="dv-toggle" style="margin-top:8px"><input type="checkbox" data-peer-field="network" data-peer-name="${esc(name)}" ${peer.network ? "checked" : ""}><span class="dv-track"></span><span style="margin-left:9px">network</span></label>
+    ${statRow("Home", peer.home || "")}
+    <div class="button-row" style="margin-top:12px">
+      <button class="btn primary dv-btn dv-btn--primary" type="button" data-agent="${esc(name)}" ${peer.available ? "" : "disabled"}>SPAWN</button>
+      <button class="btn dv-btn dv-btn--outline" type="button" data-peer-retune="${esc(name)}">RETUNE</button>
+      <button class="btn dv-btn dv-btn--danger" type="button" data-peer-melt="${esc(name)}">MELT</button>
+    </div>
+  </div>`;
+}
+
+/** Settings → Agents: forge form + editable peer roster cards. */
 function renderAgentSettings() {
-  return `<p class="muted">Agent definitions are stored in <span class="cyan">~/.config/lmdesktopplus/agents.json</span>. Commands are intentionally edited in the file rather than through the web UI, so a stray click cannot create a new arbitrary command.</p><div class="grid two">${app.state.agents.map(a=>`<div class="app-card dv-card"><div class="app-head"><strong>${esc(a.label)}</strong><span class="badge dv-tag ${a.available?"ok dv-tag--mint":"warn dv-tag--warn"}">${a.available?"ready":"missing"}</span></div>${statRow("Command",a.command.join(" "))}${statRow("Home",a.home)}${statRow("Workspace",a.workspace_resolved)}${statRow("Sandbox",a.sandbox?(a.sandbox_available?"Bubblewrap":"requested; bwrap missing"):"off")}${statRow("Network",a.network?"allowed":"isolated")}<button class="btn primary dv-btn dv-btn--primary" data-agent="${esc(a.name)}" ${a.available?"":"disabled"}>SPAWN</button></div>`).join("")}</div><div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" data-action="open-config">OPEN CONFIG FOLDER</button></div>`;
+  const peers = Array.isArray(app.state.agents) ? app.state.agents : [];
+  const cards = peers.map(mapPeerRosterCard).join("");
+  const forge = `<div class="setting-group"><h3>Forge peer</h3>
+    <p class="muted">Creates a roster entry in <span class="cyan">agents.json</span>. Command must be a bare binary (no paths/shells).</p>
+    <div class="grid two" style="margin-top:12px">
+      <div class="dv-field"><label>Name</label><input class="dv-input" id="peer-forge-name" placeholder="nova" spellcheck="false"></div>
+      <div class="dv-field"><label>Label</label><input class="dv-input" id="peer-forge-label" placeholder="Nova"></div>
+      <div class="dv-field"><label>Command</label><input class="dv-input" id="peer-forge-command" placeholder="aider --yes" spellcheck="false"></div>
+      <div class="dv-field"><label>Workspace</label><input class="dv-input" id="peer-forge-workspace" value="~/work"></div>
+    </div>
+    <div class="dv-field" style="margin-top:12px"><label>Description</label><input class="dv-input" id="peer-forge-description" placeholder="Short note"></div>
+    <label class="dv-toggle" style="margin-top:12px"><input type="checkbox" id="peer-forge-sandbox"><span class="dv-track"></span><span style="margin-left:9px">sandbox</span></label>
+    <label class="dv-toggle" style="margin-top:8px"><input type="checkbox" id="peer-forge-network" checked><span class="dv-track"></span><span style="margin-left:9px">network</span></label>
+    <div class="button-row" style="margin-top:14px"><button class="btn primary dv-btn dv-btn--primary" type="button" data-peer-forge>FORGE</button></div>
+  </div>`;
+  return `${forge}<div class="setting-group" style="margin-top:24px"><h3>Roster</h3><div class="grid two">${cards || '<p class="muted">No peers in roster.</p>'}</div><div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" data-action="open-config">OPEN CONFIG FOLDER</button></div></div>`;
 }
 
 function mapNeonChordRows(chords, order) {
@@ -1311,12 +1349,77 @@ async function terminateProcess(pid) {
   }
 }
 
+/** Spawn a peer via the dedicated launch route (not CRUD). */
 async function launchAgentFromEl(el) {
   try {
     await api("/api/v1/agents/launch", { method: "POST", body: { name: el.dataset.agent } });
-    toast("Agent spawned", el.dataset.agent);
+    toast("Peer spawned", el.dataset.agent);
   } catch (error) {
-    toast("Agent launch failed", error.message, true);
+    toast("Peer spawn failed", error.message, true);
+  }
+}
+
+/** POST /api/v1/agents with vapor/plan op names; refresh local roster from response. */
+async function dispatchPeerOp(op, payload) {
+  const result = await api("/api/v1/agents", { method: "POST", body: { op, ...payload } });
+  if (Array.isArray(result.agents)) app.state.agents = result.agents;
+  return result;
+}
+
+/** Read forge-form fields and create a peer (op: forge / create). */
+async function forgePeerFromForm() {
+  try {
+    const payload = {
+      name: $("#peer-forge-name")?.value || "",
+      label: $("#peer-forge-label")?.value || "",
+      command: $("#peer-forge-command")?.value || "",
+      workspace: $("#peer-forge-workspace")?.value || "~/work",
+      description: $("#peer-forge-description")?.value || "",
+      sandbox: Boolean($("#peer-forge-sandbox")?.checked),
+      network: Boolean($("#peer-forge-network")?.checked),
+    };
+    await dispatchPeerOp("forge", payload);
+    toast("Peer forged", payload.name);
+    renderScene(true);
+  } catch (error) {
+    toast("Peer forge failed", error.message, true);
+  }
+}
+
+/** Collect editable fields for one peer card and retune (op: retune / update). */
+async function retunePeerFromCard(name) {
+  try {
+    // Names are safe_name tokens, so a plain attribute selector is sufficient.
+    const root = document.querySelector(`[data-peer-card="${name}"]`);
+    if (!root) throw new Error("peer card missing");
+    const field = (key) => root.querySelector(`[data-peer-field="${key}"]`);
+    const payload = {
+      name,
+      label: field("label")?.value || name,
+      command: field("command")?.value || "",
+      workspace: field("workspace")?.value || "~/work",
+      description: field("description")?.value || "",
+      sandbox: Boolean(field("sandbox")?.checked),
+      network: Boolean(field("network")?.checked),
+    };
+    await dispatchPeerOp("retune", payload);
+    toast("Peer retuned", name);
+    renderScene(true);
+  } catch (error) {
+    toast("Peer retune failed", error.message, true);
+  }
+}
+
+/** Remove a peer from the roster (op: melt / delete); does not wipe HOME. */
+async function meltPeerByName(name) {
+  try {
+    const ok = window.confirm(`Melt peer "${name}" from the roster? Home directory is kept.`);
+    if (!ok) return;
+    await dispatchPeerOp("melt", { name });
+    toast("Peer melted", name);
+    renderScene(true);
+  } catch (error) {
+    toast("Peer melt failed", error.message, true);
   }
 }
 
@@ -1423,6 +1526,9 @@ const SCENE_BINDINGS = [
   { sel: "[data-launch]", run: (el) => runAction("launch", el.dataset.launch) },
   { sel: "[data-action]", run: (el) => runAction(el.dataset.action) },
   { sel: "[data-agent]", run: launchAgentFromEl },
+  { sel: "[data-peer-forge]", run: () => forgePeerFromForm() },
+  { sel: "[data-peer-retune]", run: (el) => retunePeerFromCard(el.dataset.peerRetune) },
+  { sel: "[data-peer-melt]", run: (el) => meltPeerByName(el.dataset.peerMelt) },
   { sel: "[data-media]", run: mediaFromEl },
   { sel: "[data-settings-tab]", run: (el) => {
     app.settingsTab = el.dataset.settingsTab;

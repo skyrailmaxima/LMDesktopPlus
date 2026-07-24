@@ -25,8 +25,15 @@ def dispatch_command(
     *,
     adapter_id: str | None = None,
 ) -> dict[str, Any]:
-    """Resolve adapter commands through a name → handler map."""
+    """Resolve adapter commands through a name → handler map (no if/elif chains).
+
+    Looks up `name` in `commands`, runs the handler with `payload`, and returns a
+    stable `command_error` when the name is unknown. Prefer this helper over
+    branched command switches so new Stage C ops are one map entry.
+    """
+    # Hash-map lookup replaces cascading conditionals.
     handler = commands.get(name)
+    # Unknown names fail soft with an optional adapter-scoped label.
     if handler is None:
         label = (
             f"unknown {adapter_id} command: {name}"
@@ -34,6 +41,7 @@ def dispatch_command(
             else f"unknown command: {name}"
         )
         return command_error("unavailable", label)
+    # Handlers own payload validation and return shapes.
     return handler(payload)
 
 

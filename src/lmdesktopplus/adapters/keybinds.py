@@ -109,30 +109,39 @@ _GENERATED_HEADER = (
 
 def tune_neon_chord(raw: Any) -> str | None:
     """Normalize a neon combo; reject empty / metachar / modifier-less values."""
+    # Only strings are accepted from the UI / vapor JSON.
     if not isinstance(raw, str):
         return None
+    # Trim edges; refuse empty or shell-bearing input.
     text = raw.strip()
     if not text or _COMBO_METACHARS.search(text):
         return None
+    # Split Hypr-style "MOD, KEY" lists and drop empties.
     parts = [part.strip() for part in text.split(",") if part.strip()]
+    # Need at least one modifier plus a key.
     if len(parts) < 2:
         return None
     mods: list[str] = []
+    # Every token except the last must be a known modifier (no duplicates).
     for token in parts[:-1]:
         upper = token.upper()
         if upper not in _MODIFIERS or upper in mods:
             return None
         mods.append(upper)
+    # Final token is the key — named keys get canonical Hypr spellings.
     key_raw = parts[-1]
     key_upper = key_raw.upper()
     if key_upper in _NAMED_KEYS:
         key = _NAMED_KEYS[key_upper]
     elif len(key_raw) == 1 and key_raw.isalnum():
+        # Single letters normalize to uppercase (A, T, …).
         key = key_raw.upper()
     elif _KEY_TOKEN.match(key_raw) and len(key_raw) <= 16:
+        # Preserve multi-char tokens like F1 as typed.
         key = key_raw
     else:
         return None
+    # Rejoin with Hypr-friendly spacing.
     return ", ".join([*mods, key])
 
 
@@ -142,11 +151,14 @@ def weave_vapor_chords(
 ) -> dict[str, dict[str, Any]]:
     """Merge matrix defaults with vapor overrides (combo only; dispatch stays matrix)."""
     woven: dict[str, dict[str, Any]] = {}
+    # Walk matrix keys so order stays stable for etching.
     for chord_id, spec in matrix.items():
+        # Vapor may omit a chord entirely.
         override = vapor.get(chord_id) if isinstance(vapor, dict) else None
         combo = spec["combo"]
         overridden = False
         if isinstance(override, dict):
+            # Only neon combos are tunable; dispatch never comes from the client.
             neon = tune_neon_chord(override.get("combo"))
             if neon:
                 combo = neon
@@ -163,10 +175,12 @@ def weave_vapor_chords(
 
 def etch_matrix_binds(woven: dict[str, dict[str, Any]]) -> str:
     """Render owned hypr-binds.conf text from woven chords."""
+    # Start with the ownership header so install/theme guards can recognize us.
     lines = [_GENERATED_HEADER.rstrip(), ""]
     for chord_id in MATRIX_CHORDS:
         row = woven[chord_id]
         dispatch = row["dispatch"]
+        # Skip anything that slipped past the matrix allowlist.
         if not any(dispatch.startswith(prefix) for prefix in ALLOWED_DISPATCH_PREFIXES):
             continue
         lines.append(f"bind = {row['combo']}, {dispatch}")
@@ -176,12 +190,14 @@ def etch_matrix_binds(woven: dict[str, dict[str, Any]]) -> str:
 
 def ensure_matrix_chord_source(hypr_path: Path, source_line: str) -> bool:
     """Append source line only into LMDesktopPlus-owned hyprland.conf. Returns True if written."""
+    # Missing hyprland.conf: do not invent a foreign config.
     if not hypr_path.exists():
         return False
     try:
         current = hypr_path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return False
+    # Ownership marker required; skip if the source line is already present.
     if "LMDesktopPlus" not in current or source_line in current:
         return False
     try:

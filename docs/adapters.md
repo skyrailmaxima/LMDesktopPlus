@@ -154,11 +154,24 @@ Dispatch targets stay on the matrix catalog — the UI may only tune neon combos
 `synth` appends `source = …/hypr-binds.conf` only into Hyprland configs already
 marked `LMDesktopPlus`, then best-effort `hyprctl reload`.
 
+### Agent peer roster (`POST /api/v1/agents`)
+
+Vapor typology: **peer** (one agent), **roster** (`agents.json`), **forge / retune /
+melt** (create / update / delete), **scan / spawn** (list / launch).
+
+| Op | Aliases | Behavior |
+|---|---|---|
+| `create` | `forge` | Add peer; `safe_name` id; allowlisted bare binary argv |
+| `update` | `retune` | Patch label/command/workspace/sandbox/network/description |
+| `delete` | `melt` | Remove from roster (HOME kept on disk) |
+
+Launch remains `POST /api/v1/agents/launch`. Denied binaries include shells and
+common interpreters so the UI cannot mint arbitrary code execution.
+
 ## Stage C+ (still planned)
 
 | Concern | Preferred tools | Fallback or limitation |
 |---|---|---|
-| Agent CRUD | `agents.json` API | Safe-name validation; no arbitrary shell |
 | App vault installs | `pkexec apt-get install` | Explicit confirm only; never silent root |
 
 Adapters must continue to fail soft across Cinnamon and Hyprland sessions. A

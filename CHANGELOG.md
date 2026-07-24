@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.6 — Agent peer CRUD (vapor roster)
+
+- Added `POST /api/v1/agents` with ops `create|update|delete` (vapor aliases
+  `forge|retune|melt`) for allowlisted peer definitions in `agents.json`.
+- Settings → Agents forge form and per-peer retune/melt controls; spawn stays on
+  `/api/v1/agents/launch`.
+- Command argv tuner rejects shells, paths, and metacharacters; Bubblewrap etch
+  rules unchanged.
+- Began de-complication renaming + full-line commenting on the peer roster and
+  shared `dispatch_command` helper.
+
 ## 0.4.5 — Vapor//matrix Hyprland chord editor
 
 - Added `ChordAdapter` (`keybinds`) with synthwave typology commands

@@ -15,7 +15,7 @@ Preferred base branch: `feature/lmdesktopplus`.
 
 | Branch | Scope |
 |---|---|
-| `cursor/stage-c-power-user-081e` | 0.4.4–0.4.5 Stage C + dispatch Tranches 1–4 (chord editor); next: agent CRUD / vault → 0.5.0 |
+| `cursor/stage-c-power-user-081e` | 0.4.4–0.4.6 Stage C + dispatch Tranches 1–5 (chords + agent peer CRUD); next: vault → 0.5.0 |
 
 ## Landed on `feature/lmdesktopplus`
 

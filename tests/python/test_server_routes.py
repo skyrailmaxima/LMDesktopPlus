@@ -10,6 +10,7 @@ class ServerRouteTableTests(unittest.TestCase):
         expected = {
             "/api/v1/settings",
             "/api/v1/action",
+            "/api/v1/agents",
             "/api/v1/agents/launch",
             "/api/v1/media",
             "/api/v1/network/connect",

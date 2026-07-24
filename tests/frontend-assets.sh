@@ -49,6 +49,15 @@ grep -q 'data-chord-id' "$STATIC/app.js"
 grep -q 'data-chord-melt' "$STATIC/app.js"
 grep -q 'data-chord-synth' "$STATIC/app.js"
 grep -q 'mapNeonChordRows' "$STATIC/app.js"
+grep -q 'function renderAgentSettings' "$STATIC/app.js"
+grep -q 'function forgePeerFromForm' "$STATIC/app.js"
+grep -q 'function retunePeerFromCard' "$STATIC/app.js"
+grep -q 'function meltPeerByName' "$STATIC/app.js"
+grep -q 'dispatchPeerOp' "$STATIC/app.js"
+grep -q 'data-peer-forge' "$STATIC/app.js"
+grep -q 'data-peer-retune' "$STATIC/app.js"
+grep -q 'data-peer-melt' "$STATIC/app.js"
+grep -q '/api/v1/agents' "$STATIC/app.js"
 if grep -Eq '<script[^>]*>[^<]*window\.LMDP_TOKEN' "$STATIC/index.html"; then
   echo "inline token script remains in index.html" >&2
   exit 1

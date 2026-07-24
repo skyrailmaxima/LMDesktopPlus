@@ -67,7 +67,7 @@ branches.
 | **2** | Server + action dispatch | `POST_ROUTES` / `GET_ROUTES` / `ACTION_HANDLERS` | no bump |
 | **3** | Adapter command tables | shared `dispatch_command` helper; vpn/storage/processes first | no bump |
 | **4** | Connect Task 17 keybinds | vapor//matrix `ChordAdapter` + `hypr-binds.conf` | **0.4.5 done** |
-| **5** | Connect Task 16 agent CRUD | `POST /api/v1/agents` + Agents tab form | toward 0.5.0 |
+| **5** | Connect Task 16 agent CRUD | peer roster forge/retune/melt + Agents form | **0.4.6 done** |
 | **6** | Connect Task 18 app vault | `FEATURE_PACKAGES` + confirm/`pkexec` | **0.5.0** release |
 
 Recommended order for feature connection after rails: **17 → 16 → 18**
@@ -245,17 +245,19 @@ UI via existing settings/bindings rails; commands `scan` / `tune` / `melt` / `sy
 
 ## Tranche 5 — Connect Task 16: Agent CRUD API
 
+**Status:** shipped as **0.4.6** with vapor peer roster typology + comment pass.
+
 **Depends on:** Tranche 2 route table; Tranche 1 Agents tab bindings
 
 **Files:** `agents.py`, `server.py` POST map entry, Agents settings UI, tests
 
-- [ ] `POST /api/v1/agents` with `op` ∈ `{create, update, delete}` **or** separate
-      paths registered in `POST_ROUTES` — prefer one path + `op` map inside handler
-- [ ] `safe_name` validation; refuse command arrays that escape allowlisted patterns
-      already used by registry
-- [ ] UI form fields → PATCH-like payload; spawn button stays on existing launch route
-- [ ] Keep bwrap rules as-is
-- [ ] Commit: `feat: agent CRUD API and settings form`
+- [x] `POST /api/v1/agents` with `op` ∈ `{create, update, delete}` (+ `forge|retune|melt`)
+      via `dispatch_peer_op` map
+- [x] `safe_name` + `tune_peer_argv` allowlist (no paths/shells/metacharacters)
+- [x] UI forge form + retune/melt cards; spawn stays on `/api/v1/agents/launch`
+- [x] Keep bwrap rules as-is (`etch_bubblewrap_argv`)
+- [x] Began de-complication renaming/full-line comments on roster + `dispatch_command`
+- [x] Commit: `feat: agent peer CRUD API and settings form (0.4.6)`
 
 ---
 
