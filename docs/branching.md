@@ -16,6 +16,7 @@ Preferred base branch: `feature/lmdesktopplus`.
 | Branch | Scope |
 |---|---|
 | `cursor/stage-c-power-user-081e` | **0.5.0** Stage C complete (Tranches 1–6 + fncache use-level hashmap) |
+| `cursor/stage-d-polish-081e` | **0.6.0** Stage D Tasks 19–21 (idle, printers, logs) |
 
 ## Landed on `feature/lmdesktopplus`
 

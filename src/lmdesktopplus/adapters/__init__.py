@@ -21,6 +21,9 @@ ADAPTER_CAPABILITIES: dict[str, tuple[str, ...]] = {
     "processes": ("refresh", "terminate"),
     "keybinds": ("scan", "tune", "melt", "synth"),
     "vault": ("scan", "probe", "install", "forge_pack"),
+    "idle": ("status", "apply"),
+    "printers": ("refresh", "open"),
+    "logs": ("refresh",),
 }
 
 

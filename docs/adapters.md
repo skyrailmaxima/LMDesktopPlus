@@ -182,11 +182,18 @@ melt** (create / update / delete), **scan / spawn** (list / launch).
 Launch remains `POST /api/v1/agents/launch`. Denied binaries include shells and
 common interpreters so the UI cannot mint arbitrary code execution.
 
+## Stage D matrix
+
+| Adapter | Preferred integration | Fallback | Commands | TTL | Missing-tool behavior |
+|---|---|---|---|---|---|
+| `idle` | owned swayidle script + Cinnamon `gsettings` | note file only | `status`, `apply` | always | Always available; never edits foreign swayidle configs |
+| `printers` | `lpstat -p -d` | — | `refresh`, `open` | 5s | Unavailable without CUPS `lpstat`; open needs printer UI or `xdg-open` |
+| `logs` | `journalctl --user -n 200` | — | `refresh` | 3s | Unavailable without journalctl; lines capped + control-stripped |
+
 ## Stage C status
 
-Stage C power-user surface is complete in **0.5.0** (VPN, storage, processes,
-keybind chords, agent peer CRUD, app vault installs). Stage D items remain
-planned in the machine-UI gaps doc.
+Stage C power-user surface completed in **0.5.0**. Stage D Tasks 19–21 ship in
+**0.6.0**; live wallpaper and packaging tidy remain later.
 
 Adapters must continue to fail soft across Cinnamon and Hyprland sessions. A
 binary being present is not sufficient: non-zero exits and timeouts are

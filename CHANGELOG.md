@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 — Stage D polish (idle, printers, logs)
+
+- Added `IdleAdapter`: owned `swayidle-generated.sh` + `idle-generated.conf`,
+  Display timers for lock/sleep, best-effort Cinnamon gsettings idle-delay.
+- Added `PrintersAdapter`: read-only `lpstat` status + open printer settings UI.
+- Added `LogsAdapter`: capped `journalctl --user` panel on Monitor (HTML-escaped).
+- Stage D plan: `docs/superpowers/plans/2026-07-24-stage-d-polish.md`
+  (Tasks 22–23 remain later).
+
 ## 0.5.0 — Stage C power user complete
 
 - Added `VaultAdapter` with `FEATURE_PACKAGES` hashmap driving the Apps vault;

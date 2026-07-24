@@ -545,7 +545,8 @@ function renderMonitor() {
       ${panel("THERMALS", `<div data-live-thermals>${m.temperatures?.length ? m.temperatures.slice(0,6).map(t=>statRow(t.label,`${t.celsius} °C`)).join("") : `<p class="muted">No readable thermal zones.</p>`}</div>`)}
       ${panel("POWER", `<div data-live-power>${m.battery ? `${statRow("Battery",`${m.battery.percent}%`)}${statRow("Status",m.battery.status)}` : `<div class="kpi" style="font-size:30px">AC<small>no battery detected</small></div>`}</div>`)}
     </div>
-    ${processMonitorPanel()}`;
+    ${processMonitorPanel()}
+    ${logsMonitorPanel()}`;
 }
 
 function mapProcessRows(processes) {
@@ -564,6 +565,18 @@ function processMonitorPanel() {
   }
   const rows = mapProcessRows(procs.processes);
   return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><div class="card-title"><h3>TOP PROCESSES</h3><button class="btn dv-btn dv-btn--outline" data-process-refresh>REFRESH</button></div><p class="muted">Terminate is limited to processes owned by your UID. Confirm before SIGTERM.</p><div style="margin-top:12px">${rows || '<p class="muted">No process samples yet.</p>'}</div></div>`;
+}
+
+/** @use: high use — purpose: Monitor user journal panel (HTML-escaped lines) */
+function logsMonitorPanel() {
+  const logs = app.state?.adapters?.logs || {};
+  if (!logs.available) {
+    return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><h3>USER JOURNAL</h3><p class="muted">journalctl unavailable${logs.last_error ? ` · ${esc(logs.last_error)}` : ""}.</p></div>`;
+  }
+  const body = (logs.lines || [])
+    .map((line) => `<div class="muted" style="font-family:var(--dv-font-mono, monospace);font-size:12px;white-space:pre-wrap;word-break:break-word">${esc(line)}</div>`)
+    .join("");
+  return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><div class="card-title"><h3>USER JOURNAL</h3><button class="btn dv-btn dv-btn--outline" data-logs-refresh>REFRESH</button></div><p class="muted">Last ${logs.count ?? 0} lines from <span class="cyan">journalctl --user</span> (capped, escaped).</p><div style="margin-top:12px;max-height:280px;overflow:auto">${body || '<p class="muted">No journal lines.</p>'}</div></div>`;
 }
 
 function setLiveText(binding, value) {
@@ -763,11 +776,46 @@ function renderDisplaySettings() {
     ${clipboardSettingsPanel()}
     ${captureSettingsPanel()}
     ${storageSettingsPanel()}
+    ${idleSettingsPanel()}
+    ${printersSettingsPanel()}
     ${toggleControl("Start fullscreen","Open the embedded machine UI fullscreen","behavior.start_fullscreen",behavior.start_fullscreen)}
     ${toggleControl("Show shortcut hints","Show keyboard hints on the desktop scene","behavior.show_hints",behavior.show_hints)}
     ${control("Poll interval",`${behavior.poll_interval_ms} ms`,`<input class="dv-slider" type="range" min="500" max="5000" step="250" value="${behavior.poll_interval_ms}" data-setting="behavior.poll_interval_ms" data-number>`)}
     ${toggleControl("Allow power actions","Required before logout, reboot, suspend, or poweroff API calls","behavior.allow_power_actions",behavior.allow_power_actions)}
     <div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" data-action="lock">LOCK SYSTEM</button><button class="btn danger dv-btn dv-btn--danger" data-power="suspend">SUSPEND</button><button class="btn danger dv-btn dv-btn--danger" data-power="logout">LOG OUT</button></div>`;
+}
+
+/** @use: medium use — purpose: Display idle lock/sleep timers → owned snippets */
+function idleSettingsPanel() {
+  const idle = app.state?.adapters?.idle || {};
+  const behavior = app.state?.settings?.behavior || {};
+  const lockM = behavior.idle_lock_minutes ?? idle.lock_minutes ?? 0;
+  const sleepM = behavior.idle_sleep_minutes ?? idle.sleep_minutes ?? 0;
+  return `<div class="setting-group" style="margin-top:24px"><h3>Idle / lock timers</h3>
+    <p class="muted">Writes owned <span class="cyan">swayidle-generated.sh</span> + <span class="cyan">idle-generated.conf</span>. Cinnamon idle-delay is applied via gsettings when available. 0 disables.</p>
+    ${control("Lock after", `${lockM} min`, `<input class="dv-slider" type="range" min="0" max="120" step="1" value="${lockM}" data-setting="behavior.idle_lock_minutes" data-number aria-label="Idle lock minutes">`)}
+    ${control("Sleep after", `${sleepM} min`, `<input class="dv-slider" type="range" min="0" max="240" step="5" value="${sleepM}" data-setting="behavior.idle_sleep_minutes" data-number aria-label="Idle sleep minutes">`)}
+    <div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" type="button" data-idle-apply>APPLY IDLE SNIPPETS</button></div>
+    <p class="muted" style="margin-top:8px">${idle.swayidle_available ? "swayidle detected" : "swayidle optional"} · script ${idle.script_present ? "present" : "not written yet"}</p>
+  </div>`;
+}
+
+/** @use: medium use — purpose: Display printers panel from lpstat */
+function printersSettingsPanel() {
+  const printers = app.state?.adapters?.printers || {};
+  if (!printers.available) {
+    return `<div class="setting-group" style="margin-top:24px"><h3>Printers</h3><p class="muted">lpstat unavailable${printers.last_error ? ` · ${esc(printers.last_error)}` : ""}. Install CUPS tools.</p>
+      <div class="button-row"><button class="btn dv-btn dv-btn--outline" type="button" data-printers-open ${printers.can_open ? "" : "disabled"}>OPEN PRINTER SETTINGS</button></div></div>`;
+  }
+  const rows = (printers.printers || []).map((p) => {
+    const tag = p.disabled ? "dv-tag--warn" : p.idle ? "dv-tag--mint" : "dv-tag--cyan";
+    const def = printers.default === p.name ? " · default" : "";
+    return `<div class="list-row"><span class="badge dv-tag ${tag}">${esc(p.name)}</span><span class="value">${esc(p.status)}${def}</span></div>`;
+  }).join("");
+  return `<div class="setting-group" style="margin-top:24px"><h3>Printers</h3>
+    <div class="button-row"><button class="btn dv-btn dv-btn--outline" type="button" data-printers-refresh>REFRESH</button>
+    <button class="btn dv-btn dv-btn--outline" type="button" data-printers-open ${printers.can_open ? "" : "disabled"}>OPEN PRINTER SETTINGS</button></div>
+    <div style="margin-top:12px">${rows || '<p class="muted">No printers reported by lpstat.</p>'}</div></div>`;
 }
 
 function renderSettingsTab() {
@@ -1055,6 +1103,53 @@ async function forgeVaultPack(featureId) {
     renderScene(true);
   } catch (error) {
     toast("Vault install failed", error.message, true);
+  }
+}
+
+/** @use: low use — purpose: etch swayidle + cinnamon idle from Display settings */
+async function applyIdleSnippets() {
+  try {
+    const behavior = app.state?.settings?.behavior || {};
+    const result = await adapterCommand("idle", "apply", {
+      lock_minutes: behavior.idle_lock_minutes ?? 0,
+      sleep_minutes: behavior.idle_sleep_minutes ?? 0,
+    });
+    if (app.state?.adapters?.idle) Object.assign(app.state.adapters.idle, result);
+    toast("Idle snippets applied", `lock ${result.lock_minutes}m · sleep ${result.sleep_minutes}m`);
+    renderScene(true);
+  } catch (error) {
+    toast("Idle apply failed", error.message, true);
+  }
+}
+
+async function printersRefresh() {
+  try {
+    const result = await adapterCommand("printers", "refresh", {});
+    if (app.state?.adapters?.printers) Object.assign(app.state.adapters.printers, result);
+    toast("Printers refreshed", `${result.count ?? 0} printer(s)`);
+    renderScene(true);
+  } catch (error) {
+    toast("Printers refresh failed", error.message, true);
+  }
+}
+
+async function printersOpen() {
+  try {
+    await adapterCommand("printers", "open", {});
+    toast("Printer settings", "launched");
+  } catch (error) {
+    toast("Printer settings failed", error.message, true);
+  }
+}
+
+async function logsRefresh() {
+  try {
+    const result = await adapterCommand("logs", "refresh", {});
+    if (app.state?.adapters?.logs) Object.assign(app.state.adapters.logs, result);
+    toast("Journal refreshed", `${result.count ?? 0} lines`);
+    renderScene(true);
+  } catch (error) {
+    toast("Journal refresh failed", error.message, true);
   }
 }
 
@@ -1626,6 +1721,10 @@ const SCENE_BINDINGS = [
   { sel: "[data-chord-melt-all]", run: () => meltAllNeonChords() },
   { sel: "[data-chord-synth]", run: () => synthNeonChords() },
   { sel: "[data-vault-install]", run: (el) => requestVaultInstall(el.dataset.vaultInstall, el.dataset.vaultLabel || el.dataset.vaultInstall, el.dataset.vaultPackages || "") },
+  { sel: "[data-idle-apply]", run: () => applyIdleSnippets() },
+  { sel: "[data-printers-refresh]", run: () => printersRefresh() },
+  { sel: "[data-printers-open]", run: () => printersOpen() },
+  { sel: "[data-logs-refresh]", run: () => logsRefresh() },
   { sel: "[data-connect-ssid]", run: connectSsidFromEl },
   { sel: "[data-disconnect]", run: disconnectFromEl },
   { sel: "[data-power]", run: (el) => requestConfirmation(el.dataset.power) },

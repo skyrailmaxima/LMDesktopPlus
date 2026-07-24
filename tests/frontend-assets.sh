@@ -66,6 +66,15 @@ grep -q 'warmUiFnCache' "$STATIC/app.js"
 grep -q 'LMDPFnCache' "$STATIC/bindings.js"
 grep -q 'FnCache' "$STATIC/bindings.js"
 grep -q 'high use' "$STATIC/bindings.js"
+grep -q 'function idleSettingsPanel' "$STATIC/app.js"
+grep -q 'function printersSettingsPanel' "$STATIC/app.js"
+grep -q 'function logsMonitorPanel' "$STATIC/app.js"
+grep -q 'data-idle-apply' "$STATIC/app.js"
+grep -q 'data-printers-refresh' "$STATIC/app.js"
+grep -q 'data-logs-refresh' "$STATIC/app.js"
+grep -q 'adapterCommand("idle"' "$STATIC/app.js"
+grep -q 'adapterCommand("printers"' "$STATIC/app.js"
+grep -q 'adapterCommand("logs"' "$STATIC/app.js"
 if grep -Eq '<script[^>]*>[^<]*window\.LMDP_TOKEN' "$STATIC/index.html"; then
   echo "inline token script remains in index.html" >&2
   exit 1

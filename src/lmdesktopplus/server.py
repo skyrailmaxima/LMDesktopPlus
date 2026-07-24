@@ -26,7 +26,10 @@ from .adapters.processes import ProcessAdapter
 from .adapters.session import SessionAdapter
 from .adapters.storage import RemovableStorageAdapter
 from .adapters.updates import UpdatesAdapter
+from .adapters.idle import IdleAdapter
 from .adapters.keybinds import ChordAdapter
+from .adapters.logs import LogsAdapter
+from .adapters.printers import PrintersAdapter
 from .adapters.vault import VaultAdapter
 from .adapters.vpn import VpnAdapter
 from .adapters.wallpaper import WallpaperAdapter
@@ -62,6 +65,14 @@ class ApplicationState:
         self.adapters.register(ProcessAdapter())
         self.adapters.register(ChordAdapter())
         self.adapters.register(VaultAdapter())
+        self.adapters.register(
+            IdleAdapter(
+                settings_get=self.settings.get,
+                settings_update=self.settings.update,
+            )
+        )
+        self.adapters.register(PrintersAdapter())
+        self.adapters.register(LogsAdapter())
         self.wallpaper = WallpaperAdapter()
         self.adapters.register(self.wallpaper)
         self.assets = AssetCatalog(self.wallpaper.wallpaper_map)
