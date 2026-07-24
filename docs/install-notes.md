@@ -4,6 +4,14 @@ Detailed caveats for running LMDesktopPlus on Linux Mint, especially around
 the optional Hyprland session and fonts. Start with the [README](../README.md)
 quick start; this document covers the rough edges.
 
+## Stow mode (optional)
+
+`./install.sh` remains the primary rice installer. `./stow.sh` is an optional
+GNU stow frontend that materializes `packaging/.stow-build/` from
+`packages/{shared,hyprland}` and links into `$HOME` (or `--target`). Use
+`--materialize-only` when stow is not installed (CI). Optional apt Suggests are
+documented in [`suggests.md`](suggests.md).
+
 ## Hyprland on Linux Mint
 
 Linux Mint (and Ubuntu, which it tracks) often does **not** ship an official
