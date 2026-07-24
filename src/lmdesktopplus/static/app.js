@@ -512,7 +512,7 @@ function renderDocs() {
   const id = app.state.identity;
   return heading("構成資料", "DOTFILES + PACKAGE", "The UI package is separate from the desktop rice, but both share one settings and palette model.") + `
     <div class="grid two">
-      ${panel("CONFIG PATHS", `<pre class="code-block">~/.config/lmdesktopplus/settings.json\n~/.config/lmdesktopplus/agents.json\n~/.config/lmdesktopplus/hypr-generated.conf\n~/.config/vapor-matrix.theme\n~/.local/share/lmdesktopplus/agents/</pre><div class="button-row" style="margin-top:14px"><button class="btn dv-btn dv-btn--outline" data-action="open-config">OPEN LMDP CONFIG</button><button class="btn dv-btn dv-btn--outline" data-launch="docs">OPEN ~/.config</button></div>`)}
+      ${panel("CONFIG PATHS", `<pre class="code-block">~/.config/lmdesktopplus/settings.json\n~/.config/lmdesktopplus/agents.json\n~/.config/lmdesktopplus/hypr-generated.conf\n~/.config/lmdesktopplus/hypr-binds.conf\n~/.config/lmdesktopplus/keybinds.json\n~/.config/vapor-matrix.theme\n~/.local/share/lmdesktopplus/agents/</pre><div class="button-row" style="margin-top:14px"><button class="btn dv-btn dv-btn--outline" data-action="open-config">OPEN LMDP CONFIG</button><button class="btn dv-btn dv-btn--outline" data-launch="docs">OPEN ~/.config</button></div>`)}
       ${panel("SYSTEM", `${statRow("Host",`${id.user}@${id.hostname}`)}${statRow("OS",id.os)}${statRow("Kernel",id.kernel)}${statRow("Session",`${id.session} · ${id.session_type}`)}${statRow("Architecture",id.architecture)}${statRow("UI version",app.state.version)}`)}
     </div>
     ${panel("PACKAGE COMMANDS", `<pre class="code-block">./install.sh                  # user-local rice + control center\n./install.sh --with-hyprland # include compositor setup\n./packaging/build-deb.sh     # build installable .deb\nlmdesktopplus               # launch machine UI\nlmdesktopplus --browser     # browser fallback\nlmdesktopplus --kiosk       # fullscreen embedded UI</pre>`, "accent")}`;
@@ -867,13 +867,39 @@ function renderAgentSettings() {
   return `<p class="muted">Agent definitions are stored in <span class="cyan">~/.config/lmdesktopplus/agents.json</span>. Commands are intentionally edited in the file rather than through the web UI, so a stray click cannot create a new arbitrary command.</p><div class="grid two">${app.state.agents.map(a=>`<div class="app-card dv-card"><div class="app-head"><strong>${esc(a.label)}</strong><span class="badge dv-tag ${a.available?"ok dv-tag--mint":"warn dv-tag--warn"}">${a.available?"ready":"missing"}</span></div>${statRow("Command",a.command.join(" "))}${statRow("Home",a.home)}${statRow("Workspace",a.workspace_resolved)}${statRow("Sandbox",a.sandbox?(a.sandbox_available?"Bubblewrap":"requested; bwrap missing"):"off")}${statRow("Network",a.network?"allowed":"isolated")}<button class="btn primary dv-btn dv-btn--primary" data-agent="${esc(a.name)}" ${a.available?"":"disabled"}>SPAWN</button></div>`).join("")}</div><div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" data-action="open-config">OPEN CONFIG FOLDER</button></div>`;
 }
 
-function renderKeybinds() {
-  const keys = [
-    ["1–0 / K","Switch UI scenes"],["Escape","Internal lock screen"],["F11","Toggle application fullscreen"],
-    ["Super + Enter","Kitty (Hyprland config)"],["Super + Space","Rofi"],["Super + A","Agent surface"],
-    ["Super + Q","Close window"],["Super + F","Fullscreen window"],["Super + V","Toggle floating"],["Super + Esc","System lock"],
+function mapNeonChordRows(chords, order) {
+  const ids = Array.isArray(order) && order.length ? order : Object.keys(chords || {});
+  return ids.map((id) => {
+    const row = chords[id] || {};
+    const combo = row.combo || "";
+    const label = row.label || id;
+    const tag = row.overridden ? "dv-tag--mag" : "dv-tag--cyan";
+    return `<div class="list-row" style="align-items:center;gap:12px;flex-wrap:wrap">
+      <span class="badge dv-tag ${tag}">${esc(label)}</span>
+      <input class="dv-input" data-chord-id="${esc(id)}" value="${esc(combo)}" aria-label="${esc(label)} chord" style="max-width:220px">
+      <button class="btn dv-btn dv-btn--ghost" type="button" data-chord-melt="${esc(id)}" ${row.overridden ? "" : "disabled"}>MELT</button>
+    </div>`;
+  }).join("");
+}
+
+function renderNeonChords() {
+  const kb = app.state?.adapters?.keybinds || {};
+  const agentKeys = [
+    ["1–0 / K", "Switch UI scenes"],
+    ["Escape", "Internal lock screen"],
+    ["F11", "Toggle application fullscreen"],
   ];
-  return keys.map(([combo,act])=>`<div class="list-row"><span class="badge dv-tag">${esc(combo)}</span><span class="value">${esc(act)}</span></div>`).join("");
+  const agentRows = agentKeys
+    .map(([combo, act]) => `<div class="list-row"><span class="badge dv-tag">${esc(combo)}</span><span class="value">${esc(act)}</span></div>`)
+    .join("");
+  if (!kb.available) {
+    return `<p class="muted">Vapor//matrix chord editor unavailable.</p><div class="setting-group" style="margin-top:24px"><h3>Agent surface</h3>${agentRows}</div>`;
+  }
+  const rows = mapNeonChordRows(kb.chords || {}, kb.chord_order || []);
+  const sourced = kb.sourced
+    ? `<span class="badge dv-tag dv-tag--mint">sourced</span>`
+    : `<span class="badge dv-tag dv-tag--warn">not sourced yet</span>`;
+  return `<div class="setting-group"><h3>Hyprland chords</h3><p class="muted">Edits write <span class="cyan">~/.config/lmdesktopplus/hypr-binds.conf</span> only — never arbitrary hyprland.conf binds. ${sourced}</p><div style="margin-top:16px">${rows}</div><div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" type="button" data-chord-synth>SYNTH</button><button class="btn dv-btn dv-btn--ghost" type="button" data-chord-melt-all>MELT ALL</button></div></div><div class="setting-group" style="margin-top:24px"><h3>Agent surface</h3><p class="muted">In-app shortcuts for this vaporframe UI (not Hyprland).</p>${agentRows}</div>`;
 }
 
 function renderAbout() {
@@ -891,7 +917,7 @@ const SETTINGS_TABS = {
   display: renderDisplaySettings,
   network: renderNetworkSettings,
   agents: renderAgentSettings,
-  keybinds: renderKeybinds,
+  keybinds: renderNeonChords,
   about: renderAbout,
 };
 
@@ -1337,6 +1363,62 @@ async function disconnectFromEl(el) {
   }
 }
 
+function absorbChordSnapshot(result) {
+  if (app.state?.adapters?.keybinds && result?.chords) {
+    Object.assign(app.state.adapters.keybinds, {
+      chords: result.chords,
+      chord_order: result.chord_order || app.state.adapters.keybinds.chord_order,
+      file: result.file || app.state.adapters.keybinds.file,
+      sourced: result.sourced ?? app.state.adapters.keybinds.sourced,
+      available: true,
+    });
+  }
+}
+
+async function tuneNeonChord(chordId, combo) {
+  try {
+    const result = await adapterCommand("keybinds", "tune", { id: chordId, combo });
+    absorbChordSnapshot(result);
+    toast("Chord tuned", chordId);
+    renderScene(true);
+  } catch (error) {
+    toast("Chord tune failed", error.message, true);
+  }
+}
+
+async function meltNeonChord(chordId) {
+  try {
+    const result = await adapterCommand("keybinds", "melt", { id: chordId });
+    absorbChordSnapshot(result);
+    toast("Chord melted", chordId);
+    renderScene(true);
+  } catch (error) {
+    toast("Chord melt failed", error.message, true);
+  }
+}
+
+async function meltAllNeonChords() {
+  try {
+    const result = await adapterCommand("keybinds", "melt", { id: "*" });
+    absorbChordSnapshot(result);
+    toast("All chords melted", "matrix defaults restored");
+    renderScene(true);
+  } catch (error) {
+    toast("Chord melt failed", error.message, true);
+  }
+}
+
+async function synthNeonChords() {
+  try {
+    const result = await adapterCommand("keybinds", "synth", {});
+    absorbChordSnapshot(result);
+    toast("Chords synth'd", result.pulsed ? "hyprctl reload" : "overlay written");
+    renderScene(true);
+  } catch (error) {
+    toast("Chord synth failed", error.message, true);
+  }
+}
+
 const SCENE_BINDINGS = [
   { sel: "[data-launch]", run: (el) => runAction("launch", el.dataset.launch) },
   { sel: "[data-action]", run: (el) => runAction(el.dataset.action) },
@@ -1383,6 +1465,10 @@ const SCENE_BINDINGS = [
   { sel: "[data-storage-device]", run: (el) => storageAction(el.dataset.storageAction, el.dataset.storageDevice) },
   { sel: "[data-process-refresh]", run: () => processRefresh() },
   { sel: "[data-process-terminate]", run: (el) => requestProcessTerminate(el.dataset.processTerminate, el.dataset.processName || el.dataset.processTerminate) },
+  { sel: "[data-chord-id]", type: "change", run: (el) => tuneNeonChord(el.dataset.chordId, el.value) },
+  { sel: "[data-chord-melt]", run: (el) => meltNeonChord(el.dataset.chordMelt) },
+  { sel: "[data-chord-melt-all]", run: () => meltAllNeonChords() },
+  { sel: "[data-chord-synth]", run: () => synthNeonChords() },
   { sel: "[data-connect-ssid]", run: connectSsidFromEl },
   { sel: "[data-disconnect]", run: disconnectFromEl },
   { sel: "[data-power]", run: (el) => requestConfirmation(el.dataset.power) },

@@ -19,6 +19,7 @@ ADAPTER_CAPABILITIES: dict[str, tuple[str, ...]] = {
     "vpn": ("up", "down", "refresh"),
     "storage": ("mount", "unmount", "refresh"),
     "processes": ("refresh", "terminate"),
+    "keybinds": ("scan", "tune", "melt", "synth"),
 }
 
 

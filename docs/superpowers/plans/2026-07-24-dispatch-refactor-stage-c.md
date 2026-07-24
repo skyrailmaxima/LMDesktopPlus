@@ -223,21 +223,23 @@ nice-to-have, not blocking Tasks 16–18.
 
 ## Tranche 4 — Connect Task 17: Keybind editor
 
+**Status:** shipped as **0.4.5** with vapor//matrix chord typology.
+
 **Depends on:** Tranche 1 (`SETTINGS_TABS`, `SCENE_BINDINGS`) + Tranche 2 (POST route)
 
-**Interim design:** [`2026-07-24-tranche-4-keybinds-interim.md`](2026-07-24-tranche-4-keybinds-interim.md)
-(DEFAULT_BINDS map, KeybindsAdapter + `dispatch_command`, owned `hypr-binds.conf`,
-UI via existing settings/bindings rails).
+**Design:** [`2026-07-24-tranche-4-keybinds-interim.md`](2026-07-24-tranche-4-keybinds-interim.md)
+(`MATRIX_CHORDS` map, `ChordAdapter` + `dispatch_command`, owned `hypr-binds.conf`,
+UI via existing settings/bindings rails; commands `scan` / `tune` / `melt` / `synth`).
 
-**Files:** new adapter or small `keybinds.py` service; generated
+**Files:** `adapters/keybinds.py`; generated
 `~/.config/lmdesktopplus/hypr-binds.conf`; Settings → Keybinds UI; tests
 
-- [ ] Parse/write **only** LMDP-owned bind file (ownership guard like theme overlay)
-- [ ] UI: list rows from a `DEFAULT_BINDS` hash map (combo → action id), edit via
-      form controls bound through `SCENE_BINDINGS`
-- [ ] Commands via map: `list` / `set` / `reset` — no free-form shell
-- [ ] Do not rewrite arbitrary user `hyprland.conf` binds
-- [ ] Commit: `feat: generated Hyprland keybind editor`
+- [x] Parse/write **only** LMDP-owned bind file (ownership guard like theme overlay)
+- [x] UI: list rows from `MATRIX_CHORDS` / `renderNeonChords`, edit via
+      `SCENE_BINDINGS` (`data-chord-*`)
+- [x] Commands via map: `scan` / `tune` / `melt` / `synth` — no free-form shell
+- [x] Do not rewrite arbitrary user `hyprland.conf` binds
+- [x] Commit: `feat: vapor//matrix Hyprland chord editor (0.4.5)`
 
 ---
 

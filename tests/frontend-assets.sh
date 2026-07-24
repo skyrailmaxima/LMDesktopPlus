@@ -40,6 +40,15 @@ grep -q 'data-process-terminate' "$STATIC/app.js"
 grep -q 'mapVpnConnectionRows' "$STATIC/app.js"
 grep -q 'mapStorageDeviceRows' "$STATIC/app.js"
 grep -q 'mapProcessRows' "$STATIC/app.js"
+grep -q 'function renderNeonChords' "$STATIC/app.js"
+grep -q 'function tuneNeonChord' "$STATIC/app.js"
+grep -q 'function meltNeonChord' "$STATIC/app.js"
+grep -q 'function synthNeonChords' "$STATIC/app.js"
+grep -q 'adapterCommand("keybinds"' "$STATIC/app.js"
+grep -q 'data-chord-id' "$STATIC/app.js"
+grep -q 'data-chord-melt' "$STATIC/app.js"
+grep -q 'data-chord-synth' "$STATIC/app.js"
+grep -q 'mapNeonChordRows' "$STATIC/app.js"
 if grep -Eq '<script[^>]*>[^<]*window\.LMDP_TOKEN' "$STATIC/index.html"; then
   echo "inline token script remains in index.html" >&2
   exit 1

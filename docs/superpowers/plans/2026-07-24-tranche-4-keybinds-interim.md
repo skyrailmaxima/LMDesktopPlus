@@ -144,13 +144,13 @@ One `bind =` line per DEFAULT_BINDS entry. Atomic write (temp + replace) like
 
 ## Implementation checklist (when starting Tranche 4)
 
-- [ ] `adapters/keybinds.py` + `dispatch_command` COMMANDS map  
-- [ ] Register adapter + capabilities  
-- [ ] Ensure hyprland package/session sources `hypr-binds.conf` (ownership guard)  
-- [ ] Replace `renderKeybinds` + `SCENE_BINDINGS` entries  
-- [ ] Unit + frontend tests  
-- [ ] Docs: `docs/adapters.md` Stage C+ row; CHANGELOG note (0.4.5 or fold into 0.5.0)  
-- [ ] Commit: `feat: generated Hyprland keybind editor`
+- [x] `adapters/keybinds.py` (`ChordAdapter`) + vapor typology COMMANDS map  
+- [x] Register adapter + capabilities  
+- [x] Ensure hyprland package/session sources `hypr-binds.conf` (ownership guard)  
+- [x] Replace `renderKeybinds` → `renderNeonChords` + `SCENE_BINDINGS` chord entries  
+- [x] Unit + frontend tests  
+- [x] Docs: `docs/adapters.md` Stage C row; CHANGELOG **0.4.5**  
+- [x] Commit: `feat: vapor//matrix Hyprland chord editor (0.4.5)`
 
 ---
 

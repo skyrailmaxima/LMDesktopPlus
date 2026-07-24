@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.5 — Vapor//matrix Hyprland chord editor
+
+- Added `ChordAdapter` (`keybinds`) with synthwave typology commands
+  (`scan` / `tune` / `melt` / `synth`) writing only the owned overlay
+  `~/.config/lmdesktopplus/hypr-binds.conf` plus vapor overrides in
+  `keybinds.json`.
+- Settings → Keybinds edits neon combos through Digitalvapor UI rails;
+  packaged `hyprland.conf` sources the chord overlay; `install.sh` seeds
+  matrix defaults for TTY sessions.
+- Best-effort `hyprctl reload` pulse after synth when Hyprland is active.
+
 ## 0.4.4 — Stage C adapters (VPN, storage, processes)
 
 - Added VpnAdapter (`nmcli`) for VPN/WireGuard profile list, connect, and

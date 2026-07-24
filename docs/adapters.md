@@ -138,13 +138,27 @@ A live under `static/icons/` rather than inside that HTML pack.
 | `vpn` | `nmcli` VPN / WireGuard profiles | — | `up`, `down`, `refresh` | 5s | Unavailable without NetworkManager; no secrets stored by LMDP |
 | `storage` | `lsblk -J` + `udisksctl` | read-only list without udisks | `mount`, `unmount`, `refresh` | 5s | Lists USB/MMC/hotplug volumes; mount/unmount only for allowlisted `/dev/sd*N`, `/dev/vd*N`, `/dev/nvme*pN`, `/dev/mmcblk*pN` |
 | `processes` | `/proc` sampling | — | `refresh`, `terminate` (SIGTERM) | 2s | Always available on Linux; terminate limited to current UID; refuses pid 1 and self |
+| `keybinds` | owned `hypr-binds.conf` + `keybinds.json` | — | `scan`, `tune`, `melt`, `synth` | always | Always available; only edits LMDP-owned overlay; vapor//matrix chord typology (`ChordAdapter`) |
+
+### Vapor//matrix chord typology (`keybinds`)
+
+| Term | Meaning |
+|---|---|
+| chord | One bind (id + neon combo + dispatch + label) |
+| neon | Normalized modifier+key combo |
+| vapor | User overrides in `keybinds.json` |
+| matrix | Canonical catalog + generated `hypr-binds.conf` |
+| tune / melt / synth / scan | Set combo / reset overrides / etch overlay / snapshot |
+
+Dispatch targets stay on the matrix catalog — the UI may only tune neon combos.
+`synth` appends `source = …/hypr-binds.conf` only into Hyprland configs already
+marked `LMDesktopPlus`, then best-effort `hyprctl reload`.
 
 ## Stage C+ (still planned)
 
 | Concern | Preferred tools | Fallback or limitation |
 |---|---|---|
 | Agent CRUD | `agents.json` API | Safe-name validation; no arbitrary shell |
-| Keybind editor | generated `hypr-binds.conf` | Does not rewrite arbitrary user binds |
 | App vault installs | `pkexec apt-get install` | Explicit confirm only; never silent root |
 
 Adapters must continue to fail soft across Cinnamon and Hyprland sessions. A

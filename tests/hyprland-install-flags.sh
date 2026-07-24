@@ -98,6 +98,19 @@ if ! grep -q 'source = ~/.config/lmdesktopplus/hypr-generated.conf' \
 else
   echo "OK: hyprland.conf sources generated overlay path"
 fi
+if ! grep -q 'hypr-binds.conf' "$ROOT/install.sh"; then
+  echo "FAIL: install.sh does not ensure hypr-binds.conf overlay"
+  fail=1
+else
+  echo "OK: install.sh ensures hypr-binds.conf overlay"
+fi
+if ! grep -q 'source = ~/.config/lmdesktopplus/hypr-binds.conf' \
+  "$ROOT/packages/hyprland/hypr/hyprland.conf"; then
+  echo "FAIL: hyprland.conf missing vapor//matrix chord overlay source"
+  fail=1
+else
+  echo "OK: hyprland.conf sources vapor//matrix chord overlay"
+fi
 
 if [[ "$fail" -ne 0 ]]; then
   exit 1
