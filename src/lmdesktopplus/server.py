@@ -342,7 +342,14 @@ class RequestHandler(BaseHTTPRequestHandler):
     def _serve_static(self, url_path: str) -> None:
         rel = "index.html" if url_path in {"", "/"} else url_path.lstrip("/")
         parts = Path(rel).parts
-        allowed_static = {"index.html", "app.js", "style.css", "digitalvapor.css", "digitalvapor.js"}
+        allowed_static = {
+            "index.html",
+            "app.js",
+            "bindings.js",
+            "style.css",
+            "digitalvapor.css",
+            "digitalvapor.js",
+        }
         if ".." in parts or not self._allowed_static_path(rel, parts, allowed_static):
             self.send_error(HTTPStatus.NOT_FOUND)
             return

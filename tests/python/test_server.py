@@ -42,7 +42,11 @@ class ServerTests(unittest.TestCase):
 
 
     def test_digitalvapor_assets_are_served(self):
-        for path, marker in (("/digitalvapor.css", "--dv-accent"), ("/digitalvapor.js", "Digitalvapor")):
+        for path, marker in (
+            ("/digitalvapor.css", "--dv-accent"),
+            ("/digitalvapor.js", "Digitalvapor"),
+            ("/bindings.js", "LMDPBindings"),
+        ):
             with self.request(path) as response:
                 text = response.read().decode()
             self.assertIn(marker, text)
@@ -54,6 +58,7 @@ class ServerTests(unittest.TestCase):
         self.assertNotIn("window.LMDP_TOKEN", text)
         self.assertIn("digitalvapor.css", text)
         self.assertIn("digitalvapor.js", text)
+        self.assertIn("bindings.js", text)
 
     def test_api_rejects_missing_token(self):
         with self.assertRaises(urllib.error.HTTPError) as ctx:

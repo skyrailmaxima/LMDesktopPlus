@@ -548,17 +548,21 @@ function renderMonitor() {
     ${processMonitorPanel()}`;
 }
 
-function processMonitorPanel() {
-  const procs = app.state?.adapters?.processes || {};
-  if (!procs.available) {
-    return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><h3>PROCESSES</h3><p class="muted">/proc unavailable.</p></div>`;
-  }
-  const rows = (procs.processes || []).map(p => {
+function mapProcessRows(processes) {
+  return (processes || []).map(p => {
     const terminate = p.owned
       ? `<button class="btn danger dv-btn dv-btn--danger" data-process-terminate="${p.pid}" data-process-name="${esc(p.name)}">TERM</button>`
       : `<span class="muted">—</span>`;
     return `<div class="network-row"><div><strong class="white">${esc(p.name)}</strong><div class="muted">pid ${p.pid}${p.owned ? "" : " · other uid"}</div></div><div class="signal"><small>${Number(p.cpu_percent).toFixed(1)}% · ${humanBytes(p.rss_bytes)}</small></div>${terminate}</div>`;
   }).join("");
+}
+
+function processMonitorPanel() {
+  const procs = app.state?.adapters?.processes || {};
+  if (!procs.available) {
+    return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><h3>PROCESSES</h3><p class="muted">/proc unavailable.</p></div>`;
+  }
+  const rows = mapProcessRows(procs.processes);
   return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><div class="card-title"><h3>TOP PROCESSES</h3><button class="btn dv-btn dv-btn--outline" data-process-refresh>REFRESH</button></div><p class="muted">Terminate is limited to processes owned by your UID. Confirm before SIGTERM.</p><div style="margin-top:12px">${rows || '<p class="muted">No process samples yet.</p>'}</div></div>`;
 }
 
@@ -637,72 +641,13 @@ function patchChart(binding, values, maxValue=100) {
 }
 
 function patchMonitorCollections(metrics) {
-  const coreRoot = $("[data-live-cores]", $("#scene"));
-  if (coreRoot) {
-    const cores = metrics.cpu.cores || [];
-    while (coreRoot.children.length > cores.length) coreRoot.lastElementChild.remove();
-    while (coreRoot.children.length < cores.length) {
-      const bar = document.createElement("div");
-      bar.className = "core-bar";
-      coreRoot.append(bar);
-    }
-    cores.forEach((value,index) => {
-      const bar = coreRoot.children[index];
-      bar.title = `${Math.round(value)}%`;
-      bar.style.height = `${Math.max(3,clamp(value,0,100))}%`;
-    });
-  }
-  const thermalRoot = $("[data-live-thermals]", $("#scene"));
-  if (thermalRoot) {
-    thermalRoot.replaceChildren();
-    const temperatures = (metrics.temperatures || []).slice(0,6);
-    if (!temperatures.length) {
-      const empty = document.createElement("p");
-      empty.className = "muted";
-      empty.textContent = "No readable thermal zones.";
-      thermalRoot.append(empty);
-    } else {
-      temperatures.forEach(item => {
-        const row = document.createElement("div");
-        row.className = "stat-row";
-        const label = document.createElement("span");
-        label.className = "label";
-        label.textContent = item.label;
-        const value = document.createElement("span");
-        value.className = "value";
-        value.textContent = `${item.celsius} °C`;
-        row.append(label, value);
-        thermalRoot.append(row);
-      });
-    }
-  }
-  const powerRoot = $("[data-live-power]", $("#scene"));
-  if (powerRoot) {
-    powerRoot.replaceChildren();
-    if (metrics.battery) {
-      [["Battery",`${metrics.battery.percent}%`],["Status",metrics.battery.status]].forEach(([name,current]) => {
-        const row = document.createElement("div");
-        row.className = "stat-row";
-        const label = document.createElement("span");
-        label.className = "label";
-        label.textContent = name;
-        const value = document.createElement("span");
-        value.className = "value";
-        value.textContent = current;
-        row.append(label, value);
-        powerRoot.append(row);
-      });
-    } else {
-      const kpi = document.createElement("div");
-      kpi.className = "kpi";
-      kpi.style.fontSize = "30px";
-      kpi.append("AC");
-      const detail = document.createElement("small");
-      detail.textContent = "no battery detected";
-      kpi.append(detail);
-      powerRoot.append(kpi);
-    }
-  }
+  const binders = window.LMDPBindings || {};
+  binders.syncCoreBars?.($("[data-live-cores]", $("#scene")), metrics.cpu.cores || [], clamp);
+  binders.renderThermalRows?.(
+    $("[data-live-thermals]", $("#scene")),
+    (metrics.temperatures || []).slice(0, 6),
+  );
+  binders.renderPowerPanel?.($("[data-live-power]", $("#scene")), metrics.battery);
 }
 
 function patchMonitorBindings(changedPaths=[]) {
@@ -760,53 +705,54 @@ function renderSettings() {
   return heading("設定系", "SYSTEM SETTINGS", "Appearance changes persist immediately and generate GTK/Hyprland overlays.") + `<div class="settings-layout"><nav class="panel settings-nav dv-panel dv-sidepanel">${nav}</nav><section class="panel card dv-panel dv-card">${renderSettingsTab()}</section></div>`;
 }
 
+function renderAppearanceSettings() {
+  const ap = app.state.settings.appearance;
+  const swatches = Object.entries(app.state.accents).map(([name,hex])=>`<label class="dv-choice dv-radio accent-choice ${name===ap.accent?"is-active":""}" title="${esc(name)}"><input type="radio" name="lmdp-accent" data-accent="${esc(name)}" ${name===ap.accent?"checked":""}><span class="dv-mark" style="width:30px;height:30px;background:${esc(hex)};border-color:${esc(hex)};box-shadow:0 0 10px ${esc(hex)}"></span></label>`).join("");
+  const modes = ["tiled","floating","tabbed"].map(x=>`<button class="segment dv-seg__opt ${ap.window_mode===x?"active":""}" data-window-mode="${x}">${x}</button>`).join("");
+  return `<div class="setting-group"><h3>Wallpaper</h3>${wallpaperPicker()}</div>
+    <div class="setting-group"><h3>Accent</h3><div class="swatches dv-row dv-gap-2">${swatches}</div></div>
+    ${control("Interface font","Applied to the machine UI",`<select class="dv-input" data-setting="appearance.font"><option ${ap.font==="JetBrains Mono"?"selected":""}>JetBrains Mono</option><option ${ap.font==="DotGothic16"?"selected":""}>DotGothic16</option><option ${ap.font==="Zen Dots"?"selected":""}>Zen Dots</option><option ${ap.font==="System UI"?"selected":""}>System UI</option></select>`)}
+    ${control("Surface opacity",`${ap.opacity}%`,`<input class="dv-slider" type="range" min="40" max="100" value="${ap.opacity}" data-setting="appearance.opacity" data-number>`)}
+    ${control("Blur radius",`${ap.blur}px`,`<input class="dv-slider" type="range" min="0" max="24" value="${ap.blur}" data-setting="appearance.blur" data-number>`)}
+    ${control("Matrix intensity",`${ap.rain_intensity}%`,`<input class="dv-slider" type="range" min="0" max="100" value="${ap.rain_intensity}" data-setting="appearance.rain_intensity" data-number>`)}
+    ${control("Window mode","Hyprland preference",`<div class="segmented dv-seg">${modes}</div>`)}
+    ${toggleControl("Scanlines","CRT overlay in this UI","appearance.scanlines",ap.scanlines)}
+    ${toggleControl("Window gaps","Generated Hyprland overlay","appearance.gaps",ap.gaps)}
+    ${toggleControl("Rounded corners","Generated Hyprland overlay","appearance.rounded",ap.rounded)}
+    ${toggleControl("Drop shadows","Generated Hyprland overlay","appearance.shadows",ap.shadows)}`;
+}
+
+function renderDisplaySettings() {
+  const behavior = app.state.settings.behavior;
+  const audio = app.state.adapters?.audio || {};
+  const volume = clamp(app.audioPendingVolume ?? audio.volume ?? 0, 0, 100);
+  const audioIcon = assetIcon(audio.muted ? "audio.mute" : "audio.volume");
+  const audioControl = audio.available
+    ? `<div class="audio-control"><div class="audio-control__header">${audioIcon}<span data-bind="adapters.audio.volume">${audio.muted ? "MUTE " : ""}${volume}%</span><button class="btn dv-btn dv-btn--outline" data-audio-mute data-audio-mute-label>${audio.muted ? "UNMUTE" : "MUTE"}</button></div><input class="dv-slider dv-slider--cyan" type="range" min="0" max="100" value="${volume}" data-audio-volume data-bind="adapters.audio.volume" aria-label="Output volume"><div class="progress dv-progress"><span class="dv-progress__bar" data-bind="adapters.audio.volume" data-bind-mode="width" style="width:${volume}%"></span></div></div>`
+    : `<p class="muted">Audio controls unavailable. Install WirePlumber (wpctl) or PulseAudio tools (pactl).</p>`;
+  const display = app.state.adapters?.display || {};
+  const brightness = clamp(app.displayPendingBrightness ?? display.brightness ?? 0, 1, 100);
+  const displayIcon = assetIcon("display.brightness", "audio-icon");
+  const displayControl = display.available
+    ? `<div class="audio-control"><div class="audio-control__header">${displayIcon}<span data-bind="adapters.display.brightness">${brightness}%</span><span class="badge dv-tag ${display.writable ? "ok dv-tag--mint" : "warn dv-tag--warn"}">${display.writable ? "CONTROL" : "READ ONLY"}</span></div><input class="dv-slider" type="range" min="1" max="100" value="${brightness}" data-display-brightness data-bind="adapters.display.brightness" aria-label="Display brightness" ${display.writable ? "" : "disabled"}><div class="progress dv-progress"><span class="dv-progress__bar" data-bind="adapters.display.brightness" data-bind-mode="width" style="width:${brightness}%"></span></div></div>`
+    : `<p class="muted">Brightness unavailable. Install brightnessctl or expose a readable sysfs backlight device.</p>`;
+  return `${control("Display brightness",display.backend || "internal panel",displayControl)}
+    ${control("Output volume",audio.backend || "default audio sink",audioControl)}
+    ${control("Desktop session","One-shot handoff through a real login TTY",sessionHandoffControl())}
+    ${notificationsSettingsPanel()}
+    ${clipboardSettingsPanel()}
+    ${captureSettingsPanel()}
+    ${storageSettingsPanel()}
+    ${toggleControl("Start fullscreen","Open the embedded machine UI fullscreen","behavior.start_fullscreen",behavior.start_fullscreen)}
+    ${toggleControl("Show shortcut hints","Show keyboard hints on the desktop scene","behavior.show_hints",behavior.show_hints)}
+    ${control("Poll interval",`${behavior.poll_interval_ms} ms`,`<input class="dv-slider" type="range" min="500" max="5000" step="250" value="${behavior.poll_interval_ms}" data-setting="behavior.poll_interval_ms" data-number>`)}
+    ${toggleControl("Allow power actions","Required before logout, reboot, suspend, or poweroff API calls","behavior.allow_power_actions",behavior.allow_power_actions)}
+    <div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" data-action="lock">LOCK SYSTEM</button><button class="btn danger dv-btn dv-btn--danger" data-power="suspend">SUSPEND</button><button class="btn danger dv-btn dv-btn--danger" data-power="logout">LOG OUT</button></div>`;
+}
+
 function renderSettingsTab() {
-  const s=app.state.settings, ap=s.appearance, behavior=s.behavior;
-  if (app.settingsTab === "appearance") {
-    const swatches = Object.entries(app.state.accents).map(([name,hex])=>`<label class="dv-choice dv-radio accent-choice ${name===ap.accent?"is-active":""}" title="${esc(name)}"><input type="radio" name="lmdp-accent" data-accent="${esc(name)}" ${name===ap.accent?"checked":""}><span class="dv-mark" style="width:30px;height:30px;background:${esc(hex)};border-color:${esc(hex)};box-shadow:0 0 10px ${esc(hex)}"></span></label>`).join("");
-    const modes = ["tiled","floating","tabbed"].map(x=>`<button class="segment dv-seg__opt ${ap.window_mode===x?"active":""}" data-window-mode="${x}">${x}</button>`).join("");
-    return `<div class="setting-group"><h3>Wallpaper</h3>${wallpaperPicker()}</div>
-      <div class="setting-group"><h3>Accent</h3><div class="swatches dv-row dv-gap-2">${swatches}</div></div>
-      ${control("Interface font","Applied to the machine UI",`<select class="dv-input" data-setting="appearance.font"><option ${ap.font==="JetBrains Mono"?"selected":""}>JetBrains Mono</option><option ${ap.font==="DotGothic16"?"selected":""}>DotGothic16</option><option ${ap.font==="Zen Dots"?"selected":""}>Zen Dots</option><option ${ap.font==="System UI"?"selected":""}>System UI</option></select>`)}
-      ${control("Surface opacity",`${ap.opacity}%`,`<input class="dv-slider" type="range" min="40" max="100" value="${ap.opacity}" data-setting="appearance.opacity" data-number>`)}
-      ${control("Blur radius",`${ap.blur}px`,`<input class="dv-slider" type="range" min="0" max="24" value="${ap.blur}" data-setting="appearance.blur" data-number>`)}
-      ${control("Matrix intensity",`${ap.rain_intensity}%`,`<input class="dv-slider" type="range" min="0" max="100" value="${ap.rain_intensity}" data-setting="appearance.rain_intensity" data-number>`)}
-      ${control("Window mode","Hyprland preference",`<div class="segmented dv-seg">${modes}</div>`)}
-      ${toggleControl("Scanlines","CRT overlay in this UI","appearance.scanlines",ap.scanlines)}
-      ${toggleControl("Window gaps","Generated Hyprland overlay","appearance.gaps",ap.gaps)}
-      ${toggleControl("Rounded corners","Generated Hyprland overlay","appearance.rounded",ap.rounded)}
-      ${toggleControl("Drop shadows","Generated Hyprland overlay","appearance.shadows",ap.shadows)}`;
-  }
-  if (app.settingsTab === "display") {
-    const audio = app.state.adapters?.audio || {};
-    const volume = clamp(app.audioPendingVolume ?? audio.volume ?? 0, 0, 100);
-    const audioIcon = assetIcon(audio.muted ? "audio.mute" : "audio.volume");
-    const audioControl = audio.available
-      ? `<div class="audio-control"><div class="audio-control__header">${audioIcon}<span data-bind="adapters.audio.volume">${audio.muted ? "MUTE " : ""}${volume}%</span><button class="btn dv-btn dv-btn--outline" data-audio-mute data-audio-mute-label>${audio.muted ? "UNMUTE" : "MUTE"}</button></div><input class="dv-slider dv-slider--cyan" type="range" min="0" max="100" value="${volume}" data-audio-volume data-bind="adapters.audio.volume" aria-label="Output volume"><div class="progress dv-progress"><span class="dv-progress__bar" data-bind="adapters.audio.volume" data-bind-mode="width" style="width:${volume}%"></span></div></div>`
-      : `<p class="muted">Audio controls unavailable. Install WirePlumber (wpctl) or PulseAudio tools (pactl).</p>`;
-    const display = app.state.adapters?.display || {};
-    const brightness = clamp(app.displayPendingBrightness ?? display.brightness ?? 0, 1, 100);
-    const displayIcon = assetIcon("display.brightness", "audio-icon");
-    const displayControl = display.available
-      ? `<div class="audio-control"><div class="audio-control__header">${displayIcon}<span data-bind="adapters.display.brightness">${brightness}%</span><span class="badge dv-tag ${display.writable ? "ok dv-tag--mint" : "warn dv-tag--warn"}">${display.writable ? "CONTROL" : "READ ONLY"}</span></div><input class="dv-slider" type="range" min="1" max="100" value="${brightness}" data-display-brightness data-bind="adapters.display.brightness" aria-label="Display brightness" ${display.writable ? "" : "disabled"}><div class="progress dv-progress"><span class="dv-progress__bar" data-bind="adapters.display.brightness" data-bind-mode="width" style="width:${brightness}%"></span></div></div>`
-      : `<p class="muted">Brightness unavailable. Install brightnessctl or expose a readable sysfs backlight device.</p>`;
-    return `${control("Display brightness",display.backend || "internal panel",displayControl)}
-      ${control("Output volume",audio.backend || "default audio sink",audioControl)}
-      ${control("Desktop session","One-shot handoff through a real login TTY",sessionHandoffControl())}
-      ${notificationsSettingsPanel()}
-      ${clipboardSettingsPanel()}
-      ${captureSettingsPanel()}
-      ${storageSettingsPanel()}
-      ${toggleControl("Start fullscreen","Open the embedded machine UI fullscreen","behavior.start_fullscreen",behavior.start_fullscreen)}
-      ${toggleControl("Show shortcut hints","Show keyboard hints on the desktop scene","behavior.show_hints",behavior.show_hints)}
-      ${control("Poll interval",`${behavior.poll_interval_ms} ms`,`<input class="dv-slider" type="range" min="500" max="5000" step="250" value="${behavior.poll_interval_ms}" data-setting="behavior.poll_interval_ms" data-number>`)}
-      ${toggleControl("Allow power actions","Required before logout, reboot, suspend, or poweroff API calls","behavior.allow_power_actions",behavior.allow_power_actions)}
-      <div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" data-action="lock">LOCK SYSTEM</button><button class="btn danger dv-btn dv-btn--danger" data-power="suspend">SUSPEND</button><button class="btn danger dv-btn dv-btn--danger" data-power="logout">LOG OUT</button></div>`;
-  }
-  if (app.settingsTab === "network") return renderNetworkSettings();
-  if (app.settingsTab === "agents") return renderAgentSettings();
-  if (app.settingsTab === "keybinds") return renderKeybinds();
-  return renderAbout();
+  const render = SETTINGS_TABS[app.settingsTab] || SETTINGS_TABS.about;
+  return render();
 }
 
 function control(label,note,widget) { return `<div class="control-row"><div><label>${esc(label)}</label><small>${esc(note)}</small></div><div>${widget}</div></div>`; }
@@ -820,19 +766,32 @@ function renderNetworkSettings() {
   return `<div class="setting-group"><h3>NetworkManager</h3>${statRow("Active",active)}${statRow("Adapter",current.available?"nmcli":"unavailable")}</div><div class="button-row"><button class="btn primary dv-btn dv-btn--primary" data-network-scan>SCAN WI-FI</button>${current.connections?.filter(c=>c.device).map(c=>`<button class="btn danger dv-btn dv-btn--danger" data-disconnect="${esc(c.device)}">DISCONNECT ${esc(c.device)}</button>`).join("") || ""}</div><div style="margin-top:16px">${app.networkScan ? (rows || `<p class="muted">No networks returned.</p>`) : `<p class="muted">Scan to populate live SSIDs. Passwords are sent directly to nmcli and are not persisted by LMDesktopPlus.</p>`}</div>${vpnSettingsPanel()}${bluetoothSettingsPanel()}`;
 }
 
+function mapVpnConnectionRows(connections) {
+  return (connections || []).map(c => {
+    const action = c.active ? "down" : "up";
+    const label = c.active ? "DISCONNECT" : "CONNECT";
+    const btnClass = c.active ? "btn danger dv-btn dv-btn--danger" : "btn dv-btn dv-btn--outline";
+    return `<div class="network-row"><div><strong class="white">${esc(c.name)}</strong><div class="muted">${esc(c.type)}${c.device ? ` · ${esc(c.device)}` : ""}${c.active ? " · active" : ""}</div></div><button class="${btnClass}" data-vpn-name="${esc(c.name)}" data-vpn-action="${action}">${label}</button></div>`;
+  }).join("");
+}
+
 function vpnSettingsPanel() {
   const vpn = app.state?.adapters?.vpn || {};
   const icon = assetIcon("vpn", "session-icon");
   if (!vpn.available) {
     return `<div class="setting-group" style="margin-top:24px"><h3>VPN</h3>${icon}<p class="muted">nmcli unavailable. Install NetworkManager.</p>${vpn.last_error ? `<p class="muted">${esc(vpn.last_error)}</p>` : ""}</div>`;
   }
-  const connections = (vpn.connections || []).map(c => {
-    const action = c.active ? "down" : "up";
-    const label = c.active ? "DISCONNECT" : "CONNECT";
-    const btnClass = c.active ? "btn danger dv-btn dv-btn--danger" : "btn dv-btn dv-btn--outline";
-    return `<div class="network-row"><div><strong class="white">${esc(c.name)}</strong><div class="muted">${esc(c.type)}${c.device ? ` · ${esc(c.device)}` : ""}${c.active ? " · active" : ""}</div></div><button class="${btnClass}" data-vpn-name="${esc(c.name)}" data-vpn-action="${action}">${label}</button></div>`;
-  }).join("");
+  const connections = mapVpnConnectionRows(vpn.connections);
   return `<div class="setting-group" style="margin-top:24px"><h3>VPN</h3><div class="audio-control__header">${icon}<span class="badge dv-tag ${vpn.active_count ? "ok dv-tag--mint" : "dv-tag--cyan"}">${vpn.active_count || 0} active</span></div><div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" data-vpn-refresh>REFRESH</button></div><div style="margin-top:16px">${connections || '<p class="muted">No VPN or WireGuard profiles found. Credentials stay in NetworkManager — LMDesktopPlus never stores them.</p>'}</div></div>`;
+}
+
+function mapBluetoothDeviceRows(devices) {
+  return (devices || []).map(d => {
+    const action = d.connected ? "disconnect" : "connect";
+    const label = d.connected ? "DISCONNECT" : "CONNECT";
+    const btnClass = d.connected ? "btn danger dv-btn dv-btn--danger" : "btn dv-btn dv-btn--outline";
+    return `<div class="network-row"><div><strong class="white">${esc(d.name)}</strong><div class="muted">${esc(d.mac)}${d.connected ? " · connected" : ""}</div></div><button class="${btnClass}" data-bt-device="${esc(d.mac)}" data-bt-action="${action}">${label}</button></div>`;
+  }).join("");
 }
 
 function bluetoothSettingsPanel() {
@@ -844,12 +803,7 @@ function bluetoothSettingsPanel() {
   const powerBadge = bt.powered
     ? '<span class="badge ok dv-tag dv-tag--mint" data-bind="adapters.bluetooth.powered">POWERED</span>'
     : '<span class="badge warn dv-tag dv-tag--warn" data-bind="adapters.bluetooth.powered">OFF</span>';
-  const devices = (bt.devices || []).map(d => {
-    const action = d.connected ? "disconnect" : "connect";
-    const label = d.connected ? "DISCONNECT" : "CONNECT";
-    const btnClass = d.connected ? "btn danger dv-btn dv-btn--danger" : "btn dv-btn dv-btn--outline";
-    return `<div class="network-row"><div><strong class="white">${esc(d.name)}</strong><div class="muted">${esc(d.mac)}${d.connected ? " · connected" : ""}</div></div><button class="${btnClass}" data-bt-device="${esc(d.mac)}" data-bt-action="${action}">${label}</button></div>`;
-  }).join("");
+  const devices = mapBluetoothDeviceRows(bt.devices);
   return `<div class="setting-group" style="margin-top:24px"><h3>Bluetooth</h3><div class="audio-control__header">${icon}${powerBadge}</div><div class="button-row" style="margin-top:12px"><button class="btn primary dv-btn dv-btn--primary" data-bt-power="${bt.powered ? "off" : "on"}">${bt.powered ? "POWER OFF" : "POWER ON"}</button><button class="btn dv-btn dv-btn--outline" data-bt-scan>SCAN (5s)</button></div><div style="margin-top:16px">${devices || '<p class="muted">No known devices. Scan to discover nearby Bluetooth devices.</p>'}</div></div>`;
 }
 
@@ -888,20 +842,24 @@ function captureSettingsPanel() {
   return `${control("Screenshots", `${cap.backend} · ${esc(cap.save_dir || "~/Pictures/lmdesktopplus")}`, `<div class="button-row">${icon}<button class="btn primary dv-btn dv-btn--primary" data-capture="full">FULL</button><button class="btn dv-btn dv-btn--outline" data-capture="region" ${regionDisabled}>REGION</button><button class="btn dv-btn dv-btn--outline" data-capture-folder>OPEN FOLDER</button></div>${cap.last_path ? `<p class="muted" style="margin-top:8px">Last: ${esc(cap.last_path)}</p>` : ""}`)}`;
 }
 
+function mapStorageDeviceRows(devices, canMount) {
+  return (devices || []).map(d => {
+    const action = d.mounted ? "unmount" : "mount";
+    const label = d.mounted ? "UNMOUNT" : "MOUNT";
+    const disabled = (!canMount || !d.allowlisted) ? "disabled" : "";
+    const btnClass = d.mounted ? "btn danger dv-btn dv-btn--danger" : "btn dv-btn dv-btn--outline";
+    const meta = [d.size, d.fstype, d.label, d.mounted ? d.mountpoint : null].filter(Boolean).map(esc).join(" · ");
+    return `<div class="network-row"><div><strong class="white">${esc(d.path)}</strong><div class="muted">${meta || d.type}</div></div><button class="${btnClass}" data-storage-device="${esc(d.path)}" data-storage-action="${action}" ${disabled}>${label}</button></div>`;
+  }).join("");
+}
+
 function storageSettingsPanel() {
   const storage = app.state?.adapters?.storage || {};
   const icon = assetIcon("usb", "session-icon");
   if (!storage.available) {
     return `<div class="setting-group" style="margin-top:24px"><h3>Removable storage</h3>${icon}<p class="muted">lsblk unavailable.</p>${storage.last_error ? `<p class="muted">${esc(storage.last_error)}</p>` : ""}</div>`;
   }
-  const devices = (storage.devices || []).map(d => {
-    const action = d.mounted ? "unmount" : "mount";
-    const label = d.mounted ? "UNMOUNT" : "MOUNT";
-    const disabled = (!storage.can_mount || !d.allowlisted) ? "disabled" : "";
-    const btnClass = d.mounted ? "btn danger dv-btn dv-btn--danger" : "btn dv-btn dv-btn--outline";
-    const meta = [d.size, d.fstype, d.label, d.mounted ? d.mountpoint : null].filter(Boolean).map(esc).join(" · ");
-    return `<div class="network-row"><div><strong class="white">${esc(d.path)}</strong><div class="muted">${meta || d.type}</div></div><button class="${btnClass}" data-storage-device="${esc(d.path)}" data-storage-action="${action}" ${disabled}>${label}</button></div>`;
-  }).join("");
+  const devices = mapStorageDeviceRows(storage.devices, storage.can_mount);
   return `<div class="setting-group" style="margin-top:24px"><h3>Removable storage</h3><div class="audio-control__header">${icon}<span class="muted">${storage.can_mount ? "udisksctl" : "read-only · install udisks2"}</span></div><div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" data-storage-refresh>REFRESH</button></div><div style="margin-top:16px">${devices || '<p class="muted">No removable USB/MMC volumes detected.</p>'}</div></div>`;
 }
 
@@ -927,6 +885,15 @@ function renderAbout() {
     : `<div class="setting-group"><h3>Updates</h3><p class="muted">${updateIcon} apt unavailable${updates.last_error ? ` · ${esc(updates.last_error)}` : ""}.</p></div>`;
   return `${updatePanel}<div class="grid two" style="margin-top:16px">${panel("LMDesktopPlus", `${statRow("Version",app.state.version)}${statRow("API","loopback-only + per-launch token")}${statRow("Frontend","plain HTML/CSS/JavaScript")}${statRow("Host shell",id.session)}${statRow("Python",id.python)}`)}${panel("BOUNDARIES", `<p class="muted">This UI manages the current user session. It does not expose a remote management port, store Wi-Fi passwords, or accept arbitrary shell commands over the API.</p><p class="muted">Power operations remain disabled until explicitly enabled. Bubblewrap adds useful filesystem isolation for agents but is not equivalent to a virtual machine.</p>`)}</div>`;
 }
+
+const SETTINGS_TABS = {
+  appearance: renderAppearanceSettings,
+  display: renderDisplaySettings,
+  network: renderNetworkSettings,
+  agents: renderAgentSettings,
+  keybinds: renderKeybinds,
+  about: renderAbout,
+};
 
 function renderKit() {
   return heading("部品庫", "DIGITALVAPOR KIT", "The live control center now shares one token, component, chrome, and interaction layer.") + `
@@ -973,21 +940,13 @@ async function runAction(action,target="") {
   } catch (error) { toast("Action failed", error.message, true); }
 }
 
-async function sendAudioCommand(name, payload={}) {
-  return api("/api/v1/adapter/audio", {method:"POST", body:{name, payload}});
-}
-
-async function sendDisplayCommand(name, payload={}) {
-  return api("/api/v1/adapter/display", {method:"POST", body:{name, payload}});
-}
-
-async function sendBluetoothCommand(name, payload={}) {
-  return api("/api/v1/adapter/bluetooth", {method:"POST", body:{name, payload}});
+async function adapterCommand(adapterId, name, payload = {}) {
+  return api(`/api/v1/adapter/${adapterId}`, { method: "POST", body: { name, payload } });
 }
 
 async function bluetoothPower(on) {
   try {
-    await sendBluetoothCommand("power", {on});
+    await adapterCommand("bluetooth", "power", {on});
     if (app.state?.adapters?.bluetooth) app.state.adapters.bluetooth.powered = on;
     toast(on ? "Bluetooth powered on" : "Bluetooth powered off");
     renderScene(true);
@@ -999,7 +958,7 @@ async function bluetoothPower(on) {
 async function bluetoothScan() {
   try {
     toast("Bluetooth scan", "Searching for 5 seconds…");
-    const result = await sendBluetoothCommand("scan", {});
+    const result = await adapterCommand("bluetooth", "scan", {});
     if (app.state?.adapters?.bluetooth) {
       app.state.adapters.bluetooth.devices = result.devices || [];
       if (typeof result.powered === "boolean") app.state.adapters.bluetooth.powered = result.powered;
@@ -1013,7 +972,7 @@ async function bluetoothScan() {
 
 async function bluetoothDevice(action, mac) {
   try {
-    await sendBluetoothCommand(action, {mac});
+    await adapterCommand("bluetooth", action, {mac});
     toast(action === "connect" ? "Bluetooth connected" : "Bluetooth disconnected", mac);
     renderScene(true);
   } catch (error) {
@@ -1021,13 +980,9 @@ async function bluetoothDevice(action, mac) {
   }
 }
 
-async function sendNotificationsCommand(name, payload={}) {
-  return api("/api/v1/adapter/notifications", {method:"POST", body:{name, payload}});
-}
-
 async function setDoNotDisturb(enabled) {
   try {
-    await sendNotificationsCommand("set_dnd", {enabled});
+    await adapterCommand("notifications", "set_dnd", {enabled});
     if (app.state?.adapters?.notifications) app.state.adapters.notifications.dnd = enabled;
     if (app.state?.settings?.behavior) app.state.settings.behavior.do_not_disturb = enabled;
     toast(enabled ? "Do not disturb on" : "Do not disturb off");
@@ -1039,7 +994,7 @@ async function setDoNotDisturb(enabled) {
 
 async function sendTestNotification() {
   try {
-    const result = await sendNotificationsCommand("send_test", {});
+    const result = await adapterCommand("notifications", "send_test", {});
     if (result.skipped) toast("Notification skipped", "Do not disturb is on");
     else toast("Test notification sent");
   } catch (error) {
@@ -1047,13 +1002,9 @@ async function sendTestNotification() {
   }
 }
 
-async function sendUpdatesCommand(name, payload={}) {
-  return api("/api/v1/adapter/updates", {method:"POST", body:{name, payload}});
-}
-
 async function refreshUpdates() {
   try {
-    const result = await sendUpdatesCommand("refresh", {});
+    const result = await adapterCommand("updates", "refresh", {});
     if (app.state?.adapters?.updates) {
       app.state.adapters.updates.count = result.count;
       app.state.adapters.updates.mintupdate_available = result.mintupdate_available;
@@ -1069,20 +1020,16 @@ async function refreshUpdates() {
 
 async function openMintUpdate() {
   try {
-    await sendUpdatesCommand("open", {});
+    await adapterCommand("updates", "open", {});
     toast("Mint Update launched");
   } catch (error) {
     toast("Mint Update failed", error.message, true);
   }
 }
 
-async function sendClipboardCommand(name, payload={}) {
-  return api("/api/v1/adapter/clipboard", {method:"POST", body:{name, payload}});
-}
-
 async function clipboardPeek() {
   try {
-    const result = await sendClipboardCommand("peek", {});
+    const result = await adapterCommand("clipboard", "peek", {});
     if (app.state?.adapters?.clipboard) {
       Object.assign(app.state.adapters.clipboard, result);
     }
@@ -1097,7 +1044,7 @@ async function clipboardCopy() {
   const input = document.querySelector("[data-clipboard-input]");
   const text = input?.value ?? "";
   try {
-    await sendClipboardCommand("copy", {text});
+    await adapterCommand("clipboard", "copy", {text});
     toast("Copied to clipboard", `${text.length} chars`);
     renderScene(true);
   } catch (error) {
@@ -1107,7 +1054,7 @@ async function clipboardCopy() {
 
 async function clipboardClear() {
   try {
-    await sendClipboardCommand("clear", {});
+    await adapterCommand("clipboard", "clear", {});
     toast("Clipboard cleared");
     renderScene(true);
   } catch (error) {
@@ -1115,13 +1062,9 @@ async function clipboardClear() {
   }
 }
 
-async function sendCaptureCommand(name, payload={}) {
-  return api("/api/v1/adapter/capture", {method:"POST", body:{name, payload}});
-}
-
 async function captureScreen(mode) {
   try {
-    const result = await sendCaptureCommand(mode, {});
+    const result = await adapterCommand("capture", mode, {});
     if (app.state?.adapters?.capture) app.state.adapters.capture.last_path = result.path;
     toast(mode === "region" ? "Region captured" : "Screenshot saved", result.path);
     renderScene(true);
@@ -1132,7 +1075,7 @@ async function captureScreen(mode) {
 
 async function openCaptureFolder() {
   try {
-    const result = await sendCaptureCommand("open_folder", {});
+    const result = await adapterCommand("capture", "open_folder", {});
     toast("Opened screenshots folder", result.path);
   } catch (error) {
     toast("Open folder failed", error.message, true);
@@ -1143,7 +1086,7 @@ async function applyWallpaper(id) {
   const wallpaper = app.assets.wallpapers.get(id);
   if (!wallpaper) return;
   try {
-    await api("/api/v1/adapter/wallpaper", {method:"POST", body:{name:"apply", payload:{id}}});
+    await adapterCommand("wallpaper", "apply", {id});
     app.state.adapters.wallpaper.current_id = id;
     toast("Wallpaper applied", wallpaper.label);
     renderScene(true);
@@ -1154,7 +1097,7 @@ async function applyWallpaper(id) {
 
 async function armHyprland() {
   try {
-    await api("/api/v1/adapter/session", {method:"POST", body:{name:"arm_hyprland", payload:{}}});
+    await adapterCommand("session", "arm_hyprland", {});
     app.state.adapters.session.armed = true;
     toast("Hyprland one-shot armed", "Press Ctrl+Alt+F3, then log in.");
     renderScene(true);
@@ -1176,7 +1119,7 @@ function queueAudioVolume(value) {
   const requestId = ++app.audioRequestId;
   app.audioTimer = setTimeout(async () => {
     try {
-      await sendAudioCommand("set_volume", {volume});
+      await adapterCommand("audio", "set_volume", {volume});
       if (requestId === app.audioRequestId) {
         const currentAudio = app.state?.adapters?.audio;
         if (currentAudio) currentAudio.volume = volume;
@@ -1203,7 +1146,7 @@ async function toggleAudioMute() {
   audio.muted = !previous;
   patchAudioBindings();
   try {
-    await sendAudioCommand("toggle_mute");
+    await adapterCommand("audio", "toggle_mute");
   } catch (error) {
     audio.muted = previous;
     patchAudioBindings();
@@ -1224,7 +1167,7 @@ function queueDisplayBrightness(value) {
   const requestId = ++app.displayRequestId;
   app.displayTimer = setTimeout(async () => {
     try {
-      await sendDisplayCommand("set_brightness", {brightness});
+      await adapterCommand("display", "set_brightness", {brightness});
       if (requestId === app.displayRequestId) {
         const currentDisplay = app.state?.adapters?.display;
         if (currentDisplay) currentDisplay.brightness = brightness;
@@ -1280,13 +1223,9 @@ function requestProcessTerminate(pid, name) {
   window.Digitalvapor?.openDialog("confirm-dialog");
 }
 
-async function sendVpnCommand(name, payload={}) {
-  return api("/api/v1/adapter/vpn", {method:"POST", body:{name, payload}});
-}
-
 async function vpnAction(action, connectionName) {
   try {
-    await sendVpnCommand(action, {name: connectionName});
+    await adapterCommand("vpn", action, {name: connectionName});
     toast(action === "up" ? "VPN connecting" : "VPN disconnecting", connectionName);
     renderScene(true);
   } catch (error) {
@@ -1296,7 +1235,7 @@ async function vpnAction(action, connectionName) {
 
 async function vpnRefresh() {
   try {
-    const result = await sendVpnCommand("refresh", {});
+    const result = await adapterCommand("vpn", "refresh", {});
     if (app.state?.adapters?.vpn) Object.assign(app.state.adapters.vpn, result);
     toast("VPN list refreshed", `${result.active_count ?? 0} active`);
     renderScene(true);
@@ -1305,13 +1244,9 @@ async function vpnRefresh() {
   }
 }
 
-async function sendStorageCommand(name, payload={}) {
-  return api("/api/v1/adapter/storage", {method:"POST", body:{name, payload}});
-}
-
 async function storageAction(action, device) {
   try {
-    const result = await sendStorageCommand(action, {device});
+    const result = await adapterCommand("storage", action, {device});
     toast(action === "mount" ? "Volume mounted" : "Volume unmounted", result.mountpoint || device);
     renderScene(true);
   } catch (error) {
@@ -1321,7 +1256,7 @@ async function storageAction(action, device) {
 
 async function storageRefresh() {
   try {
-    const result = await sendStorageCommand("refresh", {});
+    const result = await adapterCommand("storage", "refresh", {});
     if (app.state?.adapters?.storage) Object.assign(app.state.adapters.storage, result);
     toast("Storage refreshed", `${(result.devices || []).length} volume(s)`);
     renderScene(true);
@@ -1330,13 +1265,9 @@ async function storageRefresh() {
   }
 }
 
-async function sendProcessCommand(name, payload={}) {
-  return api("/api/v1/adapter/processes", {method:"POST", body:{name, payload}});
-}
-
 async function processRefresh() {
   try {
-    const result = await sendProcessCommand("refresh", {});
+    const result = await adapterCommand("processes", "refresh", {});
     if (app.state?.adapters?.processes) Object.assign(app.state.adapters.processes, result);
     renderScene(true);
   } catch (error) {
@@ -1346,7 +1277,7 @@ async function processRefresh() {
 
 async function terminateProcess(pid) {
   try {
-    await sendProcessCommand("terminate", {pid: Number(pid)});
+    await adapterCommand("processes", "terminate", {pid: Number(pid)});
     toast("SIGTERM sent", `pid ${pid}`);
     renderScene(true);
   } catch (error) {
@@ -1354,71 +1285,113 @@ async function terminateProcess(pid) {
   }
 }
 
+async function launchAgentFromEl(el) {
+  try {
+    await api("/api/v1/agents/launch", { method: "POST", body: { name: el.dataset.agent } });
+    toast("Agent spawned", el.dataset.agent);
+  } catch (error) {
+    toast("Agent launch failed", error.message, true);
+  }
+}
+
+async function mediaFromEl(el) {
+  try {
+    await api("/api/v1/media", { method: "POST", body: { action: el.dataset.media } });
+    toast("Media", el.dataset.media);
+  } catch (error) {
+    toast("Media action failed", error.message, true);
+  }
+}
+
+async function networkScanFromEl(el) {
+  el.disabled = true;
+  el.textContent = "SCANNING…";
+  try {
+    app.networkScan = await api("/api/v1/network/scan");
+    renderScene(true);
+  } catch (error) {
+    toast("Wi-Fi scan failed", error.message, true);
+    el.disabled = false;
+  }
+}
+
+function connectSsidFromEl(el) {
+  const ssid = decodeURIComponent(el.dataset.connectSsid);
+  const network = (app.networkScan?.networks || []).find((x) => x.ssid === ssid);
+  if (network?.active) {
+    toast("Already connected", ssid);
+    return;
+  }
+  const security = String(network?.security || "").toLowerCase();
+  const needsPassword = Boolean(network && security && security !== "open" && security !== "--");
+  if (needsPassword) requestWifiPassword(ssid);
+  else connectWifi(ssid);
+}
+
+async function disconnectFromEl(el) {
+  try {
+    await api("/api/v1/network/disconnect", { method: "POST", body: { device: el.dataset.disconnect } });
+    toast("Network disconnected", el.dataset.disconnect);
+  } catch (error) {
+    toast("Disconnect failed", error.message, true);
+  }
+}
+
+const SCENE_BINDINGS = [
+  { sel: "[data-launch]", run: (el) => runAction("launch", el.dataset.launch) },
+  { sel: "[data-action]", run: (el) => runAction(el.dataset.action) },
+  { sel: "[data-agent]", run: launchAgentFromEl },
+  { sel: "[data-media]", run: mediaFromEl },
+  { sel: "[data-settings-tab]", run: (el) => {
+    app.settingsTab = el.dataset.settingsTab;
+    if (el.dataset.sceneJump) setScene(el.dataset.sceneJump);
+    else renderScene(true);
+  } },
+  { sel: "[data-scene-jump]", run: (el) => {
+    app.settingsTab = el.dataset.settingsTab || app.settingsTab;
+    setScene(el.dataset.sceneJump);
+  } },
+  { sel: "[data-setting]", type: "change", run: (el) => {
+    let value = el.type === "checkbox" ? el.checked : el.value;
+    if (el.hasAttribute("data-number")) value = Number(value);
+    saveSetting(el.dataset.setting, value);
+  } },
+  { sel: "[data-audio-volume]", type: "input", run: (el) => queueAudioVolume(el.value) },
+  { sel: "[data-audio-mute]", run: () => toggleAudioMute() },
+  { sel: "[data-display-brightness]", type: "input", run: (el) => queueDisplayBrightness(el.value) },
+  { sel: "[data-session-arm]", run: () => armHyprland() },
+  { sel: "[data-wallpaper-id]", run: (el) => applyWallpaper(el.dataset.wallpaperId) },
+  { sel: "[data-accent]", run: (el) => saveSetting("appearance.accent", el.dataset.accent) },
+  { sel: "[data-window-mode]", run: (el) => saveSetting("appearance.window_mode", el.dataset.windowMode) },
+  { sel: "[data-feature]", type: "change", run: (el) => saveSetting(`features.${el.dataset.feature}`, el.checked) },
+  { sel: "[data-network-scan]", run: networkScanFromEl },
+  { sel: "[data-bt-power]", run: (el) => bluetoothPower(el.dataset.btPower === "on") },
+  { sel: "[data-bt-scan]", run: () => bluetoothScan() },
+  { sel: "[data-bt-device]", run: (el) => bluetoothDevice(el.dataset.btAction, el.dataset.btDevice) },
+  { sel: "[data-notify-dnd]", type: "change", run: (el) => setDoNotDisturb(el.checked) },
+  { sel: "[data-notify-test]", run: () => sendTestNotification() },
+  { sel: "[data-updates-refresh]", run: () => refreshUpdates() },
+  { sel: "[data-updates-open]", run: () => openMintUpdate() },
+  { sel: "[data-clipboard-peek]", run: () => clipboardPeek() },
+  { sel: "[data-clipboard-copy]", run: () => clipboardCopy() },
+  { sel: "[data-clipboard-clear]", run: () => clipboardClear() },
+  { sel: "[data-capture]", run: (el) => captureScreen(el.dataset.capture) },
+  { sel: "[data-capture-folder]", run: () => openCaptureFolder() },
+  { sel: "[data-vpn-refresh]", run: () => vpnRefresh() },
+  { sel: "[data-vpn-name]", run: (el) => vpnAction(el.dataset.vpnAction, el.dataset.vpnName) },
+  { sel: "[data-storage-refresh]", run: () => storageRefresh() },
+  { sel: "[data-storage-device]", run: (el) => storageAction(el.dataset.storageAction, el.dataset.storageDevice) },
+  { sel: "[data-process-refresh]", run: () => processRefresh() },
+  { sel: "[data-process-terminate]", run: (el) => requestProcessTerminate(el.dataset.processTerminate, el.dataset.processName || el.dataset.processTerminate) },
+  { sel: "[data-connect-ssid]", run: connectSsidFromEl },
+  { sel: "[data-disconnect]", run: disconnectFromEl },
+  { sel: "[data-power]", run: (el) => requestConfirmation(el.dataset.power) },
+  { sel: "[data-ui-lock]", run: () => lockUi() },
+];
+
 function bindSceneEvents() {
   const root = $("#scene");
-  $$('[data-launch]', root).forEach(n=>n.addEventListener("click",()=>runAction("launch",n.dataset.launch)));
-  $$('[data-action]', root).forEach(n=>n.addEventListener("click",()=>runAction(n.dataset.action)));
-  $$('[data-agent]', root).forEach(n=>n.addEventListener("click",async()=>{
-    try { await api("/api/v1/agents/launch",{method:"POST",body:{name:n.dataset.agent}}); toast("Agent spawned",n.dataset.agent); }
-    catch(error){ toast("Agent launch failed",error.message,true); }
-  }));
-  $$('[data-media]', root).forEach(n=>n.addEventListener("click",async()=>{
-    try { await api("/api/v1/media",{method:"POST",body:{action:n.dataset.media}}); toast("Media",n.dataset.media); }
-    catch(error){ toast("Media action failed",error.message,true); }
-  }));
-  $$('[data-settings-tab]', root).forEach(n=>n.addEventListener("click",()=>{ app.settingsTab=n.dataset.settingsTab; if(n.dataset.sceneJump) setScene(n.dataset.sceneJump); else renderScene(true); }));
-  $$('[data-scene-jump]', root).forEach(n=>n.addEventListener("click",()=>{ app.settingsTab=n.dataset.settingsTab || app.settingsTab; setScene(n.dataset.sceneJump); }));
-  $$('[data-setting]', root).forEach(n=>n.addEventListener("change",()=>{
-    let value = n.type === "checkbox" ? n.checked : n.value;
-    if (n.hasAttribute("data-number")) value = Number(value);
-    saveSetting(n.dataset.setting,value);
-  }));
-  $$('[data-audio-volume]', root).forEach(n=>n.addEventListener("input",()=>queueAudioVolume(n.value)));
-  $$('[data-audio-mute]', root).forEach(n=>n.addEventListener("click",toggleAudioMute));
-  $$('[data-display-brightness]', root).forEach(n=>n.addEventListener("input",()=>queueDisplayBrightness(n.value)));
-  $$('[data-session-arm]', root).forEach(n=>n.addEventListener("click",armHyprland));
-  $$('[data-wallpaper-id]', root).forEach(n=>n.addEventListener("click",()=>applyWallpaper(n.dataset.wallpaperId)));
-  $$('[data-accent]', root).forEach(n=>n.addEventListener("click",()=>saveSetting("appearance.accent",n.dataset.accent)));
-  $$('[data-window-mode]', root).forEach(n=>n.addEventListener("click",()=>saveSetting("appearance.window_mode",n.dataset.windowMode)));
-  $$('[data-feature]', root).forEach(n=>n.addEventListener("change",()=>saveSetting(`features.${n.dataset.feature}`,n.checked)));
-  $$('[data-network-scan]', root).forEach(n=>n.addEventListener("click",async()=>{
-    n.disabled=true; n.textContent="SCANNING…";
-    try { app.networkScan=await api("/api/v1/network/scan"); renderScene(true); }
-    catch(error){ toast("Wi-Fi scan failed",error.message,true); n.disabled=false; }
-  }));
-  $$('[data-bt-power]', root).forEach(n=>n.addEventListener("click",()=>bluetoothPower(n.dataset.btPower === "on")));
-  $$('[data-bt-scan]', root).forEach(n=>n.addEventListener("click",bluetoothScan));
-  $$('[data-bt-device]', root).forEach(n=>n.addEventListener("click",()=>bluetoothDevice(n.dataset.btAction, n.dataset.btDevice)));
-  $$('[data-notify-dnd]', root).forEach(n=>n.addEventListener("change",()=>setDoNotDisturb(n.checked)));
-  $$('[data-notify-test]', root).forEach(n=>n.addEventListener("click",sendTestNotification));
-  $$('[data-updates-refresh]', root).forEach(n=>n.addEventListener("click",refreshUpdates));
-  $$('[data-updates-open]', root).forEach(n=>n.addEventListener("click",openMintUpdate));
-  $$('[data-clipboard-peek]', root).forEach(n=>n.addEventListener("click",clipboardPeek));
-  $$('[data-clipboard-copy]', root).forEach(n=>n.addEventListener("click",clipboardCopy));
-  $$('[data-clipboard-clear]', root).forEach(n=>n.addEventListener("click",clipboardClear));
-  $$('[data-capture]', root).forEach(n=>n.addEventListener("click",()=>captureScreen(n.dataset.capture)));
-  $$('[data-capture-folder]', root).forEach(n=>n.addEventListener("click",openCaptureFolder));
-  $$('[data-vpn-refresh]', root).forEach(n=>n.addEventListener("click",vpnRefresh));
-  $$('[data-vpn-name]', root).forEach(n=>n.addEventListener("click",()=>vpnAction(n.dataset.vpnAction, n.dataset.vpnName)));
-  $$('[data-storage-refresh]', root).forEach(n=>n.addEventListener("click",storageRefresh));
-  $$('[data-storage-device]', root).forEach(n=>n.addEventListener("click",()=>storageAction(n.dataset.storageAction, n.dataset.storageDevice)));
-  $$('[data-process-refresh]', root).forEach(n=>n.addEventListener("click",processRefresh));
-  $$('[data-process-terminate]', root).forEach(n=>n.addEventListener("click",()=>requestProcessTerminate(n.dataset.processTerminate, n.dataset.processName || n.dataset.processTerminate)));
-  $$('[data-connect-ssid]', root).forEach(n=>n.addEventListener("click",()=>{
-    const ssid=decodeURIComponent(n.dataset.connectSsid);
-    const network=(app.networkScan?.networks||[]).find(x=>x.ssid===ssid);
-    if(network?.active){ toast("Already connected",ssid); return; }
-    const security=String(network?.security || "").toLowerCase();
-    const needsPassword=Boolean(network && security && security!=="open" && security!=="--");
-    if(needsPassword) requestWifiPassword(ssid);
-    else connectWifi(ssid);
-  }));
-  $$('[data-disconnect]', root).forEach(n=>n.addEventListener("click",async()=>{
-    try { await api("/api/v1/network/disconnect",{method:"POST",body:{device:n.dataset.disconnect}}); toast("Network disconnected",n.dataset.disconnect); }
-    catch(error){ toast("Disconnect failed",error.message,true); }
-  }));
-  $$('[data-power]', root).forEach(n=>n.addEventListener("click",()=>requestConfirmation(n.dataset.power)));
-  $$('[data-ui-lock]', root).forEach(n=>n.addEventListener("click",lockUi));
+  window.LMDPBindings.bindFromTable(root, SCENE_BINDINGS, $$);
 }
 
 function bindGlobal() {

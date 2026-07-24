@@ -9,6 +9,7 @@ python3 -m compileall -q src/lmdesktopplus
 PYTHONPATH=src python3 -m unittest discover -s tests/python -v
 if command -v node >/dev/null 2>&1; then
   node --check src/lmdesktopplus/static/digitalvapor.js
+  node --check src/lmdesktopplus/static/bindings.js
   node --check src/lmdesktopplus/static/app.js
 fi
 ./install.sh --dry-run --cinnamon-only >/tmp/lmdesktopplus-dry-run.log 2>&1
@@ -27,6 +28,7 @@ if grep -Eqi '\.(woff2?|ttf|otf)$' "$DEB_CONTENTS"; then
 fi
 grep -q 'digitalvapor.css' "$DEB_CONTENTS"
 grep -q 'digitalvapor.js' "$DEB_CONTENTS"
+grep -q 'bindings.js' "$DEB_CONTENTS"
 grep -q 'usr/lib/lmdesktopplus/assets/wallpapers/vapor-matrix.svg' "$DEB_CONTENTS"
 grep -q 'usr/lib/lmdesktopplus/assets/wallpapers/vapor-matrix.png' "$DEB_CONTENTS"
 printf 'all tests OK\n'

@@ -87,7 +87,7 @@ the feature hash table that also cleans `renderApps`).
 
 ### Task 1.1: `adapterCommand` collapse
 
-- [ ] Replace `sendAudioCommand` … `sendProcessCommand` with:
+- [x] Replace `sendAudioCommand` … `sendProcessCommand` with:
 
 ```js
 async function adapterCommand(adapterId, name, payload = {}) {
@@ -98,12 +98,12 @@ async function adapterCommand(adapterId, name, payload = {}) {
 }
 ```
 
-- [ ] Call sites become `adapterCommand("vpn", "up", { name })` etc.
-- [ ] Grep/assert in `frontend-assets.sh` for helper + at least one Stage C adapter id
+- [x] Call sites become `adapterCommand("vpn", "up", { name })` etc.
+- [x] Grep/assert in `frontend-assets.sh` for helper + at least one Stage C adapter id
 
 ### Task 1.2: `SETTINGS_TABS` map
 
-- [ ] Replace `renderSettingsTab` if-chain with:
+- [x] Replace `renderSettingsTab` if-chain with:
 
 ```js
 const SETTINGS_TABS = {
@@ -116,12 +116,12 @@ const SETTINGS_TABS = {
 };
 ```
 
-- [ ] Extract appearance/display bodies into named functions (already partly split for network)
-- [ ] Unknown tab → `renderAbout` (or explicit fallback), no else ladder
+- [x] Extract appearance/display bodies into named functions (already partly split for network)
+- [x] Unknown tab → `renderAbout` (or explicit fallback), no else ladder
 
 ### Task 1.3: `SCENE_BINDINGS` + extract loops
 
-- [ ] Introduce registry:
+- [x] Introduce registry:
 
 ```js
 // bindings.js
@@ -138,14 +138,14 @@ function bindSceneEvents(root) {
 }
 ```
 
-- [ ] Split row builders out of panels:
+- [x] Split row builders out of panels:
   - `mapVpnConnectionRows(connections)`
   - `mapStorageDeviceRows(devices)`
   - `mapProcessRows(processes)`
   - `syncCoreBars(root, cores)` / `renderThermalRows` / `renderPowerPanel` from
     `patchMonitorCollections`
-- [ ] Load `bindings.js` before `app.js` in `index.html` (same CSP `script-src 'self'`)
-- [ ] `node --check` both files; `./tests/run-all.sh`
+- [x] Load `bindings.js` before `app.js` in `index.html` (same CSP `script-src 'self'`)
+- [x] `node --check` both files; `./tests/run-all.sh`
 - [ ] Commit: `refactor: dispatch tables and bindings.js for machine UI events`
 
 **Exit criteria:** No new `if (app.settingsTab === …)` chain; `bindSceneEvents` is a
