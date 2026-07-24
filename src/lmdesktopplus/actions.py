@@ -2,11 +2,44 @@ from __future__ import annotations
 
 import os
 import shlex
-import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .util import app_config_dir, executable, first_executable, run_capture, spawn
+
+TERMINAL_CANDIDATES = ("kitty", "gnome-terminal", "x-terminal-emulator", "xfce4-terminal")
+
+
+def wrap_in_terminal(argv: list[str], *, hold: bool = False) -> list[str] | None:
+    """Wrap argv for the preferred terminal using a name → builder map."""
+    terminal = first_executable(TERMINAL_CANDIDATES)
+    if not terminal:
+        return None
+    base = Path(terminal).name
+
+    def kitty() -> list[str]:
+        return [terminal, *(["--hold"] if hold else []), *argv]
+
+    def gnome() -> list[str]:
+        return [terminal, "--", *argv]
+
+    def xfce() -> list[str]:
+        joined = shlex.join(argv)
+        if hold:
+            return [terminal, "--hold", "--command", joined]
+        return [terminal, "--command", joined]
+
+    def default() -> list[str]:
+        if len(argv) == 1 and not hold:
+            return [terminal, "-e", argv[0]]
+        return [terminal, "-e", shlex.join(argv)]
+
+    wrappers: dict[str, Callable[[], list[str]]] = {
+        "kitty": kitty,
+        "gnome-terminal": gnome,
+        "xfce4-terminal": xfce,
+    }
+    return wrappers.get(base, default)()
 
 
 class ActionRunner:
@@ -16,7 +49,7 @@ class ActionRunner:
     @staticmethod
     def capabilities() -> dict[str, Any]:
         apps = {
-            "terminal": first_executable(["kitty", "gnome-terminal", "x-terminal-emulator", "xfce4-terminal"]),
+            "terminal": first_executable(TERMINAL_CANDIDATES),
             "editor": first_executable(["pulsar", "cursor", "codium", "code", "xed"]),
             "browser": first_executable(["firefox", "google-chrome", "chromium", "xdg-open"]),
             "monitor": first_executable(["btop", "gnome-system-monitor", "htop"]),
@@ -33,39 +66,23 @@ class ActionRunner:
         return {key: {"available": bool(value), "path": value} for key, value in apps.items()}
 
     def run(self, action: str, target: str | None = None) -> dict[str, Any]:
-        if action == "launch":
-            return self.launch(target or "")
-        if action == "lock":
-            return self.lock()
-        if action in {"logout", "suspend", "reboot", "poweroff"}:
-            return self.power(action)
-        if action == "open-config":
-            return self.open_path(app_config_dir())
-        return {"ok": False, "error": "unsupported action"}
+        handler = ACTION_HANDLERS.get(action)
+        if handler is None:
+            return {"ok": False, "error": "unsupported action"}
+        return handler(self, target)
 
     def launch(self, target: str) -> dict[str, Any]:
-        handlers = {
-            "terminal": self._terminal,
-            "tmux": self._tmux,
-            "editor": self._editor,
-            "browser": self._browser,
-            "rofi": self._rofi,
-            "docs": lambda: self.open_path(Path.home() / ".config"),
-            "monitor": self._monitor,
-            "settings": self._settings,
-            "files": lambda: self.open_path(Path.home()),
-        }
-        handler = handlers.get(target)
+        handler = LAUNCH_HANDLERS.get(target)
         if not handler:
             return {"ok": False, "error": f"unknown launch target: {target}"}
         try:
-            return handler()
+            return handler(self)
         except OSError as exc:
             return {"ok": False, "error": str(exc)}
 
     @staticmethod
     def _terminal() -> dict[str, Any]:
-        cmd = first_executable(["kitty", "gnome-terminal", "x-terminal-emulator", "xfce4-terminal"])
+        cmd = first_executable(TERMINAL_CANDIDATES)
         if not cmd:
             return {"ok": False, "error": "no terminal emulator found"}
         return {"ok": True, "pid": spawn([cmd])}
@@ -73,20 +90,15 @@ class ActionRunner:
     @staticmethod
     def _tmux() -> dict[str, Any]:
         tmux = executable("tmux")
-        terminal = first_executable(["kitty", "gnome-terminal", "x-terminal-emulator", "xfce4-terminal"])
-        if not tmux or not terminal:
+        if not tmux:
             return {"ok": False, "error": "tmux or a supported terminal is missing"}
-        argv = [tmux, "new-session", "-A", "-s", "lmdesktopplus"]
-        base = Path(terminal).name
-        if base == "kitty":
-            cmd = [terminal, "--hold", *argv]
-        elif base == "gnome-terminal":
-            cmd = [terminal, "--", *argv]
-        elif base == "xfce4-terminal":
-            cmd = [terminal, "--hold", "--command", shlex.join(argv)]
-        else:
-            cmd = [terminal, "-e", shlex.join(argv)]
-        return {"ok": True, "pid": spawn(cmd)}
+        wrapped = wrap_in_terminal(
+            [tmux, "new-session", "-A", "-s", "lmdesktopplus"],
+            hold=True,
+        )
+        if not wrapped:
+            return {"ok": False, "error": "tmux or a supported terminal is missing"}
+        return {"ok": True, "pid": spawn(wrapped)}
 
     @staticmethod
     def _editor() -> dict[str, Any]:
@@ -108,17 +120,12 @@ class ActionRunner:
         if gui:
             return {"ok": True, "pid": spawn([gui])}
         btop = executable("btop") or executable("htop")
-        terminal = first_executable(["kitty", "gnome-terminal", "x-terminal-emulator", "xfce4-terminal"])
-        if not btop or not terminal:
+        if not btop:
             return {"ok": False, "error": "no supported system monitor found"}
-        base = Path(terminal).name
-        if base == "kitty":
-            cmd = [terminal, "--hold", btop]
-        elif base == "gnome-terminal":
-            cmd = [terminal, "--", btop]
-        else:
-            cmd = [terminal, "-e", btop]
-        return {"ok": True, "pid": spawn(cmd)}
+        wrapped = wrap_in_terminal([btop], hold=True)
+        if not wrapped:
+            return {"ok": False, "error": "no supported system monitor found"}
+        return {"ok": True, "pid": spawn(wrapped)}
 
     @staticmethod
     def _rofi() -> dict[str, Any]:
@@ -177,3 +184,27 @@ class ActionRunner:
             return {"ok": True, "pid": spawn(argv), "action": action}
         except OSError as exc:
             return {"ok": False, "error": str(exc)}
+
+
+# Module-level dispatch tables so ActionRunner.run/launch stay branch-free.
+ACTION_HANDLERS: dict[str, Callable[[ActionRunner, str | None], dict[str, Any]]] = {
+    "launch": lambda runner, target: runner.launch(target or ""),
+    "lock": lambda runner, _target: runner.lock(),
+    "logout": lambda runner, _target: runner.power("logout"),
+    "suspend": lambda runner, _target: runner.power("suspend"),
+    "reboot": lambda runner, _target: runner.power("reboot"),
+    "poweroff": lambda runner, _target: runner.power("poweroff"),
+    "open-config": lambda runner, _target: runner.open_path(app_config_dir()),
+}
+
+LAUNCH_HANDLERS: dict[str, Callable[[ActionRunner], dict[str, Any]]] = {
+    "terminal": lambda _runner: ActionRunner._terminal(),
+    "tmux": lambda _runner: ActionRunner._tmux(),
+    "editor": lambda _runner: ActionRunner._editor(),
+    "browser": lambda _runner: ActionRunner._browser(),
+    "rofi": lambda _runner: ActionRunner._rofi(),
+    "docs": lambda runner: runner.open_path(Path.home() / ".config"),
+    "monitor": lambda _runner: ActionRunner._monitor(),
+    "settings": lambda _runner: ActionRunner._settings(),
+    "files": lambda runner: runner.open_path(Path.home()),
+}

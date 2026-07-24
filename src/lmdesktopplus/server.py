@@ -157,6 +157,28 @@ class ControlServer(ThreadingHTTPServer):
 class RequestHandler(BaseHTTPRequestHandler):
     server: ControlServer
 
+    # Exact-path GET handlers: (requires_auth, handler_name)
+    GET_ROUTES: dict[str, tuple[bool, str]] = {
+        "/api/v1/network/scan": (True, "_get_network_scan"),
+    }
+    # Longest-prefix-first GET handlers: (prefix, requires_auth, handler_name)
+    GET_PREFIX_ROUTES: tuple[tuple[str, bool, str], ...] = (
+        ("/api/v1/state", True, "_get_state"),
+        ("/wallpaper-thumbs/", False, "_serve_wallpaper_thumbnail"),
+    )
+    # Exact-path POST handlers (auth + JSON body already gated in do_POST)
+    POST_ROUTES: dict[str, str] = {
+        "/api/v1/settings": "_post_settings",
+        "/api/v1/action": "_post_action",
+        "/api/v1/agents/launch": "_post_agents_launch",
+        "/api/v1/media": "_post_media",
+        "/api/v1/network/connect": "_post_network_connect",
+        "/api/v1/network/disconnect": "_post_network_disconnect",
+    }
+    POST_PREFIX_ROUTES: tuple[tuple[str, str], ...] = (
+        ("/api/v1/adapter/", "_post_adapter"),
+    )
+
     def log_message(self, fmt: str, *args: Any) -> None:
         # Avoid leaking network passwords or noisy polling into stdout.
         if self.path.startswith("/api/v1/state"):
@@ -164,38 +186,24 @@ class RequestHandler(BaseHTTPRequestHandler):
         super().log_message(fmt, *args)
 
     def do_GET(self) -> None:
-        parsed = urlparse(self.path)
-        if parsed.path == "/api/v1/state" or parsed.path.startswith("/api/v1/state/"):
-            if not self._authorized():
+        path = urlparse(self.path).path
+        exact = self.GET_ROUTES.get(path)
+        if exact is not None:
+            needs_auth, name = exact
+            if needs_auth and not self._authorized():
                 return
-            domain = parsed.path.removeprefix("/api/v1/state").strip("/")
-            state = self.server.state
-            if domain in {"", "full"}:
-                self._json(HTTPStatus.OK, state.snapshot())
-                return
-            loaders = {
-                "core": state.snapshot_core,
-                "metrics": state.snapshot_metrics,
-                "adapters": state.snapshot_adapters,
-                "network": state.snapshot_network,
-                "media": state.snapshot_media,
-                "assets": state.snapshot_assets,
-            }
-            loader = loaders.get(domain)
-            if loader is None:
-                self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": f"unknown state domain: {domain}"})
-                return
-            self._json(HTTPStatus.OK, loader())
+            getattr(self, name)(path)
             return
-        if parsed.path == "/api/v1/network/scan":
-            if not self._authorized():
+        for prefix, needs_auth, name in self.GET_PREFIX_ROUTES:
+            base = prefix.rstrip("/")
+            if path == base or path.startswith(base + "/") or (
+                prefix.endswith("/") and path.startswith(prefix)
+            ):
+                if needs_auth and not self._authorized():
+                    return
+                getattr(self, name)(path)
                 return
-            self._json(HTTPStatus.OK, network.scan_wifi(rescan=True))
-            return
-        if parsed.path.startswith("/wallpaper-thumbs/"):
-            self._serve_wallpaper_thumbnail(parsed.path)
-            return
-        self._serve_static(parsed.path)
+        self._serve_static(path)
 
     def do_POST(self) -> None:
         if not self._authorized():
@@ -204,70 +212,124 @@ class RequestHandler(BaseHTTPRequestHandler):
         if body is None:
             return
         path = urlparse(self.path).path
-        state = self.server.state
-        if path == "/api/v1/settings":
-            patch = body.get("patch") if isinstance(body, dict) else None
-            if not isinstance(patch, dict):
-                self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "patch must be an object"})
+        exact = self.POST_ROUTES.get(path)
+        if exact is not None:
+            getattr(self, exact)(body)
+            return
+        for prefix, name in self.POST_PREFIX_ROUTES:
+            if path.startswith(prefix):
+                getattr(self, name)(path, body)
                 return
-            settings = state.settings.update(patch)
-            applied = theme.apply(settings) if body.get("apply", True) else {"ok": True, "results": []}
-            self._json(HTTPStatus.OK, {"ok": True, "settings": settings, "applied": applied})
-            return
-        if path == "/api/v1/action":
-            result = state.actions.run(str(body.get("action", "")), str(body.get("target", "")) or None)
-            self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
-            return
-        if path == "/api/v1/agents/launch":
-            result = state.agents.launch(str(body.get("name", "")))
-            self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
-            return
-        if path == "/api/v1/media":
-            result = media.control(str(body.get("action", "")))
-            with state._cache_lock:
-                state._cache.pop("media", None)
-            self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
-            return
-        if path == "/api/v1/network/connect":
-            result = network.connect_wifi(str(body.get("ssid", "")), str(body.get("password", "")) or None)
-            with state._cache_lock:
-                state._cache.pop("network-current", None)
-            self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
-            return
-        if path == "/api/v1/network/disconnect":
-            result = network.disconnect(str(body.get("device", "")))
-            with state._cache_lock:
-                state._cache.pop("network-current", None)
-            self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
-            return
-        if path.startswith("/api/v1/adapter/"):
-            adapter_id = path.removeprefix("/api/v1/adapter/")
-            name = body.get("name")
-            payload = body.get("payload", {})
-            if not adapter_id or "/" in adapter_id:
-                self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "unknown adapter"})
-                return
-            if not isinstance(name, str) or not name:
-                self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "name must be a non-empty string"})
-                return
-            if not isinstance(payload, dict):
-                self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "payload must be an object"})
-                return
-            try:
-                adapter = state.adapters.get(adapter_id)
-            except KeyError:
-                self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": f"unknown adapter: {adapter_id}"})
-                return
-            try:
-                result = adapter.command(name, payload)
-            except Exception as exc:  # noqa: BLE001 — boundary for API JSON stability
-                code, _message = classify_exception(exc)
-                # Log details locally; never send raw exception text to the UI by default.
-                self.log_error("Adapter command failed adapter=%s name=%s err=%s", adapter_id, name, exc)
-                result = command_error(code if code != "internal_error" else "internal_error", "Adapter command failed")
-            self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
-            return
         self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "unknown endpoint"})
+
+    def _get_state(self, path: str) -> None:
+        domain = path.removeprefix("/api/v1/state").strip("/")
+        state = self.server.state
+        if domain in {"", "full"}:
+            self._json(HTTPStatus.OK, state.snapshot())
+            return
+        loaders = {
+            "core": state.snapshot_core,
+            "metrics": state.snapshot_metrics,
+            "adapters": state.snapshot_adapters,
+            "network": state.snapshot_network,
+            "media": state.snapshot_media,
+            "assets": state.snapshot_assets,
+        }
+        loader = loaders.get(domain)
+        if loader is None:
+            self._json(
+                HTTPStatus.NOT_FOUND,
+                {"ok": False, "error": f"unknown state domain: {domain}"},
+            )
+            return
+        self._json(HTTPStatus.OK, loader())
+
+    def _get_network_scan(self, _path: str) -> None:
+        self._json(HTTPStatus.OK, network.scan_wifi(rescan=True))
+
+    def _post_settings(self, body: dict[str, Any]) -> None:
+        patch = body.get("patch")
+        if not isinstance(patch, dict):
+            self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "patch must be an object"})
+            return
+        settings = self.server.state.settings.update(patch)
+        applied = theme.apply(settings) if body.get("apply", True) else {"ok": True, "results": []}
+        self._json(HTTPStatus.OK, {"ok": True, "settings": settings, "applied": applied})
+
+    def _post_action(self, body: dict[str, Any]) -> None:
+        result = self.server.state.actions.run(
+            str(body.get("action", "")),
+            str(body.get("target", "")) or None,
+        )
+        self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
+
+    def _post_agents_launch(self, body: dict[str, Any]) -> None:
+        result = self.server.state.agents.launch(str(body.get("name", "")))
+        self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
+
+    def _post_media(self, body: dict[str, Any]) -> None:
+        result = media.control(str(body.get("action", "")))
+        with self.server.state._cache_lock:
+            self.server.state._cache.pop("media", None)
+        self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
+
+    def _post_network_connect(self, body: dict[str, Any]) -> None:
+        result = network.connect_wifi(
+            str(body.get("ssid", "")),
+            str(body.get("password", "")) or None,
+        )
+        with self.server.state._cache_lock:
+            self.server.state._cache.pop("network-current", None)
+        self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
+
+    def _post_network_disconnect(self, body: dict[str, Any]) -> None:
+        result = network.disconnect(str(body.get("device", "")))
+        with self.server.state._cache_lock:
+            self.server.state._cache.pop("network-current", None)
+        self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
+
+    def _post_adapter(self, path: str, body: dict[str, Any]) -> None:
+        adapter_id = path.removeprefix("/api/v1/adapter/")
+        name = body.get("name")
+        payload = body.get("payload", {})
+        if not adapter_id or "/" in adapter_id:
+            self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "unknown adapter"})
+            return
+        if not isinstance(name, str) or not name:
+            self._json(
+                HTTPStatus.BAD_REQUEST,
+                {"ok": False, "error": "name must be a non-empty string"},
+            )
+            return
+        if not isinstance(payload, dict):
+            self._json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "payload must be an object"})
+            return
+        state = self.server.state
+        try:
+            adapter = state.adapters.get(adapter_id)
+        except KeyError:
+            self._json(
+                HTTPStatus.NOT_FOUND,
+                {"ok": False, "error": f"unknown adapter: {adapter_id}"},
+            )
+            return
+        try:
+            result = adapter.command(name, payload)
+        except Exception as exc:  # noqa: BLE001 — boundary for API JSON stability
+            code, _message = classify_exception(exc)
+            # Log details locally; never send raw exception text to the UI by default.
+            self.log_error(
+                "Adapter command failed adapter=%s name=%s err=%s",
+                adapter_id,
+                name,
+                exc,
+            )
+            result = command_error(
+                code if code != "internal_error" else "internal_error",
+                "Adapter command failed",
+            )
+        self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
 
     def _authorized(self) -> bool:
         if self.client_address[0] not in {"127.0.0.1", "::1"}:

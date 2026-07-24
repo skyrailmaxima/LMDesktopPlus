@@ -159,7 +159,7 @@ loop over a table; Stage C UI behavior unchanged.
 
 ### Task 2.1: POST/GET route tables
 
-- [ ] Shape:
+- [x] Shape:
 
 ```python
 POST_ROUTES: dict[str, Callable] = {
@@ -174,14 +174,14 @@ POST_ROUTES: dict[str, Callable] = {
 # if path.startswith("/api/v1/adapter/"): handle_adapter(path, body)
 ```
 
-- [ ] Mirror for GET: exact paths + `startswith` prefix map for thumbs/static
-- [ ] Keep auth/body parsing outside the dispatch (single gate)
-- [ ] Tests still cover Origin/Host, adapter errors, domain state
+- [x] Mirror for GET: exact paths + `startswith` prefix map for thumbs/static
+- [x] Keep auth/body parsing outside the dispatch (single gate)
+- [x] Tests still cover Origin/Host, adapter errors, domain state
 
 ### Task 2.2: `ACTION_HANDLERS` for `ActionRunner.run`
 
-- [ ] Same style as existing `launch` handlers map
-- [ ] Extract shared `wrap_in_terminal(argv, *, cwd=None, hold=False)` to kill
+- [x] Same style as existing `launch` handlers map
+- [x] Extract shared `wrap_in_terminal(argv, *, cwd=None, hold=False)` to kill
       duplicated kitty/gnome-terminal argv branches where safe
 
 **Exit criteria:** Adding Task 16’s `POST /api/v1/agents` is one map entry, not a new
