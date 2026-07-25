@@ -152,8 +152,16 @@ def tune_peer_argv(raw: Any) -> list[str] | None:
     return tuned
 
 
+@register_fn(
+    "agents.weave_peer_roster",
+    UseLevel.MEDIUM,
+    "Normalize agents.json rows into safe peer dicts",
+)
 def weave_peer_roster(rows: list[Any]) -> list[dict[str, Any]]:
-    """Normalize raw roster rows into safe peer dicts; drop duplicates and bad names."""
+    """Normalize raw roster rows into safe peer dicts; drop duplicates and bad names.
+
+    @use: medium use — purpose: load/save roster without accepting shelly peers.
+    """
     result: list[dict[str, Any]] = []
     # Track names already accepted so later duplicates are skipped.
     seen: set[str] = set()
@@ -299,7 +307,10 @@ class AgentRegistry:
         return [sys.executable, "-m", "lmdesktopplus", "--agent-run", name]
 
     def forge_peer(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Create a new peer from a validated payload (API: create / forge)."""
+        """Create a new peer from a validated payload (API: create / forge).
+
+        @use: medium use — purpose: Settings → Agents forge form submit.
+        """
         # Name is required and must be a fresh safe_name.
         name = str(payload.get("name", "")).strip().lower()
         if not safe_name(name):
@@ -333,7 +344,10 @@ class AgentRegistry:
         return {"ok": True, "peer": self.fetch_peer(name), "agents": self.scan_peers()}
 
     def retune_peer(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Update fields on an existing peer (API: update / retune)."""
+        """Update fields on an existing peer (API: update / retune).
+
+        @use: medium use — purpose: Settings → Agents per-peer RETUNE.
+        """
         # Name selects the peer; it cannot be renamed through this op.
         name = str(payload.get("name", "")).strip().lower()
         if not safe_name(name):
@@ -343,27 +357,10 @@ class AgentRegistry:
         if index is None:
             return {"ok": False, "error_code": "invalid_argument", "error": "unknown peer"}
         current = dict(self._peers[index])
-        # Optional command retune — omit payload key to keep the old argv.
-        if "command" in payload:
-            command = tune_peer_argv(payload.get("command"))
-            if command is None:
-                return {
-                    "ok": False,
-                    "error_code": "invalid_argument",
-                    "error": "invalid peer command",
-                }
-            current["command"] = command
-        # Optional scalar fields with the same caps as weave.
-        if "label" in payload:
-            current["label"] = str(payload.get("label") or name.title())[:80]
-        if "workspace" in payload:
-            current["workspace"] = str(payload.get("workspace") or "~/work")[:240]
-        if "sandbox" in payload:
-            current["sandbox"] = bool(payload.get("sandbox"))
-        if "network" in payload:
-            current["network"] = bool(payload.get("network"))
-        if "description" in payload:
-            current["description"] = str(payload.get("description") or "")[:240]
+        # Optional fields apply through a small patch map (omit key → keep).
+        current = self._apply_peer_patch(current, name, payload)
+        if current.get("_error"):
+            return current["_error"]
         # Re-weave through the roster normalizer for a final safety pass.
         woven = weave_peer_roster([current])
         if not woven:
@@ -373,8 +370,42 @@ class AgentRegistry:
         self.ensure_directories()
         return {"ok": True, "peer": self.fetch_peer(name), "agents": self.scan_peers()}
 
+    def _apply_peer_patch(
+        self,
+        current: dict[str, Any],
+        name: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        # @use: medium use — purpose: map retune payload keys onto peer fields
+        if "command" in payload:
+            command = tune_peer_argv(payload.get("command"))
+            if command is None:
+                return {
+                    "_error": {
+                        "ok": False,
+                        "error_code": "invalid_argument",
+                        "error": "invalid peer command",
+                    }
+                }
+            current["command"] = command
+        # Scalar patchers share weave caps (label/workspace/description length).
+        patchers = {
+            "label": lambda: str(payload.get("label") or name.title())[:80],
+            "workspace": lambda: str(payload.get("workspace") or "~/work")[:240],
+            "sandbox": lambda: bool(payload.get("sandbox")),
+            "network": lambda: bool(payload.get("network")),
+            "description": lambda: str(payload.get("description") or "")[:240],
+        }
+        for key, apply in patchers.items():
+            if key in payload:
+                current[key] = apply()
+        return current
+
     def melt_peer(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Remove a peer from the roster (API: delete / melt). Does not wipe HOME."""
+        """Remove a peer from the roster (API: delete / melt). Does not wipe HOME.
+
+        @use: medium use — purpose: Settings → Agents MELT (roster only).
+        """
         # Name selects which peer dissolves from the roster.
         name = str(payload.get("name", "")).strip().lower()
         if not safe_name(name):

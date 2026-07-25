@@ -11,7 +11,10 @@ TERMINAL_CANDIDATES = ("kitty", "gnome-terminal", "x-terminal-emulator", "xfce4-
 
 
 def wrap_in_terminal(argv: list[str], *, hold: bool = False) -> list[str] | None:
-    """Wrap argv for the preferred terminal using a name → builder map."""
+    """Wrap argv for the preferred terminal using a name → builder map.
+
+    @use: medium use — purpose: launch allowlisted actions inside a terminal.
+    """
     terminal = first_executable(TERMINAL_CANDIDATES)
     if not terminal:
         return None

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.3 — Comment + unpack pass (dispatch / @use parity)
+
+- Converted remaining if-chain adapters (`audio`, `display`, `wallpaper`,
+  `notifications`, `updates`, `session`) to `dispatch_command` hash maps.
+- Unpacked dense probe/apply paths (audio backends, brightness probes,
+  wallpaper apply steps, capture argv etchers, process sampling, clipboard
+  peek/copy maps, peer retune patch map).
+- Added `@use` / `register_fn` annotations across Stage A–C adapters, agents
+  roster helpers, `adapters.envelope`, and hot JS chrome (`queueAudioVolume`,
+  patch bindings, `warmUiFnCache` entries).
+- Behavior preserved; fail-soft shapes now prefer `command_error` where
+  adapters previously returned bare `{ok:false,error}`.
+
 ## 0.6.2 — Stage D Task 23 + live wallpaper default on
 
 - `features.live_wallpaper` default **on** (START from Appearance remains

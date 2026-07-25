@@ -69,6 +69,11 @@ class NullAdapter:
         )
 
 
+@register_fn(
+    "adapters.envelope",
+    UseLevel.HIGH,
+    "Shape adapter snapshots for /api/v1/state with nested state + status",
+)
 def envelope(
     adapter_id: str,
     snapshot: dict[str, Any],
@@ -77,19 +82,26 @@ def envelope(
     stale: bool = False,
     updated_at: float | None = None,
 ) -> dict[str, Any]:
-    """Typed adapter snapshot envelope with backward-compatible flat fields."""
+    """Typed adapter snapshot envelope with backward-compatible flat fields.
+
+    @use: high use — purpose: every adapter poll lands in this shaper.
+    """
+    # Derive availability once; status may already be set by the adapter.
     available = bool(snapshot.get("available"))
     status = snapshot.get("status")
     if not isinstance(status, str) or not status:
+        # Fail-soft status ladder when adapters omit an explicit status.
         if not available:
             status = "unavailable"
         elif snapshot.get("last_error") or snapshot.get("error"):
             status = "degraded"
         else:
             status = "ready"
+    # Prefer explicit error; fall back to last_error from probes.
     error = snapshot.get("error")
     if error is None:
         error = snapshot.get("last_error")
+    # Nested `state` drops envelope keys so clients can read either shape.
     out = {
         **snapshot,
         "id": adapter_id,
@@ -122,6 +134,7 @@ def envelope(
 
 
 def command_error(error_code: str, message: str, **extra: Any) -> dict[str, Any]:
+    # @use: high use — purpose: stable fail-soft command error payload
     payload = {"ok": False, "error_code": error_code, "error": message}
     payload.update(extra)
     return payload

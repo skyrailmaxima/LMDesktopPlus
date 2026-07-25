@@ -1,3 +1,8 @@
+"""Bluetooth power/scan/connect via bluetoothctl (Stage B).
+
+@use levels: snapshot is medium; power/scan/connect are low use.
+"""
+
 from __future__ import annotations
 
 import re
@@ -5,6 +10,7 @@ import subprocess
 import time
 from typing import Any
 
+from ..fncache import UseLevel, register_fn
 from ..util import executable, run_capture
 from .base import dispatch_command
 
@@ -15,12 +21,24 @@ _DEVICE_RE = re.compile(
 _POWERED_RE = re.compile(r"^\s*Powered:\s*(yes|no)\s*$", re.IGNORECASE | re.MULTILINE)
 
 
+@register_fn(
+    "bluetooth.parse_powered",
+    UseLevel.MEDIUM,
+    "Parse bluetoothctl show Powered: yes/no",
+)
 def parse_powered(output: str) -> bool:
+    # @use: medium use — purpose: Desktop Bluetooth power chip
     match = _POWERED_RE.search(output)
     return bool(match and match.group(1).lower() == "yes")
 
 
+@register_fn(
+    "bluetooth.parse_devices",
+    UseLevel.MEDIUM,
+    "Parse bluetoothctl devices (+ Connected) into UI rows",
+)
 def parse_devices(known_output: str, connected_output: str = "") -> list[dict[str, Any]]:
+    # @use: medium use — purpose: Bluetooth device list for Settings/Desktop
     connected: set[str] = set()
     for line in connected_output.splitlines():
         match = _DEVICE_RE.match(line.strip())
@@ -42,6 +60,7 @@ def parse_devices(known_output: str, connected_output: str = "") -> list[dict[st
 
 
 def normalize_mac(value: Any) -> str | None:
+    # @use: medium use — purpose: validate Bluetooth MAC from UI payload
     if not isinstance(value, str):
         return None
     mac = value.strip().upper()
@@ -51,6 +70,8 @@ def normalize_mac(value: Any) -> str | None:
 
 
 class BluetoothAdapter:
+    """Fail-soft BlueZ control through bluetoothctl."""
+
     id = "bluetooth"
 
     def __init__(
@@ -69,6 +90,7 @@ class BluetoothAdapter:
         return bool(self.bluetoothctl)
 
     def snapshot(self) -> dict[str, Any]:
+        # @use: medium use — purpose: Bluetooth panel poll via bluetoothctl
         if not self.available():
             return {"available": False}
         now = time.monotonic()
@@ -102,6 +124,7 @@ class BluetoothAdapter:
         return snapshot.copy()
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        # @use: medium use — purpose: power/scan/connect via command hashmap
         return dispatch_command(self._commands(), name, payload, adapter_id=self.id)
 
     def _commands(self) -> dict[str, Any]:

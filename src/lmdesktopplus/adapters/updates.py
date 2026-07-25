@@ -1,3 +1,9 @@
+"""Apt upgradable count + Mint Update launcher (Stage B).
+
+@use levels: snapshot is medium (long TTL); refresh/open are low use.
+Counting uses `apt list --upgradable`; open only launches mintupdate.
+"""
+
 from __future__ import annotations
 
 import re
@@ -5,12 +11,20 @@ import subprocess
 import time
 from typing import Any
 
+from ..fncache import UseLevel, register_fn
 from ..util import executable, run_capture, spawn
+from .base import command_error, dispatch_command
 
 _UPGRADABLE_RE = re.compile(r"\bupgradable\b", re.IGNORECASE)
 
 
+@register_fn(
+    "updates.count_upgradable",
+    UseLevel.MEDIUM,
+    "Count upgradable lines from apt list --upgradable output",
+)
 def count_upgradable(output: str) -> int:
+    # @use: medium use — purpose: Desktop updates badge count
     count = 0
     for line in output.splitlines():
         stripped = line.strip()
@@ -25,6 +39,8 @@ def count_upgradable(output: str) -> int:
 
 
 class UpdatesAdapter:
+    """Fail-soft apt upgradable counter + optional mintupdate spawn."""
+
     id = "updates"
 
     def __init__(
@@ -45,6 +61,7 @@ class UpdatesAdapter:
         return bool(self.apt)
 
     def snapshot(self) -> dict[str, Any]:
+        # @use: medium use — purpose: Desktop updates count with long TTL
         if not self.available():
             return {"available": False}
         now = time.monotonic()
@@ -70,24 +87,35 @@ class UpdatesAdapter:
         return snapshot.copy()
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
-        if name not in {"refresh", "open"}:
-            return {"ok": False, "error": f"unknown updates command: {name}"}
-        if name == "refresh":
-            if not self.available():
-                return {"ok": False, "error": "apt is not installed"}
-            self._cached_snapshot = None
-            snap = self.snapshot()
-            if not snap.get("available"):
-                return {"ok": False, "error": snap.get("last_error") or "refresh failed"}
-            return {
-                "ok": True,
-                "count": snap["count"],
-                "mintupdate_available": snap["mintupdate_available"],
-            }
+        # @use: low use — purpose: refresh/open via command hashmap
+        return dispatch_command(self._commands(), name, payload, adapter_id=self.id)
+
+    def _commands(self) -> dict[str, Any]:
+        return {
+            "refresh": self._refresh,
+            "open": self._open,
+        }
+
+    def _refresh(self, _payload: dict[str, Any]) -> dict[str, Any]:
+        # @use: low use — purpose: invalidate cache and re-count upgradable
+        if not self.available():
+            return command_error("unavailable", "apt is not installed")
+        self._cached_snapshot = None
+        snap = self.snapshot()
+        if not snap.get("available"):
+            return command_error("unavailable", snap.get("last_error") or "refresh failed")
+        return {
+            "ok": True,
+            "count": snap["count"],
+            "mintupdate_available": snap["mintupdate_available"],
+        }
+
+    def _open(self, _payload: dict[str, Any]) -> dict[str, Any]:
+        # @use: low use — purpose: spawn Mint Update UI only
         if not self.mintupdate:
-            return {"ok": False, "error": "mintupdate is not installed"}
+            return command_error("unavailable", "mintupdate is not installed")
         try:
             pid = spawn([self.mintupdate])
         except OSError as exc:
-            return {"ok": False, "error": str(exc)}
+            return command_error("internal_error", str(exc))
         return {"ok": True, "pid": pid}

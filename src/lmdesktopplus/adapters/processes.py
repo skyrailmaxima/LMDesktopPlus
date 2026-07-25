@@ -1,3 +1,8 @@
+"""Process list + SIGTERM for current-UID peers (Stage C).
+
+@use levels: snapshot/_sample are high use (Monitor); terminate is low use.
+"""
+
 from __future__ import annotations
 
 import os
@@ -6,20 +11,30 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ..fncache import UseLevel, register_fn
 from .base import command_error, dispatch_command
 
 _PROC = Path("/proc")
 
 
 def _read_text(path: Path) -> str | None:
+    # @use: high use — purpose: fail-soft /proc file reads during sampling
     try:
         return path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
 
 
+@register_fn(
+    "processes.parse_proc_stat",
+    UseLevel.HIGH,
+    "Parse /proc/<pid>/stat into pid, cpu ticks, rss pages",
+)
 def parse_proc_stat(stat_line: str) -> tuple[int, int, int] | None:
-    """Return (pid, utime+stime, rss_pages) from a /proc/<pid>/stat line."""
+    """Return (pid, utime+stime, rss_pages) from a /proc/<pid>/stat line.
+
+    @use: high use — purpose: Monitor process CPU/RSS sampling.
+    """
     try:
         # Comm may contain spaces/parens — split after the last ')' of the name field.
         rparen = stat_line.rfind(")")
@@ -41,6 +56,7 @@ def parse_proc_stat(stat_line: str) -> tuple[int, int, int] | None:
 
 
 def parse_status_uids(status_text: str) -> int | None:
+    # @use: high use — purpose: ownership gate for terminate + owned chip
     for line in status_text.splitlines():
         if line.startswith("Uid:"):
             parts = line.split()
@@ -53,6 +69,7 @@ def parse_status_uids(status_text: str) -> int | None:
 
 
 def parse_status_name(status_text: str) -> str | None:
+    # @use: high use — purpose: process display name from /proc status
     for line in status_text.splitlines():
         if line.startswith("Name:"):
             return line.split(":", 1)[1].strip() or None
@@ -60,6 +77,8 @@ def parse_status_name(status_text: str) -> str | None:
 
 
 class ProcessAdapter:
+    """Sample top processes from /proc; SIGTERM only for current UID."""
+
     id = "processes"
 
     def __init__(
@@ -86,6 +105,7 @@ class ProcessAdapter:
         return self.proc_root.is_dir()
 
     def snapshot(self) -> dict[str, Any]:
+        # @use: high use — purpose: Monitor process panel poll
         if not self.available():
             return {"available": False}
         now = time.monotonic()
@@ -100,6 +120,7 @@ class ProcessAdapter:
         return snapshot.copy()
 
     def _sample(self, now: float) -> dict[str, Any]:
+        # @use: high use — purpose: walk /proc and rank by CPU/RSS delta
         current_ticks: dict[int, int] = {}
         rows: list[dict[str, Any]] = []
         elapsed = (
@@ -108,37 +129,9 @@ class ProcessAdapter:
             else None
         )
         for entry in self.proc_root.iterdir():
-            if not entry.name.isdigit():
-                continue
-            pid = int(entry.name)
-            stat_text = _read_text(entry / "stat")
-            if not stat_text:
-                continue
-            parsed = parse_proc_stat(stat_text)
-            if parsed is None:
-                continue
-            _, total_ticks, rss_pages = parsed
-            status_text = _read_text(entry / "status") or ""
-            owner = parse_status_uids(status_text)
-            name = parse_status_name(status_text) or entry.name
-            current_ticks[pid] = total_ticks
-            cpu_percent = 0.0
-            if elapsed and elapsed > 0 and pid in self._prev_ticks:
-                delta = max(0, total_ticks - self._prev_ticks[pid])
-                hz = os.sysconf("SC_CLK_TCK") if hasattr(os, "sysconf") else 100
-                # Percent of one logical CPU; may exceed 100 on multi-threaded procs.
-                cpu_percent = min(100.0 * self.cpu_count, (delta / (elapsed * hz)) * 100.0)
-            rss_bytes = max(0, rss_pages) * self.page_size
-            rows.append(
-                {
-                    "pid": pid,
-                    "name": name[:64],
-                    "uid": owner,
-                    "cpu_percent": round(cpu_percent, 1),
-                    "rss_bytes": rss_bytes,
-                    "owned": owner == self.uid,
-                }
-            )
+            row = self._sample_pid(entry, elapsed, current_ticks)
+            if row is not None:
+                rows.append(row)
         self._prev_ticks = current_ticks
         self._prev_mono = now
         rows.sort(key=lambda row: (-row["cpu_percent"], -row["rss_bytes"], row["pid"]))
@@ -151,7 +144,45 @@ class ProcessAdapter:
             "owned_uid": self.uid,
         }
 
+    def _sample_pid(
+        self,
+        entry: Path,
+        elapsed: float | None,
+        current_ticks: dict[int, int],
+    ) -> dict[str, Any] | None:
+        # @use: high use — purpose: one /proc/<pid> row for the Monitor table
+        if not entry.name.isdigit():
+            return None
+        pid = int(entry.name)
+        stat_text = _read_text(entry / "stat")
+        if not stat_text:
+            return None
+        parsed = parse_proc_stat(stat_text)
+        if parsed is None:
+            return None
+        _, total_ticks, rss_pages = parsed
+        status_text = _read_text(entry / "status") or ""
+        owner = parse_status_uids(status_text)
+        name = parse_status_name(status_text) or entry.name
+        current_ticks[pid] = total_ticks
+        cpu_percent = 0.0
+        if elapsed and elapsed > 0 and pid in self._prev_ticks:
+            delta = max(0, total_ticks - self._prev_ticks[pid])
+            hz = os.sysconf("SC_CLK_TCK") if hasattr(os, "sysconf") else 100
+            # Percent of one logical CPU; may exceed 100 on multi-threaded procs.
+            cpu_percent = min(100.0 * self.cpu_count, (delta / (elapsed * hz)) * 100.0)
+        rss_bytes = max(0, rss_pages) * self.page_size
+        return {
+            "pid": pid,
+            "name": name[:64],
+            "uid": owner,
+            "cpu_percent": round(cpu_percent, 1),
+            "rss_bytes": rss_bytes,
+            "owned": owner == self.uid,
+        }
+
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        # @use: high use — purpose: refresh/terminate via command hashmap
         return dispatch_command(self._commands(), name, payload, adapter_id=self.id)
 
     def _commands(self) -> dict[str, Any]:
@@ -165,6 +196,7 @@ class ProcessAdapter:
         return {"ok": True, **self.snapshot()}
 
     def _terminate(self, payload: dict[str, Any]) -> dict[str, Any]:
+        # @use: low use — purpose: SIGTERM current-UID process from Monitor
         pid_raw = payload.get("pid")
         try:
             pid = int(pid_raw)

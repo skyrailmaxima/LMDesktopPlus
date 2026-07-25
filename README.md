@@ -6,18 +6,18 @@ Hyprland session, and supplies a local control center for system telemetry,
 application launchers, agent workspaces, NetworkManager, media, settings, and
 desktop integration.
 
-Version **0.6.2** completes Stage D polish: idle/lock snippets, printers, user
-journal, live matrix wallpaper (HTML/`DV.rain`, optional `mpvpaper`; feature
-default **on**, START still explicit), Suggests tidy, optional `./stow.sh`, and
-UI kit Stage C/D stories. Stage C remains complete. The control center retains
-the shared Digitalvapor component and semantic-token layer from 0.3.0.
+Version **0.6.3** completes Stage D polish and a codebase-wide comment/unpack
+pass: adapters resolve through `dispatch_command` maps with `@use` / fncache
+annotations, including audio/display/wallpaper and Stage B peers. Live matrix
+wallpaper defaults **on** (START still explicit). Suggests tidy, optional
+`./stow.sh`, and UI kit Stage C/D stories ship from 0.6.2.
 
 ## Install the machine UI
 
 The Debian package is the cleanest system-wide installation:
 
 ```bash
-sudo apt install ./lmdesktopplus_0.6.2_all.deb
+sudo apt install ./lmdesktopplus_0.6.3_all.deb
 lmdesktopplus
 ```
 

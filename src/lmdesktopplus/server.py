@@ -331,9 +331,11 @@ class RequestHandler(BaseHTTPRequestHandler):
         self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
 
     def _post_adapter(self, path: str, body: dict[str, Any]) -> None:
+        # @use: high use — purpose: UI→adapter POST edge; validate then dispatch
         adapter_id = path.removeprefix("/api/v1/adapter/")
         name = body.get("name")
         payload = body.get("payload", {})
+        # Path/id validation happens before looking up the registry.
         if not adapter_id or "/" in adapter_id:
             self._json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "unknown adapter"})
             return
@@ -356,6 +358,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             )
             return
         try:
+            # Adapter command maps own payload validation and fail-soft shapes.
             result = adapter.command(name, payload)
         except Exception as exc:  # noqa: BLE001 — boundary for API JSON stability
             code, _message = classify_exception(exc)

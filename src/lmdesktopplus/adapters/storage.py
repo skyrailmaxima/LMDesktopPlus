@@ -1,3 +1,9 @@
+"""Removable storage via lsblk + udisksctl (Stage C).
+
+@use levels: snapshot/parse are medium; mount/unmount are low use.
+Only allowlisted removable partition paths may be mounted.
+"""
+
 from __future__ import annotations
 
 import json
@@ -6,6 +12,7 @@ import subprocess
 import time
 from typing import Any
 
+from ..fncache import UseLevel, register_fn
 from ..util import executable, run_capture
 from .base import command_error, dispatch_command
 
@@ -21,6 +28,7 @@ _DEVICE_RE = re.compile(
 
 
 def normalize_device(value: Any) -> str | None:
+    # @use: medium use — purpose: allowlist removable partition device paths
     if not isinstance(value, str):
         return None
     device = value.strip()
@@ -30,6 +38,7 @@ def normalize_device(value: Any) -> str | None:
 
 
 def _flatten_blockdevices(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    # @use: medium use — purpose: flatten lsblk children into a single walk list
     flat: list[dict[str, Any]] = []
     for node in nodes:
         flat.append(node)
@@ -40,6 +49,7 @@ def _flatten_blockdevices(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def is_removable_candidate(node: dict[str, Any]) -> bool:
+    # @use: medium use — purpose: keep USB/MMC/hotplug volumes only
     node_type = str(node.get("type") or "").lower()
     if node_type not in {"part", "disk"}:
         return False
@@ -49,7 +59,13 @@ def is_removable_candidate(node: dict[str, Any]) -> bool:
     return rm or hotplug or tran in {"usb", "firewire", "mmc", "sdio"}
 
 
+@register_fn(
+    "storage.parse_lsblk_json",
+    UseLevel.MEDIUM,
+    "Parse lsblk -J into allowlisted removable volume rows",
+)
 def parse_lsblk_json(payload: str | dict[str, Any]) -> list[dict[str, Any]]:
+    # @use: medium use — purpose: Monitor/Settings storage panel device list
     data = json.loads(payload) if isinstance(payload, str) else payload
     devices = data.get("blockdevices") if isinstance(data, dict) else None
     if not isinstance(devices, list):
@@ -87,6 +103,8 @@ def parse_lsblk_json(payload: str | dict[str, Any]) -> list[dict[str, Any]]:
 
 
 class RemovableStorageAdapter:
+    """List and mount/unmount removable volumes through udisksctl."""
+
     id = "storage"
 
     def __init__(
@@ -109,6 +127,7 @@ class RemovableStorageAdapter:
         return bool(self.lsblk)
 
     def snapshot(self) -> dict[str, Any]:
+        # @use: medium use — purpose: storage panel poll via lsblk -J
         if not self.available():
             return {"available": False}
         now = time.monotonic()
@@ -140,6 +159,7 @@ class RemovableStorageAdapter:
         return snapshot.copy()
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        # @use: medium use — purpose: mount/unmount/refresh via command hashmap
         return dispatch_command(self._commands(), name, payload, adapter_id=self.id)
 
     def _commands(self) -> dict[str, Any]:
@@ -177,6 +197,7 @@ class RemovableStorageAdapter:
         return self._mount_or_unmount(action, device)
 
     def _mount_or_unmount(self, action: str, device: str) -> dict[str, Any]:
+        # @use: low use — purpose: udisksctl mount/unmount after live allowlist check
         # Confirm the device still looks removable before invoking udisks.
         snap = self.snapshot()
         known = {
@@ -206,18 +227,21 @@ class RemovableStorageAdapter:
                 return command_error("permission_denied", error)
             return command_error("internal_error", error)
         self._cached_snapshot = None
-        mountpoint = None
-        if action == "mount":
-            for line in (result.stdout or "").splitlines():
-                if "at" in line.lower():
-                    # Typical: Mounted /dev/sdb1 at /media/user/LABEL
-                    parts = line.rsplit(" at ", 1)
-                    if len(parts) == 2:
-                        mountpoint = parts[1].strip().rstrip(".")
         return {
             "ok": True,
             "action": action,
             "device": device,
-            "mountpoint": mountpoint,
+            "mountpoint": self._parse_mountpoint(result.stdout or "") if action == "mount" else None,
             "message": (result.stdout or "").strip() or None,
         }
+
+    @staticmethod
+    def _parse_mountpoint(stdout: str) -> str | None:
+        # @use: low use — purpose: extract "Mounted … at PATH" from udisksctl
+        for line in stdout.splitlines():
+            if "at" in line.lower():
+                # Typical: Mounted /dev/sdb1 at /media/user/LABEL
+                parts = line.rsplit(" at ", 1)
+                if len(parts) == 2:
+                    return parts[1].strip().rstrip(".")
+        return None

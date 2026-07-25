@@ -346,6 +346,7 @@ function wallpaperPicker() {
   return `<div class="wallpaper-grid">${cards}</div>`;
 }
 
+/** @use: high use — purpose: patch desktop volume/mute chrome on metrics ticks */
 function patchAudioBindings() {
   const audio = app.state?.adapters?.audio || {};
   const available = Boolean(audio.available);
@@ -372,6 +373,7 @@ function patchAudioBindings() {
   if (icon?.file) $$("[data-audio-icon]").forEach(node => { node.src = `/icons/${icon.file}`; });
 }
 
+/** @use: high use — purpose: patch desktop brightness chrome on metrics ticks */
 function patchDisplayBindings() {
   const display = app.state?.adapters?.display || {};
   const available = Boolean(display.available);
@@ -609,6 +611,7 @@ function patchSessionBinding() {
   badgeRoot.append(badge);
 }
 
+/** @use: high use — purpose: cheap Desktop scene patch on metrics/media ticks */
 function patchDesktopBindings(changedPaths) {
   if (changedPaths.some(path => path === "agents" || path.startsWith("agents.") || path === "identity" || path.startsWith("identity.") || path === "assets" || path.startsWith("assets."))) return false;
   const m = app.state.metrics;
@@ -663,6 +666,7 @@ function patchMonitorCollections(metrics) {
   binders.renderPowerPanel?.($("[data-live-power]", $("#scene")), metrics.battery);
 }
 
+/** @use: high use — purpose: cheap Monitor scene patch on metrics ticks */
 function patchMonitorBindings(changedPaths=[]) {
   if (changedPaths.some(path => path === "adapters.processes" || path.startsWith("adapters.processes."))) {
     return false;
@@ -1380,6 +1384,7 @@ async function armHyprland() {
   }
 }
 
+/** @use: high use — purpose: debounce desktop volume slider → audio.set_volume */
 function queueAudioVolume(value) {
   const audio = app.state?.adapters?.audio;
   if (!audio?.available) return;
@@ -1413,6 +1418,7 @@ function queueAudioVolume(value) {
   }, 100);
 }
 
+/** @use: high use — purpose: optimistic mute toggle → audio.toggle_mute */
 async function toggleAudioMute() {
   const audio = app.state?.adapters?.audio;
   if (!audio?.available) return;
@@ -1428,6 +1434,7 @@ async function toggleAudioMute() {
   }
 }
 
+/** @use: high use — purpose: debounce brightness slider → display.set_brightness */
 function queueDisplayBrightness(value) {
   const display = app.state?.adapters?.display;
   if (!display?.available || !display.writable) return;
@@ -1804,11 +1811,14 @@ function bindSceneEvents() {
   window.LMDPBindings.bindFromTable(root, SCENE_BINDINGS, $$);
 }
 
+/** @use: medium use — purpose: app-wide unlock/wifi/confirm/hotkey wiring (once) */
 function bindGlobal() {
+  // Lock chrome — click anywhere on the lock surface to unlock.
   $("#unlock-button").addEventListener("click",unlock);
   $("#lock-screen").addEventListener("click",unlock);
   $("#status-audio").addEventListener("click", toggleAudioMute);
 
+  // Wi-Fi credential dialog → NetworkManager connect.
   $("#wifi-form").addEventListener("submit", (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -1819,6 +1829,7 @@ function bindGlobal() {
     if (ssid) connectWifi(ssid, password);
   });
 
+  // Shared confirm dialog accept (vault install, destructive peers, etc.).
   $("#confirm-dialog-accept").addEventListener("click", () => {
     const callback = app.pendingConfirm;
     app.pendingConfirm = null;
@@ -1826,11 +1837,13 @@ function bindGlobal() {
     if (callback) callback();
   });
 
+  // Kit story demos use data-demo-toast only (no live adapters).
   document.addEventListener("click", (event) => {
     const demo = event.target.closest("[data-demo-toast]");
     if (demo) toast(demo.dataset.demoToast, "Digitalvapor component event");
   });
 
+  // Digit/letter hotkeys map to scenes; Escape locks the UI.
   document.addEventListener("keydown",event=>{
     if(app.locked){ unlock(); return; }
     if (document.querySelector(".dv-dialog-backdrop.is-open")) return;
@@ -1850,9 +1863,17 @@ function warmUiFnCache() {
   cache.register("ui.adapterCommand", "high use", "POST /api/v1/adapter/<id> from any control", adapterCommand);
   cache.register("ui.api", "high use", "Tokenized loopback fetch helper", api);
   cache.register("ui.renderScene", "high use", "Rebuild or patch the active scene", renderScene);
+  cache.register("ui.patchAudioBindings", "high use", "Desktop volume/mute chrome patch", patchAudioBindings);
+  cache.register("ui.patchDisplayBindings", "high use", "Desktop brightness chrome patch", patchDisplayBindings);
+  cache.register("ui.patchDesktopBindings", "high use", "Desktop metrics/media cheap patch", patchDesktopBindings);
+  cache.register("ui.patchMonitorBindings", "high use", "Monitor metrics cheap patch", patchMonitorBindings);
+  cache.register("ui.queueAudioVolume", "high use", "Debounced audio.set_volume from slider", queueAudioVolume);
+  cache.register("ui.queueDisplayBrightness", "high use", "Debounced display.set_brightness from slider", queueDisplayBrightness);
+  cache.register("ui.toggleAudioMute", "high use", "Optimistic mute toggle", toggleAudioMute);
   cache.register("ui.mapVaultFeatureCards", "high use", "Apps vault cards from FEATURE_PACKAGES", mapVaultFeatureCards);
   cache.register("ui.forgePeerFromForm", "medium use", "Settings → Agents forge peer", forgePeerFromForm);
   cache.register("ui.tuneNeonChord", "medium use", "Settings → Keybinds tune combo", tuneNeonChord);
+  cache.register("ui.bindGlobal", "medium use", "One-time app-wide event wiring", bindGlobal);
   cache.register("ui.forgeVaultPack", "low use", "Confirmed pkexec apt install for vault feature", forgeVaultPack);
   cache.register("ui.requestVaultInstall", "low use", "Confirm dialog before vault install", requestVaultInstall);
 }

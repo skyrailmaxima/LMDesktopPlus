@@ -1,3 +1,8 @@
+"""VPN / WireGuard profiles via NetworkManager nmcli (Stage C).
+
+@use levels: snapshot is medium use; up/down are low use. Never stores secrets.
+"""
+
 from __future__ import annotations
 
 import re
@@ -5,6 +10,7 @@ import subprocess
 import time
 from typing import Any
 
+from ..fncache import UseLevel, register_fn
 from ..network import _split_nmcli
 from ..util import executable, run_capture
 from .base import command_error, dispatch_command
@@ -13,7 +19,13 @@ _VPN_TYPES = frozenset({"vpn", "wireguard"})
 _NAME_RE = re.compile(r"^[\w .@+()\[\]-]{1,128}$")
 
 
+@register_fn(
+    "vpn.normalize_connection_name",
+    UseLevel.MEDIUM,
+    "Validate nmcli connection name from UI payload",
+)
 def normalize_connection_name(value: Any) -> str | None:
+    # @use: medium use — purpose: refuse shell-like VPN connection names
     if not isinstance(value, str):
         return None
     name = value.strip()
@@ -22,7 +34,13 @@ def normalize_connection_name(value: Any) -> str | None:
     return name
 
 
+@register_fn(
+    "vpn.parse_vpn_connections",
+    UseLevel.MEDIUM,
+    "Parse nmcli -t connection rows into VPN/WireGuard list",
+)
 def parse_vpn_connections(output: str, active_names: set[str] | None = None) -> list[dict[str, Any]]:
+    # @use: medium use — purpose: Settings VPN panel rows from nmcli tabular output
     active = active_names or set()
     rows: list[dict[str, Any]] = []
     for line in output.splitlines():
@@ -47,6 +65,8 @@ def parse_vpn_connections(output: str, active_names: set[str] | None = None) -> 
 
 
 class VpnAdapter:
+    """List/up/down VPN profiles without persisting credentials."""
+
     id = "vpn"
 
     def __init__(self, cache_ttl: float = 5.0, nmcli: str | None = None) -> None:
@@ -61,44 +81,16 @@ class VpnAdapter:
         return bool(self.nmcli)
 
     def snapshot(self) -> dict[str, Any]:
+        # @use: medium use — purpose: Settings VPN panel poll
         if not self.available():
             return {"available": False}
         now = time.monotonic()
         if self._cached_snapshot is not None and now - self._cached_at < self.cache_ttl:
             return self._cached_snapshot.copy()
         try:
-            active_cp = run_capture(
-                [
-                    self.nmcli,
-                    "-t",
-                    "-f",
-                    "NAME,TYPE,DEVICE,STATE",
-                    "connection",
-                    "show",
-                    "--active",
-                ],
-                timeout=4,
-            )
-            if active_cp.returncode != 0:
-                raise RuntimeError(active_cp.stderr.strip() or "nmcli active connections failed")
-            active_names = {
-                row["name"]
-                for row in parse_vpn_connections(active_cp.stdout)
-            }
-            all_cp = run_capture(
-                [
-                    self.nmcli,
-                    "-t",
-                    "-f",
-                    "NAME,TYPE,DEVICE,STATE",
-                    "connection",
-                    "show",
-                ],
-                timeout=4,
-            )
-            if all_cp.returncode != 0:
-                raise RuntimeError(all_cp.stderr.strip() or "nmcli connections failed")
-            connections = parse_vpn_connections(all_cp.stdout, active_names)
+            # Active names first so inactive rows can mark active=True correctly.
+            active_names = self._active_vpn_names()
+            connections = parse_vpn_connections(self._list_connections_stdout(), active_names)
             snapshot = {
                 "available": True,
                 "backend": "nmcli",
@@ -111,7 +103,43 @@ class VpnAdapter:
         self._cached_snapshot = snapshot
         return snapshot.copy()
 
+    def _active_vpn_names(self) -> set[str]:
+        # @use: medium use — purpose: nmcli --active NAME set for VPN rows
+        active_cp = run_capture(
+            [
+                self.nmcli,
+                "-t",
+                "-f",
+                "NAME,TYPE,DEVICE,STATE",
+                "connection",
+                "show",
+                "--active",
+            ],
+            timeout=4,
+        )
+        if active_cp.returncode != 0:
+            raise RuntimeError(active_cp.stderr.strip() or "nmcli active connections failed")
+        return {row["name"] for row in parse_vpn_connections(active_cp.stdout)}
+
+    def _list_connections_stdout(self) -> str:
+        # @use: medium use — purpose: full nmcli connection list stdout
+        all_cp = run_capture(
+            [
+                self.nmcli,
+                "-t",
+                "-f",
+                "NAME,TYPE,DEVICE,STATE",
+                "connection",
+                "show",
+            ],
+            timeout=4,
+        )
+        if all_cp.returncode != 0:
+            raise RuntimeError(all_cp.stderr.strip() or "nmcli connections failed")
+        return all_cp.stdout
+
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        # @use: medium use — purpose: VPN up/down/refresh via command hashmap
         return dispatch_command(self._commands(), name, payload, adapter_id=self.id)
 
     def _commands(self) -> dict[str, Any]:
@@ -137,6 +165,7 @@ class VpnAdapter:
         return self._up_or_down(action, connection)
 
     def _up_or_down(self, action: str, connection: str) -> dict[str, Any]:
+        # @use: low use — purpose: nmcli connection up/down for one named profile
         try:
             result = run_capture(
                 [self.nmcli, "connection", action, connection],
@@ -149,6 +178,7 @@ class VpnAdapter:
         if result.returncode != 0:
             error = result.stderr.strip() or f"nmcli connection {action} failed"
             lower = error.lower()
+            # Polkit denials surface as permission_denied for the UI chip.
             if "permission" in lower or "not authorized" in lower or "polkit" in lower:
                 return command_error("permission_denied", error)
             return command_error("internal_error", error)
