@@ -48,7 +48,8 @@ class MediaControlTests(unittest.TestCase):
     def test_play_pause_ok(self, run_capture, _exe):
         result = control("play-pause")
         self.assertTrue(result["ok"])
-        self.assertEqual(run_capture.call_args[0][0][:2], ["playerctl", "play-pause"])
+        # First host call is the action; status() re-probes metadata afterward.
+        self.assertEqual(run_capture.call_args_list[0].args[0], ["playerctl", "play-pause"])
 
 
 if __name__ == "__main__":
