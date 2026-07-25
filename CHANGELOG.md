@@ -9,12 +9,8 @@
 - Monitor scene shows a VRAM row when memory fields are present.
 - Added `scripts/vm/smoke-cloud-guest.sh` for headless Ubuntu cloud tests when
   `/dev/kvm` is unavailable; `stow.sh` tolerates missing `HOME`.
-
-- GPU sampling priority: `nvidia-smi` → `rocm-smi` CSV → `amdgpu` sysfs
-  (`gpu_busy_percent`, VRAM, hwmon temp, product name).
-- Shared snapshot shape for AMD and NVIDIA: percent, VRAM used/total MiB,
-  temperature °C, source tag (`rocm-smi` / `amdgpu-sysfs`).
-- Monitor scene shows a VRAM row when memory fields are present.
+- Storage adapter tests pass `udisksctl=""` (not `None`) so PATH fallback does
+  not hide the “missing tool” case on guests that ship udisks2.
 
 ## 0.6.6 — Preopt keybinds / actions / agents + poll hosts + file I/O
 
