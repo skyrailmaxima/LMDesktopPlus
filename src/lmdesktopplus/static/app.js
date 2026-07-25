@@ -142,6 +142,14 @@ function humanBytes(bytes, rate=false) {
   return `${value.toFixed(digits)} ${units[i]}${rate ? "/s" : ""}`;
 }
 
+function formatGpuVram(gpu) {
+  // @use: high use — purpose: Monitor VRAM row for nvidia-smi / rocm-smi / amdgpu sysfs
+  if (gpu?.memory_used_mb == null || gpu?.memory_total_mb == null) return "n/a";
+  const used = humanBytes(Number(gpu.memory_used_mb) * 1024 * 1024);
+  const total = humanBytes(Number(gpu.memory_total_mb) * 1024 * 1024);
+  return `${used} / ${total}`;
+}
+
 function humanDuration(seconds) {
   let s = Math.max(0, Math.floor(Number(seconds) || 0));
   const d = Math.floor(s/86400); s %= 86400;
@@ -539,7 +547,7 @@ function renderMonitor() {
     <div class="grid two">
       ${panel(`<span data-live="monitor.cpu.title">CPU · ${Math.round(m.cpu.percent)}%</span>`, `${chartSvg(app.history.cpu,100,"cpu")}<div class="core-grid" data-live-cores>${cores}</div>`, "accent")}
       ${panel(`<span data-live="monitor.memory.title">MEMORY · ${Math.round(m.memory.percent)}%</span>`, `${chartSvg(app.history.ram,100,"ram")}${liveStatRow("monitor.memory.used","Used",humanBytes(m.memory.used))}${liveStatRow("monitor.memory.available","Available",humanBytes(m.memory.available))}`)}
-      ${panel(`<span data-live="monitor.gpu.title">GPU · ${m.gpu.percent == null ? "n/a" : Math.round(m.gpu.percent)+"%"}</span>`, `${chartSvg(app.history.gpu,100,"gpu")}${liveStatRow("monitor.gpu.name","Device",m.gpu.name || "unavailable")}${liveStatRow("monitor.gpu.temperature","Temperature",m.gpu.temperature_c != null ? `${m.gpu.temperature_c} °C` : "n/a")}`)}
+      ${panel(`<span data-live="monitor.gpu.title">GPU · ${m.gpu.percent == null ? "n/a" : Math.round(m.gpu.percent)+"%"}</span>`, `${chartSvg(app.history.gpu,100,"gpu")}${liveStatRow("monitor.gpu.name","Device",m.gpu.name || "unavailable")}${liveStatRow("monitor.gpu.vram","VRAM",formatGpuVram(m.gpu))}${liveStatRow("monitor.gpu.temperature","Temperature",m.gpu.temperature_c != null ? `${m.gpu.temperature_c} °C` : "n/a")}`)}
       ${panel("NETWORK", `${chartSvg(app.history.down,maxNet,"network")}${liveStatRow("monitor.network.down","Download",humanBytes(m.network.down_bps,true))}${liveStatRow("monitor.network.up","Upload",humanBytes(m.network.up_bps,true))}`)}
     </div>
     <div class="grid three" style="margin-top:16px">
@@ -679,6 +687,7 @@ function patchMonitorBindings(changedPaths=[]) {
   setLiveText("monitor.memory.available", humanBytes(m.memory.available));
   setLiveText("monitor.gpu.title", `GPU · ${m.gpu.percent == null ? "n/a" : `${Math.round(m.gpu.percent)}%`}`);
   setLiveText("monitor.gpu.name", m.gpu.name || "unavailable");
+  setLiveText("monitor.gpu.vram", formatGpuVram(m.gpu));
   setLiveText("monitor.gpu.temperature", m.gpu.temperature_c != null ? `${m.gpu.temperature_c} °C` : "n/a");
   setLiveText("monitor.network.down", humanBytes(m.network.down_bps,true));
   setLiveText("monitor.network.up", humanBytes(m.network.up_bps,true));

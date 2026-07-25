@@ -7,8 +7,201 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .preopt import parse_float, try_run
+from .fncache import UseLevel, register_fn
+from .preopt import Outcome, first_ok_scan, parse_float, parse_int, try_run
 from .util import first_executable
+
+
+def _read_sysfs_text(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return None
+
+
+def _bytes_to_mb(raw: Any) -> float | None:
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, (int, float)):
+        value = float(raw)
+    else:
+        value = parse_float(raw)
+        if value is None:
+            as_int = parse_int(raw)
+            value = float(as_int) if as_int is not None else None
+    if value is None:
+        return None
+    # Values ≥ 1 MiB are treated as bytes (rocm-smi / amdgpu sysfs).
+    return round(value / (1024.0 * 1024.0), 1) if value >= 1_048_576 else round(value, 1)
+
+
+def _normalize_csv_headers(headers: list[str]) -> dict[str, str]:
+    # Lowercased header → original key for alias lookups (one pass).
+    return {header.lower(): header for header in headers}
+
+
+@register_fn(
+    "system_info.parse_rocm_smi_csv",
+    UseLevel.HIGH,
+    "Parse rocm-smi --csv product/use/vram/temp into GPU metrics row",
+)
+def parse_rocm_smi_csv(stdout: str) -> dict[str, Any] | None:
+    """Map first data row from rocm-smi CSV onto the shared GPU snapshot shape.
+
+    @use: high use — purpose: AMD ROCm metrics without raising into poll.
+    """
+    lines = [
+        line.strip()
+        for line in stdout.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if len(lines) < 2:
+        return None
+    headers = [part.strip() for part in lines[0].split(",")]
+    header_index = _normalize_csv_headers(headers)
+    # One loop: first usable device row wins.
+    for line in lines[1:]:
+        cols = [part.strip() for part in line.split(",")]
+        if len(cols) < 2:
+            continue
+        row = {headers[i]: cols[i] for i in range(min(len(headers), len(cols)))}
+        percent = _row_float(
+            row,
+            header_index,
+            ("gpu use (%)", "gpu%"),
+        )
+        mem_total = _bytes_to_mb(
+            _row_raw(
+                row,
+                header_index,
+                ("vram total memory (b)", "vram total memory(b)"),
+            )
+        )
+        mem_used = _bytes_to_mb(
+            _row_raw(
+                row,
+                header_index,
+                ("vram total used memory (b)", "vram total used memory(b)"),
+            )
+        )
+        temp = _row_float(
+            row,
+            header_index,
+            (
+                "temperature (sensor edge) (c)",
+                "temperature (sensor junction) (c)",
+                "temperature (sensor mem) (c)",
+                "temperature (c)",
+            ),
+        )
+        name = _row_raw(row, header_index, ("card series", "card model", "device")) or "AMD GPU"
+        if percent is None and mem_total is None and temp is None:
+            continue
+        return {
+            "name": str(name),
+            "percent": percent,
+            "memory_used_mb": mem_used,
+            "memory_total_mb": mem_total,
+            "temperature_c": temp,
+            "source": "rocm-smi",
+        }
+    return None
+
+
+def _row_raw(
+    row: dict[str, str],
+    header_index: dict[str, str],
+    keys: tuple[str, ...],
+) -> str | None:
+    # @use: high use — purpose: O(aliases) CSV cell lookup via lowered header map
+    for key in keys:
+        actual = header_index.get(key)
+        if actual is None:
+            continue
+        value = row.get(actual)
+        if value not in (None, "", "N/A"):
+            return value
+    return None
+
+
+def _row_float(
+    row: dict[str, str],
+    header_index: dict[str, str],
+    keys: tuple[str, ...],
+) -> float | None:
+    raw = _row_raw(row, header_index, keys)
+    return None if raw is None else parse_float(raw)
+
+
+@register_fn(
+    "system_info.probe_amd_sysfs_card",
+    UseLevel.HIGH,
+    "Read one amdgpu DRM card: busy%, VRAM, edge temp, product name",
+)
+def probe_amd_sysfs_card(card: Path) -> dict[str, Any] | None:
+    """Probe a single `/sys/class/drm/cardN` tree for AMD metrics.
+
+    @use: high use — purpose: AMD without ROCm userspace tools.
+    """
+    device = card / "device"
+    busy_path = device / "gpu_busy_percent"
+    if not busy_path.is_file():
+        return None
+    busy_raw = _read_sysfs_text(busy_path)
+    percent = parse_float(busy_raw) if busy_raw is not None else None
+    mem_used = _bytes_to_mb(_read_sysfs_text(device / "mem_info_vram_used"))
+    mem_total = _bytes_to_mb(_read_sysfs_text(device / "mem_info_vram_total"))
+    temp = _amd_sysfs_temp_c(device)
+    name = (
+        _read_sysfs_text(device / "product_name")
+        or _amd_sysfs_marketing_name(device)
+        or card.name
+    )
+    if percent is None and mem_total is None and temp is None:
+        return None
+    return {
+        "name": name,
+        "percent": percent,
+        "memory_used_mb": mem_used,
+        "memory_total_mb": mem_total,
+        "temperature_c": temp,
+        "source": "amdgpu-sysfs",
+    }
+
+
+def _amd_sysfs_temp_c(device: Path) -> float | None:
+    # @use: high use — purpose: first amdgpu hwmon temp1_input (millidegC)
+    hwmon_root = device / "hwmon"
+    if not hwmon_root.is_dir():
+        return None
+    for hwmon in sorted(hwmon_root.glob("hwmon*")):
+        raw = _read_sysfs_text(hwmon / "temp1_input")
+        if raw is None:
+            continue
+        milli = parse_float(raw)
+        if milli is None:
+            continue
+        celsius = milli / 1000.0 if milli > 200 else milli
+        if -20 <= celsius <= 150:
+            return round(celsius, 1)
+    return None
+
+
+def _amd_sysfs_marketing_name(device: Path) -> str | None:
+    # @use: medium use — purpose: best-effort label from uevent PCI ids
+    uevent = _read_sysfs_text(device / "uevent")
+    if not uevent:
+        return None
+    vendor = device_id = None
+    for line in uevent.splitlines():
+        if line.startswith("PCI_ID="):
+            parts = line.split("=", 1)[1].split(":")
+            if len(parts) == 2:
+                vendor, device_id = parts[0].lower(), parts[1].lower()
+            break
+    if vendor == "1002" and device_id:
+        return f"AMD GPU ({device_id})"
+    return "AMD GPU" if vendor == "1002" else None
 
 
 class SystemSampler:
@@ -133,19 +326,25 @@ class SystemSampler:
 
     @staticmethod
     def _gpu() -> dict[str, Any]:
-        # @use: high use — purpose: metrics GPU sample; nvidia-smi via try_run
-        nvidia = SystemSampler._nvidia_gpu()
-        if nvidia is not None:
-            return nvidia
-        # AMD exposes busy percent on many amdgpu systems (one loop).
-        for card in sorted(Path("/sys/class/drm").glob("card*/device/gpu_busy_percent")):
-            try:
-                pct = float(card.read_text().strip())
-                name = card.parents[1].name
-                return {"name": name, "percent": pct, "source": "sysfs"}
-            except (OSError, ValueError):
-                continue
-        return {"name": "unavailable", "percent": None, "source": None}
+        # @use: high use — purpose: metrics GPU sample; nvidia → AMD → unavailable
+        def probe(fn) -> Outcome:
+            row = fn()
+            return Outcome.success(row) if row is not None else Outcome.fail("miss")
+
+        result = first_ok_scan(
+            (
+                SystemSampler._nvidia_gpu,
+                SystemSampler._amd_rocm_gpu,
+                SystemSampler._amd_sysfs_gpu,
+            ),
+            probe,
+            empty_error="no gpu backend",
+        )
+        return (
+            result.value
+            if result.ok
+            else {"name": "unavailable", "percent": None, "source": None}
+        )
 
     @staticmethod
     def _nvidia_gpu() -> dict[str, Any] | None:
@@ -178,6 +377,37 @@ class SystemSampler:
             "temperature_c": temp,
             "source": "nvidia-smi",
         }
+
+    @staticmethod
+    def _amd_rocm_gpu() -> dict[str, Any] | None:
+        # @use: high use — purpose: AMD metrics via rocm-smi CSV (try_run)
+        if not first_executable(["rocm-smi"]):
+            return None
+        run = try_run(
+            [
+                "rocm-smi",
+                "--showproductname",
+                "--showuse",
+                "--showmeminfo",
+                "vram",
+                "--showtemp",
+                "--csv",
+            ],
+            timeout=2,
+        )
+        if not run.ok or not run.stdout.strip():
+            return None
+        return parse_rocm_smi_csv(run.stdout)
+
+    @staticmethod
+    def _amd_sysfs_gpu() -> dict[str, Any] | None:
+        # @use: high use — purpose: amdgpu sysfs util/VRAM/temp without ROCm tools
+        cards = sorted(Path("/sys/class/drm").glob("card[0-9]*"))
+        for card in cards:
+            row = probe_amd_sysfs_card(card)
+            if row is not None:
+                return row
+        return None
 
     @staticmethod
     def _battery() -> dict[str, Any] | None:

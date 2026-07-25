@@ -6,16 +6,16 @@ Hyprland session, and supplies a local control center for system telemetry,
 application launchers, agent workspaces, NetworkManager, media, settings, and
 desktop integration.
 
-Version **0.6.6** extends preopt to poll hosts (`network` / `media` / GPU),
-keybinds / actions / agents command edges, and fail-soft file I/O helpers.
-Live matrix wallpaper defaults **on** (START still explicit).
+Version **0.6.7** adds AMD GPU metrics (`rocm-smi` + amdgpu sysfs) alongside
+NVIDIA, on top of the 0.6.6 preopt pass. Live matrix wallpaper defaults **on**
+(START still explicit).
 
 ## Install the machine UI
 
 The Debian package is the cleanest system-wide installation:
 
 ```bash
-sudo apt install ./lmdesktopplus_0.6.6_all.deb
+sudo apt install ./lmdesktopplus_0.6.7_all.deb
 lmdesktopplus
 ```
 

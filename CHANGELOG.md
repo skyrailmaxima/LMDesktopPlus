@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.7 — AMD GPU metrics (rocm-smi + amdgpu sysfs)
+
+- GPU sampling priority: `nvidia-smi` → `rocm-smi` CSV → `amdgpu` sysfs
+  (`gpu_busy_percent`, VRAM, hwmon temp, product name).
+- Shared snapshot shape for AMD and NVIDIA: percent, VRAM used/total MiB,
+  temperature °C, source tag (`rocm-smi` / `amdgpu-sysfs`).
+- Monitor scene shows a VRAM row when memory fields are present.
+
 ## 0.6.6 — Preopt keybinds / actions / agents + poll hosts + file I/O
 
 - Poll hosts outside the adapter fence now use `try_run`: `network.current`,
