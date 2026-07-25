@@ -97,7 +97,7 @@ class StorageAdapterTests(unittest.TestCase):
             {"available": False},
         )
 
-    @patch("lmdesktopplus.adapters.storage.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_snapshot_lists_removable(self, run_capture):
         run_capture.return_value = completed(json.dumps(LSBLK))
         adapter = RemovableStorageAdapter(
@@ -112,7 +112,7 @@ class StorageAdapterTests(unittest.TestCase):
         self.assertEqual(adapter.snapshot()["devices"][0]["path"], "/dev/sdb1")
         self.assertEqual(run_capture.call_count, 1)
 
-    @patch("lmdesktopplus.adapters.storage.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_mount_and_unmount(self, run_capture):
         run_capture.side_effect = [
             completed(json.dumps(LSBLK)),  # snapshot gate
@@ -138,7 +138,7 @@ class StorageAdapterTests(unittest.TestCase):
             ["/usr/bin/udisksctl", "unmount", "-b", "/dev/sdb1"],
         )
 
-    @patch("lmdesktopplus.adapters.storage.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_rejects_non_removable_and_missing_udisks(self, run_capture):
         run_capture.return_value = completed(json.dumps(LSBLK))
         no_udisks = RemovableStorageAdapter(

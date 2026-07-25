@@ -18,6 +18,7 @@ Preferred base branch: `feature/lmdesktopplus`.
 | `cursor/stage-c-power-user-081e` | **0.5.0** Stage C complete (Tranches 1–6 + fncache use-level hashmap) |
 | `cursor/stage-d-polish-081e` | **0.6.0–0.6.2** Stage D Tasks 19–23 (idle, printers, logs, live wallpaper, stow/Suggests/kit) |
 | `cursor/deconvolute-comments-081e` | **0.6.3** comment/unpack + `@use`/dispatch parity across adapters |
+| `cursor/branchless-preopt-081e` | **0.6.4** preopt outcomes + ternary/single-loop hot paths |
 
 ## Landed on `feature/lmdesktopplus`
 

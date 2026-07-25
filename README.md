@@ -6,18 +6,17 @@ Hyprland session, and supplies a local control center for system telemetry,
 application launchers, agent workspaces, NetworkManager, media, settings, and
 desktop integration.
 
-Version **0.6.3** completes Stage D polish and a codebase-wide comment/unpack
-pass: adapters resolve through `dispatch_command` maps with `@use` / fncache
-annotations, including audio/display/wallpaper and Stage B peers. Live matrix
-wallpaper defaults **on** (START still explicit). Suggests tidy, optional
-`./stow.sh`, and UI kit Stage C/D stories ship from 0.6.2.
+Version **0.6.4** adds branchless preoptimized hot paths (`preopt.try_run` /
+`Outcome` / single-loop priority scans) on top of the 0.6.3 comment/unpack
+pass. Adapters resolve through `dispatch_command` maps with `@use` / fncache
+annotations. Live matrix wallpaper defaults **on** (START still explicit).
 
 ## Install the machine UI
 
 The Debian package is the cleanest system-wide installation:
 
 ```bash
-sudo apt install ./lmdesktopplus_0.6.3_all.deb
+sudo apt install ./lmdesktopplus_0.6.4_all.deb
 lmdesktopplus
 ```
 

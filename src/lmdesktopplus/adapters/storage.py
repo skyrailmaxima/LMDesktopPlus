@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 import time
 from typing import Any
 
 from ..fncache import UseLevel, register_fn
-from ..util import executable, run_capture
+from ..preopt import Outcome, try_run
+from ..util import executable
 from .base import command_error, dispatch_command
 
 # Removable/hotplug partitions and whole disks only — never system roots by path alone.
@@ -38,13 +38,14 @@ def normalize_device(value: Any) -> str | None:
 
 
 def _flatten_blockdevices(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    # @use: medium use — purpose: flatten lsblk children into a single walk list
+    # @use: medium use — purpose: flatten lsblk children with one iterative loop
     flat: list[dict[str, Any]] = []
-    for node in nodes:
+    stack = list(reversed(nodes))
+    while stack:
+        node = stack.pop()
         flat.append(node)
         children = node.get("children") or []
-        if isinstance(children, list):
-            flat.extend(_flatten_blockdevices(children))
+        isinstance(children, list) and stack.extend(reversed(children))
     return flat
 
 
@@ -66,7 +67,13 @@ def is_removable_candidate(node: dict[str, Any]) -> bool:
 )
 def parse_lsblk_json(payload: str | dict[str, Any]) -> list[dict[str, Any]]:
     # @use: medium use — purpose: Monitor/Settings storage panel device list
-    data = json.loads(payload) if isinstance(payload, str) else payload
+    if isinstance(payload, str):
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError:
+            return []
+    else:
+        data = payload
     devices = data.get("blockdevices") if isinstance(data, dict) else None
     if not isinstance(devices, list):
         return []
@@ -131,32 +138,36 @@ class RemovableStorageAdapter:
         if not self.available():
             return {"available": False}
         now = time.monotonic()
-        if self._cached_snapshot is not None and now - self._cached_at < self.cache_ttl:
-            return self._cached_snapshot.copy()
-        try:
-            result = run_capture(
-                [
-                    self.lsblk,
-                    "-J",
-                    "-o",
-                    "NAME,PATH,TYPE,SIZE,FSTYPE,LABEL,MOUNTPOINT,RM,HOTPLUG,TRAN",
-                ],
-                timeout=5,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(result.stderr.strip() or "lsblk failed")
-            devices = parse_lsblk_json(result.stdout)
-            snapshot = {
-                "available": True,
-                "backend": "lsblk",
-                "can_mount": bool(self.udisksctl),
-                "devices": devices,
-            }
-        except (OSError, RuntimeError, json.JSONDecodeError, subprocess.TimeoutExpired) as exc:
-            snapshot = {"available": False, "last_error": str(exc)}
+        cached = self._cached_snapshot
+        if cached is not None and now - self._cached_at < self.cache_ttl:
+            return cached.copy()
+        probed = self._probe_lsblk()
+        snapshot = probed.value if probed.ok else {"available": False, "last_error": probed.error}
         self._cached_at = now
         self._cached_snapshot = snapshot
         return snapshot.copy()
+
+    def _probe_lsblk(self) -> Outcome:
+        # @use: medium use — purpose: lsblk -J → device rows without raises
+        run = try_run(
+            [
+                self.lsblk,
+                "-J",
+                "-o",
+                "NAME,PATH,TYPE,SIZE,FSTYPE,LABEL,MOUNTPOINT,RM,HOTPLUG,TRAN",
+            ],
+            timeout=5,
+        )
+        if not run.ok:
+            return Outcome.fail(run.error or run.stderr.strip() or "lsblk failed")
+        return Outcome.success(
+            {
+                "available": True,
+                "backend": "lsblk",
+                "can_mount": bool(self.udisksctl),
+                "devices": parse_lsblk_json(run.stdout),
+            }
+        )
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
         # @use: medium use — purpose: mount/unmount/refresh via command hashmap
@@ -211,28 +222,33 @@ class RemovableStorageAdapter:
                 "invalid_argument",
                 "device is not a currently detected removable volume",
             )
-        try:
-            result = run_capture(
-                [self.udisksctl, action, "-b", device],
-                timeout=30,
+        run = try_run([self.udisksctl, action, "-b", device], timeout=30)
+        if not run.launched:
+            return (
+                command_error("timeout", f"udisksctl {action} timed out")
+                if "timed out" in run.error
+                else command_error("internal_error", run.error)
             )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            if isinstance(exc, subprocess.TimeoutExpired):
-                return command_error("timeout", f"udisksctl {action} timed out")
-            return command_error("internal_error", str(exc))
-        if result.returncode != 0:
-            error = result.stderr.strip() or result.stdout.strip() or f"udisksctl {action} failed"
+        if not run.ok:
+            error = run.stderr.strip() or run.stdout.strip() or f"udisksctl {action} failed"
             lower = error.lower()
-            if "permission" in lower or "not authorized" in lower or "polkit" in lower:
-                return command_error("permission_denied", error)
-            return command_error("internal_error", error)
+            denied = (
+                "permission" in lower
+                or "not authorized" in lower
+                or "polkit" in lower
+            )
+            return (
+                command_error("permission_denied", error)
+                if denied
+                else command_error("internal_error", error)
+            )
         self._cached_snapshot = None
         return {
             "ok": True,
             "action": action,
             "device": device,
-            "mountpoint": self._parse_mountpoint(result.stdout or "") if action == "mount" else None,
-            "message": (result.stdout or "").strip() or None,
+            "mountpoint": self._parse_mountpoint(run.stdout) if action == "mount" else None,
+            "message": run.stdout.strip() or None,
         }
 
     @staticmethod

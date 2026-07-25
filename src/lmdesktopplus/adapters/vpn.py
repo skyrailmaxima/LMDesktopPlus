@@ -6,13 +6,13 @@
 from __future__ import annotations
 
 import re
-import subprocess
 import time
 from typing import Any
 
 from ..fncache import UseLevel, register_fn
 from ..network import _split_nmcli
-from ..util import executable, run_capture
+from ..preopt import Outcome, try_run
+from ..util import executable
 from .base import command_error, dispatch_command
 
 _VPN_TYPES = frozenset({"vpn", "wireguard"})
@@ -85,58 +85,56 @@ class VpnAdapter:
         if not self.available():
             return {"available": False}
         now = time.monotonic()
-        if self._cached_snapshot is not None and now - self._cached_at < self.cache_ttl:
-            return self._cached_snapshot.copy()
-        try:
-            # Active names first so inactive rows can mark active=True correctly.
-            active_names = self._active_vpn_names()
-            connections = parse_vpn_connections(self._list_connections_stdout(), active_names)
-            snapshot = {
+        cached = self._cached_snapshot
+        if cached is not None and now - self._cached_at < self.cache_ttl:
+            return cached.copy()
+        probed = self._probe_connections()
+        snapshot = (
+            probed.value
+            if probed.ok
+            else {"available": False, "last_error": probed.error}
+        )
+        self._cached_at = now
+        self._cached_snapshot = snapshot
+        return snapshot.copy()
+
+    def _probe_connections(self) -> Outcome:
+        # @use: medium use — purpose: nmcli active+all list without raises
+        active = self._nmcli_connections(active_only=True)
+        if not active.ok:
+            return active
+        listed = self._nmcli_connections(active_only=False)
+        if not listed.ok:
+            return listed
+        active_names = {row["name"] for row in parse_vpn_connections(active.value)}
+        connections = parse_vpn_connections(listed.value, active_names)
+        return Outcome.success(
+            {
                 "available": True,
                 "backend": "nmcli",
                 "connections": connections,
                 "active_count": sum(1 for row in connections if row["active"]),
             }
-        except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
-            snapshot = {"available": False, "last_error": str(exc)}
-        self._cached_at = now
-        self._cached_snapshot = snapshot
-        return snapshot.copy()
-
-    def _active_vpn_names(self) -> set[str]:
-        # @use: medium use — purpose: nmcli --active NAME set for VPN rows
-        active_cp = run_capture(
-            [
-                self.nmcli,
-                "-t",
-                "-f",
-                "NAME,TYPE,DEVICE,STATE",
-                "connection",
-                "show",
-                "--active",
-            ],
-            timeout=4,
         )
-        if active_cp.returncode != 0:
-            raise RuntimeError(active_cp.stderr.strip() or "nmcli active connections failed")
-        return {row["name"] for row in parse_vpn_connections(active_cp.stdout)}
 
-    def _list_connections_stdout(self) -> str:
-        # @use: medium use — purpose: full nmcli connection list stdout
-        all_cp = run_capture(
-            [
-                self.nmcli,
-                "-t",
-                "-f",
-                "NAME,TYPE,DEVICE,STATE",
-                "connection",
-                "show",
-            ],
-            timeout=4,
+    def _nmcli_connections(self, *, active_only: bool) -> Outcome:
+        # @use: medium use — purpose: one nmcli connection show (active or all)
+        argv = [
+            self.nmcli,
+            "-t",
+            "-f",
+            "NAME,TYPE,DEVICE,STATE",
+            "connection",
+            "show",
+            *(["--active"] if active_only else []),
+        ]
+        run = try_run(argv, timeout=4)
+        label = "active connections" if active_only else "connections"
+        return (
+            Outcome.success(run.stdout)
+            if run.ok
+            else Outcome.fail(run.error or run.stderr.strip() or f"nmcli {label} failed")
         )
-        if all_cp.returncode != 0:
-            raise RuntimeError(all_cp.stderr.strip() or "nmcli connections failed")
-        return all_cp.stdout
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
         # @use: medium use — purpose: VPN up/down/refresh via command hashmap
@@ -166,21 +164,26 @@ class VpnAdapter:
 
     def _up_or_down(self, action: str, connection: str) -> dict[str, Any]:
         # @use: low use — purpose: nmcli connection up/down for one named profile
-        try:
-            result = run_capture(
-                [self.nmcli, "connection", action, connection],
-                timeout=45,
+        run = try_run([self.nmcli, "connection", action, connection], timeout=45)
+        if not run.launched:
+            return (
+                command_error("timeout", f"nmcli connection {action} timed out")
+                if "timed out" in run.error
+                else command_error("internal_error", run.error)
             )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            if isinstance(exc, subprocess.TimeoutExpired):
-                return command_error("timeout", f"nmcli connection {action} timed out")
-            return command_error("internal_error", str(exc))
-        if result.returncode != 0:
-            error = result.stderr.strip() or f"nmcli connection {action} failed"
+        if not run.ok:
+            error = run.stderr.strip() or f"nmcli connection {action} failed"
             lower = error.lower()
             # Polkit denials surface as permission_denied for the UI chip.
-            if "permission" in lower or "not authorized" in lower or "polkit" in lower:
-                return command_error("permission_denied", error)
-            return command_error("internal_error", error)
+            denied = (
+                "permission" in lower
+                or "not authorized" in lower
+                or "polkit" in lower
+            )
+            return (
+                command_error("permission_denied", error)
+                if denied
+                else command_error("internal_error", error)
+            )
         self._cached_snapshot = None
         return {"ok": True, "action": action, "name": connection}

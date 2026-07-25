@@ -67,7 +67,7 @@ class VpnAdapterTests(unittest.TestCase):
     def test_unavailable_without_nmcli(self):
         self.assertEqual(VpnAdapter(nmcli="").snapshot(), {"available": False})
 
-    @patch("lmdesktopplus.adapters.vpn.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_snapshot_lists_and_caches(self, run_capture):
         run_capture.side_effect = [completed(ACTIVE_VPN), completed(ALL_CONNECTIONS)]
         adapter = VpnAdapter(nmcli="/usr/bin/nmcli", cache_ttl=5.0)
@@ -80,7 +80,7 @@ class VpnAdapterTests(unittest.TestCase):
         self.assertEqual(adapter.snapshot()["active_count"], 1)
         self.assertEqual(run_capture.call_count, 2)
 
-    @patch("lmdesktopplus.adapters.vpn.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_up_and_down(self, run_capture):
         adapter = VpnAdapter(nmcli="/usr/bin/nmcli")
         self.assertEqual(
@@ -108,7 +108,7 @@ class VpnAdapterTests(unittest.TestCase):
         unknown = adapter.command("connect", {})
         self.assertEqual(unknown["error_code"], "unavailable")
 
-    @patch("lmdesktopplus.adapters.vpn.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_permission_errors_are_classified(self, run_capture):
         run_capture.return_value = completed(
             stderr="Error: Connection activation failed: Not authorized",

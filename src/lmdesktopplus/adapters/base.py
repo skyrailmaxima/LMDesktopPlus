@@ -38,18 +38,18 @@ def dispatch_command(
     Looks up `name` in `commands`, runs the handler with `payload`, and returns a
     stable `command_error` when the name is unknown.
     """
-    # Hash-map lookup replaces cascading conditionals.
+    # Hash-map lookup — never KeyErrors; unknown → fail-soft ternary.
     handler = commands.get(name)
-    # Unknown names fail soft with an optional adapter-scoped label.
-    if handler is None:
-        label = (
-            f"unknown {adapter_id} command: {name}"
-            if adapter_id
-            else f"unknown command: {name}"
-        )
-        return command_error("unavailable", label)
-    # Handlers own payload validation and return shapes.
-    return handler(payload)
+    label = (
+        f"unknown {adapter_id} command: {name}"
+        if adapter_id
+        else f"unknown command: {name}"
+    )
+    return (
+        command_error("unavailable", label)
+        if handler is None
+        else handler(payload)
+    )
 
 
 class NullAdapter:
@@ -69,6 +69,41 @@ class NullAdapter:
         )
 
 
+# Envelope keys stripped from nested `state` — preoptimized frozenset for O(1).
+_ENVELOPE_KEYS = frozenset(
+    {
+        "id",
+        "available",
+        "status",
+        "backend",
+        "updated_at",
+        "stale",
+        "capabilities",
+        "state",
+        "error",
+        "last_error",
+    }
+)
+
+
+def _derive_status(available: bool, snapshot: dict[str, Any]) -> str:
+    # @use: high use — purpose: ternary status ladder without nested if trees
+    explicit = snapshot.get("status")
+    return (
+        explicit
+        if isinstance(explicit, str) and explicit
+        else (
+            "unavailable"
+            if not available
+            else (
+                "degraded"
+                if (snapshot.get("last_error") or snapshot.get("error"))
+                else "ready"
+            )
+        )
+    )
+
+
 @register_fn(
     "adapters.envelope",
     UseLevel.HIGH,
@@ -86,23 +121,13 @@ def envelope(
 
     @use: high use — purpose: every adapter poll lands in this shaper.
     """
-    # Derive availability once; status may already be set by the adapter.
     available = bool(snapshot.get("available"))
-    status = snapshot.get("status")
-    if not isinstance(status, str) or not status:
-        # Fail-soft status ladder when adapters omit an explicit status.
-        if not available:
-            status = "unavailable"
-        elif snapshot.get("last_error") or snapshot.get("error"):
-            status = "degraded"
-        else:
-            status = "ready"
+    status = _derive_status(available, snapshot)
     # Prefer explicit error; fall back to last_error from probes.
     error = snapshot.get("error")
-    if error is None:
-        error = snapshot.get("last_error")
+    error = snapshot.get("last_error") if error is None else error
     # Nested `state` drops envelope keys so clients can read either shape.
-    out = {
+    return {
         **snapshot,
         "id": adapter_id,
         "available": available,
@@ -114,23 +139,10 @@ def envelope(
         "state": {
             key: value
             for key, value in snapshot.items()
-            if key
-            not in {
-                "id",
-                "available",
-                "status",
-                "backend",
-                "updated_at",
-                "stale",
-                "capabilities",
-                "state",
-                "error",
-                "last_error",
-            }
+            if key not in _ENVELOPE_KEYS
         },
         "error": error,
     }
-    return out
 
 
 def command_error(error_code: str, message: str, **extra: Any) -> dict[str, Any]:

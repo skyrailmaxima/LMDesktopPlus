@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.4 — Branchless preoptimized hot paths
+
+- Added `preopt` outcomes (`Outcome`, `RunOutcome`, `try_run`, `first_ok_scan`,
+  `parse_int`/`parse_float`/`clamp_int`) so hot adapter paths avoid raising into
+  the poll tick.
+- Refactored audio, display, processes, vpn, storage, clipboard, and
+  `adapters.envelope` toward ternary control flow, preoptimized argv/status
+  tables, and at most one loop per subfunction (priority-measured helpers).
+- Adapter unit tests mock `lmdesktopplus.preopt.run_capture`.
+
 ## 0.6.3 — Comment + unpack pass (dispatch / @use parity)
 
 - Converted remaining if-chain adapters (`audio`, `display`, `wallpaper`,
