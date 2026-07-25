@@ -1,16 +1,16 @@
 """Desktop notifications + do-not-disturb (Stage B).
 
 @use levels: snapshot/set_dnd are medium; send_test is low use.
-DND prefers Cinnamon gsettings when present, else local settings.json.
+Preoptimized: try_run for gsettings/notify-send; ternary DND merge.
 """
 
 from __future__ import annotations
 
-import subprocess
 import time
 from typing import Any, Callable
 
-from ..util import executable, run_capture
+from ..preopt import try_run
+from ..util import executable
 from .base import command_error, dispatch_command
 
 SettingsGet = Callable[[], dict[str, Any]]
@@ -21,7 +21,7 @@ _CINNAMON_KEY = "display-notifications"
 
 
 def sanitize_notify_text(value: Any, limit: int) -> str:
-    # @use: low use — purpose: strip control chars from notify-send title/body
+    # @use: low use — purpose: strip control chars from notify-send title/body (one loop)
     text = str(value or "")
     cleaned = "".join(ch for ch in text if ch >= " " and ch != "\x7f")
     return cleaned[:limit]
@@ -54,20 +54,17 @@ class NotificationsAdapter:
     def snapshot(self) -> dict[str, Any]:
         # @use: medium use — purpose: Desktop DND chip + can_send affordance
         now = time.monotonic()
-        if self._cached_snapshot is not None and now - self._cached_at < self.cache_ttl:
-            return self._cached_snapshot.copy()
+        cached = self._cached_snapshot
+        if cached is not None and now - self._cached_at < self.cache_ttl:
+            return cached.copy()
         local_dnd = self._local_dnd()
-        dnd = local_dnd
-        dnd_backend = "local"
         host = self._cinnamon_dnd()
-        if host is not None:
-            dnd = local_dnd or host
-            dnd_backend = "cinnamon"
+        # Ternary merge: host DND ORs with local; backend label follows host presence.
         snapshot = {
             "available": True,
             "can_send": bool(self.notify_send),
-            "dnd": dnd,
-            "dnd_backend": dnd_backend,
+            "dnd": local_dnd if host is None else (local_dnd or host),
+            "dnd_backend": "local" if host is None else "cinnamon",
         }
         self._cached_at = now
         self._cached_snapshot = snapshot
@@ -77,17 +74,14 @@ class NotificationsAdapter:
         # @use: medium use — purpose: read Cinnamon display-notifications inverted DND
         if not self.gsettings:
             return None
-        try:
-            result = run_capture(
-                [self.gsettings, "get", _CINNAMON_SCHEMA, _CINNAMON_KEY],
-                timeout=3,
-            )
-            if result.returncode != 0:
-                return None
-            # display-notifications false ⇒ DND on
-            return result.stdout.strip().lower() in {"false", "'false'"}
-        except (OSError, subprocess.TimeoutExpired):
+        run = try_run(
+            [self.gsettings, "get", _CINNAMON_SCHEMA, _CINNAMON_KEY],
+            timeout=3,
+        )
+        if not run.ok:
             return None
+        # display-notifications false ⇒ DND on
+        return run.stdout.strip().lower() in {"false", "'false'"}
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
         # @use: medium use — purpose: send_test/set_dnd via command hashmap
@@ -108,16 +102,17 @@ class NotificationsAdapter:
         if not isinstance(enabled, bool):
             return command_error("invalid_argument", "enabled must be a boolean")
         self.settings_update({"behavior": {"do_not_disturb": enabled}})
-        if self.gsettings:
-            # Invert: DND on ⇒ hide desktop notifications
-            display = "false" if enabled else "true"
-            try:
-                run_capture(
-                    [self.gsettings, "set", _CINNAMON_SCHEMA, _CINNAMON_KEY, display],
-                    timeout=3,
-                )
-            except (OSError, subprocess.TimeoutExpired):
-                pass
+        # Invert: DND on ⇒ hide desktop notifications (best-effort; ignore failures).
+        self.gsettings and try_run(
+            [
+                self.gsettings,
+                "set",
+                _CINNAMON_SCHEMA,
+                _CINNAMON_KEY,
+                "false" if enabled else "true",
+            ],
+            timeout=3,
+        )
         self._cached_snapshot = None
         return {
             "ok": True,
@@ -132,26 +127,30 @@ class NotificationsAdapter:
         if not self.notify_send:
             return command_error("unavailable", "notify-send is not installed")
         title = sanitize_notify_text(payload.get("title", "LMDesktopPlus"), 80) or "LMDesktopPlus"
-        body = sanitize_notify_text(payload.get("body", "Test notification"), 200) or "Test notification"
-        try:
-            result = run_capture(
-                [
-                    self.notify_send,
-                    "-a",
-                    "LMDesktopPlus",
-                    "-u",
-                    "normal",
-                    "--",
-                    title,
-                    body,
-                ],
-                timeout=5,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            return command_error("internal_error", str(exc))
-        if result.returncode != 0:
-            return command_error(
+        body = (
+            sanitize_notify_text(payload.get("body", "Test notification"), 200)
+            or "Test notification"
+        )
+        run = try_run(
+            [
+                self.notify_send,
+                "-a",
+                "LMDesktopPlus",
+                "-u",
+                "normal",
+                "--",
+                title,
+                body,
+            ],
+            timeout=5,
+        )
+        if not run.launched:
+            return command_error("internal_error", run.error)
+        return (
+            {"ok": True}
+            if run.ok
+            else command_error(
                 "internal_error",
-                result.stderr.strip() or "notify-send failed",
+                run.stderr.strip() or "notify-send failed",
             )
-        return {"ok": True}
+        )

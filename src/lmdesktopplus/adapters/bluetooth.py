@@ -1,17 +1,18 @@
 """Bluetooth power/scan/connect via bluetoothctl (Stage B).
 
 @use levels: snapshot is medium; power/scan/connect are low use.
+Preoptimized: try_run host edge; Outcome snapshot probe; one loop per parser.
 """
 
 from __future__ import annotations
 
 import re
-import subprocess
 import time
 from typing import Any
 
 from ..fncache import UseLevel, register_fn
-from ..util import executable, run_capture
+from ..preopt import Outcome, try_run
+from ..util import executable
 from .base import dispatch_command
 
 _MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}$")
@@ -32,22 +33,27 @@ def parse_powered(output: str) -> bool:
     return bool(match and match.group(1).lower() == "yes")
 
 
+def _connected_macs(connected_output: str) -> set[str]:
+    # @use: medium use — purpose: one-loop Connected device MAC set
+    connected: set[str] = set()
+    for line in connected_output.splitlines():
+        match = _DEVICE_RE.match(line.strip())
+        match is not None and connected.add(match.group(1).upper())
+    return connected
+
+
 @register_fn(
     "bluetooth.parse_devices",
     UseLevel.MEDIUM,
     "Parse bluetoothctl devices (+ Connected) into UI rows",
 )
 def parse_devices(known_output: str, connected_output: str = "") -> list[dict[str, Any]]:
-    # @use: medium use — purpose: Bluetooth device list for Settings/Desktop
-    connected: set[str] = set()
-    for line in connected_output.splitlines():
-        match = _DEVICE_RE.match(line.strip())
-        if match:
-            connected.add(match.group(1).upper())
+    # @use: medium use — purpose: Bluetooth device list (one loop over known)
+    connected = _connected_macs(connected_output)
     devices: list[dict[str, Any]] = []
     for line in known_output.splitlines():
         match = _DEVICE_RE.match(line.strip())
-        if not match:
+        if match is None:
             continue
         mac = match.group(1).upper()
         name = match.group(2).strip() or mac
@@ -64,9 +70,7 @@ def normalize_mac(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
     mac = value.strip().upper()
-    if not _MAC_RE.match(mac):
-        return None
-    return mac
+    return mac if _MAC_RE.match(mac) else None
 
 
 class BluetoothAdapter:
@@ -94,34 +98,39 @@ class BluetoothAdapter:
         if not self.available():
             return {"available": False}
         now = time.monotonic()
-        if self._cached_snapshot is not None and now - self._cached_at < self.cache_ttl:
-            return self._cached_snapshot.copy()
-        try:
-            show = run_capture([self.bluetoothctl, "show"], timeout=3)
-            if show.returncode != 0:
-                raise RuntimeError(show.stderr.strip() or "bluetoothctl show failed")
-            known = run_capture([self.bluetoothctl, "devices"], timeout=3)
-            if known.returncode != 0:
-                raise RuntimeError(known.stderr.strip() or "bluetoothctl devices failed")
-            connected = run_capture(
-                [self.bluetoothctl, "devices", "Connected"],
-                timeout=3,
+        cached = self._cached_snapshot
+        if cached is not None and now - self._cached_at < self.cache_ttl:
+            return cached.copy()
+        probed = self._probe_adapter()
+        snapshot = (
+            probed.value
+            if probed.ok
+            else {"available": False, "last_error": probed.error}
+        )
+        self._cached_at = now
+        self._cached_snapshot = snapshot
+        return snapshot.copy()
+
+    def _probe_adapter(self) -> Outcome:
+        # @use: medium use — purpose: show+devices+Connected without raises
+        show = try_run([self.bluetoothctl, "show"], timeout=3)
+        if not show.ok:
+            return Outcome.fail(show.error or show.stderr.strip() or "bluetoothctl show failed")
+        known = try_run([self.bluetoothctl, "devices"], timeout=3)
+        if not known.ok:
+            return Outcome.fail(
+                known.error or known.stderr.strip() or "bluetoothctl devices failed"
             )
-            connected_out = connected.stdout if connected.returncode == 0 else ""
-            snapshot = {
+        connected = try_run([self.bluetoothctl, "devices", "Connected"], timeout=3)
+        connected_out = connected.stdout if connected.ok else ""
+        return Outcome.success(
+            {
                 "available": True,
                 "powered": parse_powered(show.stdout),
                 "scanning": False,
                 "devices": parse_devices(known.stdout, connected_out),
             }
-        except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
-            snapshot = {
-                "available": False,
-                "last_error": str(exc),
-            }
-        self._cached_at = now
-        self._cached_snapshot = snapshot
-        return snapshot.copy()
+        )
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
         # @use: medium use — purpose: power/scan/connect via command hashmap
@@ -136,18 +145,22 @@ class BluetoothAdapter:
         }
 
     def _require_bluetoothctl(self, action):
-        if not self.available():
-            return {"ok": False, "error": "bluetoothctl is not installed"}
-        return action()
+        return (
+            {"ok": False, "error": "bluetoothctl is not installed"}
+            if not self.available()
+            else action()
+        )
 
     def _cmd_power(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._require_bluetoothctl(lambda: self._power_payload(payload))
 
     def _power_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         on = payload.get("on")
-        if not isinstance(on, bool):
-            return {"ok": False, "error": "on must be a boolean"}
-        return self._power(on)
+        return (
+            {"ok": False, "error": "on must be a boolean"}
+            if not isinstance(on, bool)
+            else self._power(on)
+        )
 
     def _cmd_scan(self, _payload: dict[str, Any]) -> dict[str, Any]:
         return self._require_bluetoothctl(self._scan)
@@ -155,38 +168,42 @@ class BluetoothAdapter:
     def _cmd_device(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
         def run() -> dict[str, Any]:
             mac = normalize_mac(payload.get("mac"))
-            if mac is None:
-                return {"ok": False, "error": "mac must be a Bluetooth address"}
-            return self._connect_or_disconnect(action, mac)
+            return (
+                {"ok": False, "error": "mac must be a Bluetooth address"}
+                if mac is None
+                else self._connect_or_disconnect(action, mac)
+            )
 
         return self._require_bluetoothctl(run)
 
     def _power(self, on: bool) -> dict[str, Any]:
+        # @use: low use — purpose: bluetoothctl power on/off via try_run
         state = "on" if on else "off"
-        try:
-            result = run_capture([self.bluetoothctl, "power", state], timeout=5)
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            return {"ok": False, "error": str(exc)}
-        if result.returncode != 0:
-            error = result.stderr.strip() or f"bluetoothctl power {state} failed"
-            if "Blocked" in error or "org.bluez.Error.Blocked" in error:
-                error = f"{error}. Try: rfkill unblock bluetooth"
-            return {"ok": False, "error": error}
+        run = try_run([self.bluetoothctl, "power", state], timeout=5)
+        if not run.launched:
+            return {"ok": False, "error": run.error}
+        if not run.ok:
+            error = run.stderr.strip() or f"bluetoothctl power {state} failed"
+            blocked = "Blocked" in error or "org.bluez.Error.Blocked" in error
+            return {
+                "ok": False,
+                "error": f"{error}. Try: rfkill unblock bluetooth" if blocked else error,
+            }
         self._cached_snapshot = None
         return {"ok": True, "powered": on}
 
     def _scan(self) -> dict[str, Any]:
-        try:
-            result = run_capture(
-                [self.bluetoothctl, "--timeout", "5", "scan", "on"],
-                timeout=12,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            return {"ok": False, "error": str(exc)}
-        if result.returncode != 0:
+        # @use: low use — purpose: timed bluetoothctl scan then refresh devices
+        run = try_run(
+            [self.bluetoothctl, "--timeout", "5", "scan", "on"],
+            timeout=12,
+        )
+        if not run.launched:
+            return {"ok": False, "error": run.error}
+        if not run.ok:
             return {
                 "ok": False,
-                "error": result.stderr.strip() or "bluetoothctl scan failed",
+                "error": run.stderr.strip() or "bluetoothctl scan failed",
             }
         self._cached_snapshot = None
         snap = self.snapshot()
@@ -197,14 +214,14 @@ class BluetoothAdapter:
         }
 
     def _connect_or_disconnect(self, name: str, mac: str) -> dict[str, Any]:
-        try:
-            result = run_capture([self.bluetoothctl, name, mac], timeout=15)
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            return {"ok": False, "error": str(exc)}
-        if result.returncode != 0:
+        # @use: low use — purpose: bluetoothctl connect/disconnect one MAC
+        run = try_run([self.bluetoothctl, name, mac], timeout=15)
+        if not run.launched:
+            return {"ok": False, "error": run.error}
+        if not run.ok:
             return {
                 "ok": False,
-                "error": result.stderr.strip() or f"bluetoothctl {name} failed",
+                "error": run.stderr.strip() or f"bluetoothctl {name} failed",
             }
         self._cached_snapshot = None
         return {"ok": True, "mac": mac}

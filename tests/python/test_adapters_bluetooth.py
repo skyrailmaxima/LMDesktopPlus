@@ -57,7 +57,7 @@ class BluetoothAdapterTests(unittest.TestCase):
             {"available": False},
         )
 
-    @patch("lmdesktopplus.adapters.bluetooth.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_snapshot_lists_devices_and_caches(self, run_capture):
         run_capture.side_effect = [
             completed(SHOW_POWERED),
@@ -79,14 +79,14 @@ class BluetoothAdapterTests(unittest.TestCase):
         self.assertEqual(adapter.snapshot(), expected)
         self.assertEqual(run_capture.call_count, 3)
 
-    @patch("lmdesktopplus.adapters.bluetooth.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_snapshot_fails_soft_on_timeout(self, run_capture):
         run_capture.side_effect = subprocess.TimeoutExpired(["bluetoothctl"], 3)
         snapshot = BluetoothAdapter(bluetoothctl="/usr/bin/bluetoothctl").snapshot()
         self.assertFalse(snapshot["available"])
         self.assertIn("timed out", snapshot["last_error"])
 
-    @patch("lmdesktopplus.adapters.bluetooth.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_power_on_and_off(self, run_capture):
         adapter = BluetoothAdapter(bluetoothctl="/usr/bin/bluetoothctl")
         self.assertEqual(adapter.command("power", {"on": True}), {"ok": True, "powered": True})
@@ -100,7 +100,7 @@ class BluetoothAdapterTests(unittest.TestCase):
             ["/usr/bin/bluetoothctl", "power", "off"],
         )
 
-    @patch("lmdesktopplus.adapters.bluetooth.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_power_blocked_returns_rfkill_hint(self, run_capture):
         run_capture.return_value = completed(
             stderr="Failed to set power on: org.bluez.Error.Blocked",
@@ -112,7 +112,7 @@ class BluetoothAdapterTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("rfkill unblock bluetooth", result["error"])
 
-    @patch("lmdesktopplus.adapters.bluetooth.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_scan_uses_timeout_then_refreshes_devices(self, run_capture):
         run_capture.side_effect = [
             completed(),  # scan
@@ -129,7 +129,7 @@ class BluetoothAdapterTests(unittest.TestCase):
             ["/usr/bin/bluetoothctl", "--timeout", "5", "scan", "on"],
         )
 
-    @patch("lmdesktopplus.adapters.bluetooth.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_connect_and_disconnect_validate_mac(self, run_capture):
         adapter = BluetoothAdapter(bluetoothctl="/usr/bin/bluetoothctl")
         self.assertFalse(adapter.command("connect", {"mac": "bad"})["ok"])

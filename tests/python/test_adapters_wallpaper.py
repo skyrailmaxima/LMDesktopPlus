@@ -92,7 +92,7 @@ class WallpaperAdapterTests(unittest.TestCase):
         self.assertEqual(package_entry["thumb_path"], "/wallpaper-thumbs/package.vapor-matrix-svg.png")
         self.assertEqual(package_entry["source"], "package")
 
-    @patch("lmdesktopplus.adapters.wallpaper.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_apply_uses_cinnamon_gsettings_and_hyprpaper_for_raster(self, run_capture):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -135,7 +135,7 @@ class WallpaperAdapterTests(unittest.TestCase):
                 ],
             )
 
-    @patch("lmdesktopplus.adapters.wallpaper.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_apply_svg_prefers_installer_raster_for_hyprpaper(self, run_capture):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -180,7 +180,7 @@ class WallpaperAdapterTests(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertIn("unknown wallpaper", result["error"])
 
-    @patch("lmdesktopplus.adapters.wallpaper.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_apply_fails_when_only_non_apply_setup_command_succeeds(self, run_capture):
         run_capture.side_effect = [
             completed(stderr="no schema", returncode=1),

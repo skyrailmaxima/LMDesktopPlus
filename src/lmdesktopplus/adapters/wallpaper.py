@@ -1,24 +1,25 @@
 """Wallpaper catalog + apply — Cinnamon gsettings and/or hyprpaper.
 
 @use levels: wallpaper_map/list are medium; apply is low use.
-Never accepts arbitrary client paths — only catalog ids from wallpaper_map().
+Preoptimized: try_run backend commands; one loop per catalog ingest.
 """
 
 from __future__ import annotations
 
 import re
 import shutil
-import subprocess
 from pathlib import Path
 from typing import Any
 
 from ..fncache import UseLevel, register_fn
-from ..util import app_data_dir, executable, run_capture
+from ..preopt import try_run
+from ..util import app_data_dir, executable
 from .base import command_error, dispatch_command
 
 SUPPORTED_SUFFIXES = {".jpg", ".jpeg", ".png", ".svg", ".webp"}
 RASTER_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
 _AUTO = object()
+_APPLY_BACKENDS = frozenset({"cinnamon picture", "hyprpaper apply"})
 
 
 def _default_package_dir() -> Path:
@@ -77,8 +78,9 @@ class WallpaperAdapter:
         # @use: medium use — purpose: O(1) id→path catalog for picker + apply
         result: dict[str, dict[str, Any]] = {}
         seen_paths: set[Path] = set()
-        for source, directory in (("package", self.package_dir), ("user", self.user_dir)):
-            self._ingest_directory(source, directory, result, seen_paths)
+        # Two roots, each ingested with its own single-loop helper.
+        self._ingest_directory("package", self.package_dir, result, seen_paths)
+        self._ingest_directory("user", self.user_dir, result, seen_paths)
         return result
 
     def _ingest_directory(
@@ -88,34 +90,52 @@ class WallpaperAdapter:
         result: dict[str, dict[str, Any]],
         seen_paths: set[Path],
     ) -> None:
-        # @use: medium use — purpose: scan one wallpaper root into the catalog map
+        # @use: medium use — purpose: one-loop scan of one wallpaper root
         try:
             paths = sorted(directory.iterdir(), key=lambda path: path.name.casefold())
         except OSError:
             return
         for path in paths:
-            if not path.is_file() or path.suffix.lower() not in SUPPORTED_SUFFIXES:
-                continue
-            # Prefer SVG source when a sibling raster exists in the package tree.
-            if (
-                source == "package"
-                and path.suffix.lower() in RASTER_SUFFIXES
-                and path.with_suffix(".svg").is_file()
-            ):
-                continue
+            entry = self._catalog_entry(source, path, seen_paths, result)
+            entry is not None and result.update(entry)
+
+    def _catalog_entry(
+        self,
+        source: str,
+        path: Path,
+        seen_paths: set[Path],
+        result: dict[str, dict[str, Any]],
+    ) -> dict[str, dict[str, Any]] | None:
+        # @use: medium use — purpose: map one file into a catalog id row
+        if not path.is_file() or path.suffix.lower() not in SUPPORTED_SUFFIXES:
+            return None
+        # Prefer SVG source when a sibling raster exists in the package tree.
+        skip_raster = (
+            source == "package"
+            and path.suffix.lower() in RASTER_SUFFIXES
+            and path.with_suffix(".svg").is_file()
+        )
+        if skip_raster:
+            return None
+        try:
             resolved = path.resolve()
-            if resolved in seen_paths:
-                continue
-            seen_paths.add(resolved)
-            wallpaper_id = f"{source}.{_slug(path.stem)}-{_slug(path.suffix[1:])}"
-            if wallpaper_id in result:
-                wallpaper_id = f"{wallpaper_id}-{len(result)}"
-            result[wallpaper_id] = {
+        except OSError:
+            return None
+        if resolved in seen_paths:
+            return None
+        seen_paths.add(resolved)
+        wallpaper_id = f"{source}.{_slug(path.stem)}-{_slug(path.suffix[1:])}"
+        wallpaper_id = (
+            f"{wallpaper_id}-{len(result)}" if wallpaper_id in result else wallpaper_id
+        )
+        return {
+            wallpaper_id: {
                 "path": str(resolved),
                 "thumb_path": f"/wallpaper-thumbs/{wallpaper_id}.png",
                 "label": path.stem.replace("_", " ").replace("-", " ").title(),
                 "source": source,
             }
+        }
 
     def thumbnail_path(self, wallpaper_id: str) -> Path | None:
         # @use: medium use — purpose: serve picker thumbs from catalog entries
@@ -124,10 +144,15 @@ class WallpaperAdapter:
             return None
         wallpaper = Path(entry["path"])
         local_thumb = wallpaper.parent / "thumbs" / f"{wallpaper.stem}.png"
-        if local_thumb.is_file():
-            return local_thumb
-        placeholder = self.package_dir / "thumbs" / "placeholder.png"
-        return placeholder if placeholder.is_file() else None
+        return (
+            local_thumb
+            if local_thumb.is_file()
+            else (
+                (self.package_dir / "thumbs" / "placeholder.png")
+                if (self.package_dir / "thumbs" / "placeholder.png").is_file()
+                else None
+            )
+        )
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
         # @use: medium use — purpose: list/apply via command hashmap
@@ -143,9 +168,11 @@ class WallpaperAdapter:
         # @use: low use — purpose: validate catalog id then multi-backend apply
         wallpaper_id = payload.get("id")
         catalog = self.wallpaper_map()
-        if not isinstance(wallpaper_id, str) or wallpaper_id not in catalog:
-            return command_error("invalid_argument", f"unknown wallpaper: {wallpaper_id}")
-        return self._apply(wallpaper_id)
+        return (
+            command_error("invalid_argument", f"unknown wallpaper: {wallpaper_id}")
+            if not isinstance(wallpaper_id, str) or wallpaper_id not in catalog
+            else self._apply(wallpaper_id)
+        )
 
     def _apply(self, wallpaper_id: str) -> dict[str, Any]:
         # @use: low use — purpose: install copy + cinnamon/hyprpaper backends
@@ -184,15 +211,13 @@ class WallpaperAdapter:
         try:
             self.user_dir.mkdir(parents=True, exist_ok=True)
             destination = self.user_dir / source.name
-            if source.resolve() != destination.resolve():
-                shutil.copy2(source, destination)
+            source.resolve() != destination.resolve() and shutil.copy2(source, destination)
             if source.suffix.lower() == ".svg":
                 package_raster = source.with_suffix(".png")
                 destination_raster = destination.with_suffix(".png")
-                if package_raster.is_file() and (
+                package_raster.is_file() and (
                     package_raster.resolve() != destination_raster.resolve()
-                ):
-                    shutil.copy2(package_raster, destination_raster)
+                ) and shutil.copy2(package_raster, destination_raster)
             return destination
         except OSError as exc:
             return command_error("internal_error", f"could not install wallpaper: {exc}")
@@ -243,9 +268,7 @@ class WallpaperAdapter:
     def _apply_succeeded(results: list[dict[str, Any]]) -> bool:
         # @use: low use — purpose: require a real apply backend, not just setup
         return any(
-            result["ok"]
-            and result["backend"] in {"cinnamon picture", "hyprpaper apply"}
-            for result in results
+            result["ok"] and result["backend"] in _APPLY_BACKENDS for result in results
         )
 
     def _hyprpaper_path(self, wallpaper: Path) -> Path | None:
@@ -257,15 +280,16 @@ class WallpaperAdapter:
 
     @staticmethod
     def _run(argv: list[str], label: str) -> dict[str, Any]:
-        # @use: low use — purpose: one wallpaper backend command, fail soft
-        try:
-            completed = run_capture(argv)
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            return {"ok": False, "backend": label, "error": str(exc)}
-        if completed.returncode != 0:
-            return {
+        # @use: low use — purpose: one wallpaper backend command via try_run
+        run = try_run(argv)
+        if not run.launched:
+            return {"ok": False, "backend": label, "error": run.error}
+        return (
+            {"ok": True, "backend": label}
+            if run.ok
+            else {
                 "ok": False,
                 "backend": label,
-                "error": completed.stderr.strip() or completed.stdout.strip() or "command failed",
+                "error": run.stderr.strip() or run.stdout.strip() or "command failed",
             }
-        return {"ok": True, "backend": label}
+        )
