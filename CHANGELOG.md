@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.6.7 — AMD GPU metrics (rocm-smi + amdgpu sysfs)
+## 0.6.7 — AMD GPU metrics + cloud smoke guest
+
+- GPU sampling priority: `nvidia-smi` → `rocm-smi` CSV → `amdgpu` sysfs
+  (`gpu_busy_percent`, VRAM, hwmon temp, product name).
+- Shared snapshot shape for AMD and NVIDIA: percent, VRAM used/total MiB,
+  temperature °C, source tag (`rocm-smi` / `amdgpu-sysfs`).
+- Monitor scene shows a VRAM row when memory fields are present.
+- Added `scripts/vm/smoke-cloud-guest.sh` for headless Ubuntu cloud tests when
+  `/dev/kvm` is unavailable; `stow.sh` tolerates missing `HOME`.
 
 - GPU sampling priority: `nvidia-smi` → `rocm-smi` CSV → `amdgpu` sysfs
   (`gpu_busy_percent`, VRAM, hwmon temp, product name).

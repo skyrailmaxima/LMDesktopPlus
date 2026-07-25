@@ -141,9 +141,10 @@ class StorageAdapterTests(unittest.TestCase):
     @patch("lmdesktopplus.preopt.run_capture")
     def test_rejects_non_removable_and_missing_udisks(self, run_capture):
         run_capture.return_value = completed(json.dumps(LSBLK))
+        # Empty string disables the tool; None would fall back to PATH lookup.
         no_udisks = RemovableStorageAdapter(
             lsblk="/usr/bin/lsblk",
-            udisksctl=None,
+            udisksctl="",
         )
         result = no_udisks.command("mount", {"device": "/dev/sdb1"})
         self.assertEqual(result["error_code"], "unavailable")

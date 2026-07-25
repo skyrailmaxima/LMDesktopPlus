@@ -7,6 +7,21 @@ destroy/recreate when you want a clean slate.
 
 Design: [`docs/superpowers/specs/2026-07-20-lmdesktopplus-vm-lab-design.md`](superpowers/specs/2026-07-20-lmdesktopplus-vm-lab-design.md)
 
+## Cloud / no-KVM smoke guest
+
+Cursor Cloud agents (and other nested virt hosts) often lack `/dev/kvm`, so the
+Mint Virt-Manager lab cannot run there. Use the headless Ubuntu cloud smoke
+guest instead — it boots under QEMU TCG, shares the repo via 9p, and runs
+`./tests/run-all.sh`:
+
+```bash
+./scripts/vm/smoke-cloud-guest.sh
+# optional: --keep  (leave QEMU up; ssh -p 2222 ubuntu@127.0.0.1  password: ubuntu)
+```
+
+This validates packaging + unit tests in a clean guest. It is **not** a
+substitute for the Mint Cinnamon rice lab below.
+
 ## Host prerequisites
 
 On the developer machine (Pop!_OS / Ubuntu / similar):

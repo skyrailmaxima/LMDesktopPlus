@@ -5,6 +5,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 STOW_DIR="$REPO_ROOT/packaging/.stow-build"
+# cloud-init / restricted shells may not export HOME — fall back for Target default.
+: "${HOME:=${STOW_TARGET:-/tmp}}"
 TARGET="${STOW_TARGET:-$HOME}"
 DRY_RUN=0
 DELETE=0
