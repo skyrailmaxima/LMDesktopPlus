@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from lmdesktopplus.preopt import (
@@ -10,6 +12,9 @@ from lmdesktopplus.preopt import (
     first_ok_scan,
     parse_float,
     parse_int,
+    try_atomic_write,
+    try_atomic_write_json,
+    try_mkdir,
     try_run,
 )
 
@@ -58,6 +63,19 @@ class PreoptTryRunTests(unittest.TestCase):
         run = try_run(["slow"], timeout=2)
         self.assertFalse(run.launched)
         self.assertIn("timed out", run.error)
+
+
+class PreoptWriteTests(unittest.TestCase):
+    def test_try_mkdir_and_atomic_write(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "nested"
+            self.assertTrue(try_mkdir(root).ok)
+            path = root / "note.txt"
+            self.assertTrue(try_atomic_write(path, "hello\n").ok)
+            self.assertEqual(path.read_text(encoding="utf-8"), "hello\n")
+            json_path = root / "data.json"
+            self.assertTrue(try_atomic_write_json(json_path, {"a": 1}).ok)
+            self.assertIn('"a": 1', json_path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

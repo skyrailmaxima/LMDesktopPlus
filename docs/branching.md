@@ -20,6 +20,7 @@ Preferred base branch: `feature/lmdesktopplus`.
 | `cursor/deconvolute-comments-081e` | **0.6.3** comment/unpack + `@use`/dispatch parity across adapters |
 | `cursor/branchless-preopt-081e` | **0.6.4** preopt outcomes + ternary/single-loop hot paths |
 | `cursor/preopt-remaining-adapters-081e` | **0.6.5** preopt for updates/printers/logs/idle/vault/session/live_wallpaper |
+| `cursor/preopt-keybinds-actions-agents-081e` | **0.6.6** poll hosts + keybinds/actions/agents + fail-soft file I/O |
 
 ## Landed on `feature/lmdesktopplus`
 

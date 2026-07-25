@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.6 — Preopt keybinds / actions / agents + poll hosts + file I/O
+
+- Poll hosts outside the adapter fence now use `try_run`: `network.current`,
+  `media.status`/`control`, and `system_info` nvidia-smi (`_nvidia_gpu`).
+- Command hosts: `keybinds._pulse_hyprland`, `actions.lock` (`first_ok_scan`),
+  `theme` hyprctl reload, and `actions.open_path` mkdir are exception-free.
+- File I/O: `preopt.try_mkdir` / `try_atomic_write` / `try_atomic_write_json`;
+  chord synth, idle/live wallpaper etch, and agents roster save fail soft to
+  `command_error` / structured errors.
+- Density: shared `wrap_in_terminal(..., directory=)` for agent spawn; keybinds
+  `dispatch_allowed`; bwrap `append_existing_binds` (one loop per bind set).
+
 ## 0.6.5 — Preopt remaining Stage B–D adapters
 
 - Moved updates, printers, logs, idle, vault, session, and live_wallpaper onto

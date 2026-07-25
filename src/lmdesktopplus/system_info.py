@@ -7,7 +7,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .util import first_executable, run_capture
+from .preopt import parse_float, try_run
+from .util import first_executable
 
 
 class SystemSampler:
@@ -132,16 +133,11 @@ class SystemSampler:
 
     @staticmethod
     def _gpu() -> dict[str, Any]:
-        if first_executable(["nvidia-smi"]):
-            cp = run_capture(["nvidia-smi", "--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu", "--format=csv,noheader,nounits"], timeout=2)
-            if cp.returncode == 0 and cp.stdout.strip():
-                first = [x.strip() for x in cp.stdout.splitlines()[0].split(",")]
-                if len(first) >= 5:
-                    try:
-                        return {"name": first[0], "percent": float(first[1]), "memory_used_mb": float(first[2]), "memory_total_mb": float(first[3]), "temperature_c": float(first[4]), "source": "nvidia-smi"}
-                    except ValueError:
-                        pass
-        # AMD exposes busy percent on many amdgpu systems.
+        # @use: high use — purpose: metrics GPU sample; nvidia-smi via try_run
+        nvidia = SystemSampler._nvidia_gpu()
+        if nvidia is not None:
+            return nvidia
+        # AMD exposes busy percent on many amdgpu systems (one loop).
         for card in sorted(Path("/sys/class/drm").glob("card*/device/gpu_busy_percent")):
             try:
                 pct = float(card.read_text().strip())
@@ -150,6 +146,38 @@ class SystemSampler:
             except (OSError, ValueError):
                 continue
         return {"name": "unavailable", "percent": None, "source": None}
+
+    @staticmethod
+    def _nvidia_gpu() -> dict[str, Any] | None:
+        if not first_executable(["nvidia-smi"]):
+            return None
+        run = try_run(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            timeout=2,
+        )
+        if not run.ok or not run.stdout.strip():
+            return None
+        first = [x.strip() for x in run.stdout.splitlines()[0].split(",")]
+        if len(first) < 5:
+            return None
+        percent = parse_float(first[1])
+        mem_used = parse_float(first[2])
+        mem_total = parse_float(first[3])
+        temp = parse_float(first[4])
+        if None in (percent, mem_used, mem_total, temp):
+            return None
+        return {
+            "name": first[0],
+            "percent": percent,
+            "memory_used_mb": mem_used,
+            "memory_total_mb": mem_total,
+            "temperature_c": temp,
+            "source": "nvidia-smi",
+        }
 
     @staticmethod
     def _battery() -> dict[str, Any] | None:

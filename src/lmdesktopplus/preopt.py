@@ -7,9 +7,11 @@ lookup → ternary → one loop in a named subfunction. Failures return
 
 from __future__ import annotations
 
+import json
 import subprocess
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, TypeVar
 
 from .fncache import UseLevel, register_fn
@@ -178,3 +180,54 @@ def first_ok_scan(
 def map_get(table: dict[str, T], key: str) -> T | None:
     # @use: high use — purpose: O(1) table lookup that never KeyErrors
     return table.get(key)
+
+
+@register_fn(
+    "preopt.try_mkdir",
+    UseLevel.MEDIUM,
+    "mkdir -p without raising; OSError → Outcome.fail",
+)
+def try_mkdir(path: Path) -> Outcome:
+    # @use: medium use — purpose: fail-soft owned-dir creation on apply paths
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return Outcome.fail(str(exc) or "mkdir failed")
+    return Outcome.success(path)
+
+
+@register_fn(
+    "preopt.try_atomic_write",
+    UseLevel.MEDIUM,
+    "Atomic text write without raising; OSError → Outcome.fail",
+)
+def try_atomic_write(path: Path, text: str) -> Outcome:
+    # @use: medium use — purpose: chord/idle/wallpaper etch writes fail soft
+    parent = try_mkdir(path.parent)
+    if not parent.ok:
+        return parent
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        try:
+            tmp.chmod(0o600)
+        except OSError:
+            pass
+        tmp.replace(path)
+    except OSError as exc:
+        return Outcome.fail(str(exc) or "write failed")
+    return Outcome.success(path)
+
+
+@register_fn(
+    "preopt.try_atomic_write_json",
+    UseLevel.MEDIUM,
+    "Atomic JSON write without raising; encode/OSError → Outcome.fail",
+)
+def try_atomic_write_json(path: Path, value: Any) -> Outcome:
+    # @use: medium use — purpose: agents roster / vapor keybinds persist soft
+    try:
+        text = json.dumps(value, indent=2, sort_keys=True) + "\n"
+    except (TypeError, ValueError) as exc:
+        return Outcome.fail(str(exc) or "json encode failed")
+    return try_atomic_write(path, text)

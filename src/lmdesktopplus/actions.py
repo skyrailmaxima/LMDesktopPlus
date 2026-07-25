@@ -1,3 +1,8 @@
+"""Allowlisted desktop actions — preopt try_run / first_ok_scan on host edges.
+
+@use levels: capabilities/launch are high/medium; lock/power are low.
+"""
+
 from __future__ import annotations
 
 import os
@@ -5,32 +10,56 @@ import shlex
 from pathlib import Path
 from typing import Any, Callable
 
-from .util import app_config_dir, executable, first_executable, run_capture, spawn
+from .fncache import UseLevel, register_fn
+from .preopt import Outcome, first_ok_scan, try_mkdir, try_run
+from .util import app_config_dir, executable, first_executable, spawn
 
 TERMINAL_CANDIDATES = ("kitty", "gnome-terminal", "x-terminal-emulator", "xfce4-terminal")
 
 
-def wrap_in_terminal(argv: list[str], *, hold: bool = False) -> list[str] | None:
+@register_fn(
+    "actions.wrap_in_terminal",
+    UseLevel.MEDIUM,
+    "Wrap argv for preferred terminal (optional hold + working directory)",
+)
+def wrap_in_terminal(
+    argv: list[str],
+    *,
+    hold: bool = False,
+    directory: Path | str | None = None,
+) -> list[str] | None:
     """Wrap argv for the preferred terminal using a name → builder map.
 
-    @use: medium use — purpose: launch allowlisted actions inside a terminal.
+    @use: medium use — purpose: launch allowlisted actions / agent peers in a terminal.
     """
     terminal = first_executable(TERMINAL_CANDIDATES)
     if not terminal:
         return None
     base = Path(terminal).name
+    workdir = str(directory) if directory is not None else None
 
     def kitty() -> list[str]:
-        return [terminal, *(["--hold"] if hold else []), *argv]
+        prefix = [terminal]
+        if workdir:
+            prefix += ["--directory", workdir]
+        if hold:
+            prefix.append("--hold")
+        return [*prefix, *argv]
 
     def gnome() -> list[str]:
-        return [terminal, "--", *argv]
+        prefix = [terminal]
+        if workdir:
+            prefix.append(f"--working-directory={workdir}")
+        return [*prefix, "--", *argv]
 
     def xfce() -> list[str]:
+        prefix = [terminal]
+        if workdir:
+            prefix.append(f"--working-directory={workdir}")
         joined = shlex.join(argv)
         if hold:
-            return [terminal, "--hold", "--command", joined]
-        return [terminal, "--command", joined]
+            return [*prefix, "--hold", "--command", joined]
+        return [*prefix, "--command", joined]
 
     def default() -> list[str]:
         if len(argv) == 1 and not hold:
@@ -146,29 +175,50 @@ class ActionRunner:
 
     @staticmethod
     def open_path(path: Path) -> dict[str, Any]:
+        # @use: low use — purpose: open-config / files; mkdir soft
         path = path.expanduser()
-        path.mkdir(parents=True, exist_ok=True)
+        made = try_mkdir(path)
+        if not made.ok:
+            return {"ok": False, "error": made.error or "could not create path"}
         cmd = first_executable(["nemo", "nautilus", "thunar", "xdg-open"])
         if not cmd:
             return {"ok": False, "error": "file manager not found"}
-        return {"ok": True, "pid": spawn([cmd, str(path)])}
+        try:
+            return {"ok": True, "pid": spawn([cmd, str(path)])}
+        except OSError as exc:
+            return {"ok": False, "error": str(exc)}
 
     @staticmethod
     def lock() -> dict[str, Any]:
-        commands = [
-            ["loginctl", "lock-session"],
-            ["cinnamon-screensaver-command", "--lock"],
-            ["xdg-screensaver", "lock"],
+        # @use: low use — purpose: lock-session via first_ok_scan + try_run
+        candidates = [
+            argv
+            for argv in (
+                ["loginctl", "lock-session"],
+                ["cinnamon-screensaver-command", "--lock"],
+                ["xdg-screensaver", "lock"],
+            )
+            if executable(argv[0])
         ]
-        errors = []
-        for argv in commands:
-            if not executable(argv[0]):
-                continue
-            cp = run_capture(argv, timeout=5)
-            if cp.returncode == 0:
-                return {"ok": True, "method": argv[0]}
-            errors.append(cp.stderr.strip())
-        return {"ok": False, "error": "; ".join(x for x in errors if x) or "no lock command succeeded"}
+
+        def probe(argv: list[str]) -> Outcome:
+            run = try_run(argv, timeout=5)
+            return (
+                Outcome.success(argv[0])
+                if run.ok
+                else Outcome.fail(run.error or run.stderr.strip() or argv[0])
+            )
+
+        result = first_ok_scan(
+            candidates,
+            probe,
+            empty_error="no lock command succeeded",
+        )
+        return (
+            {"ok": True, "method": result.value}
+            if result.ok
+            else {"ok": False, "error": result.error}
+        )
 
     def power(self, action: str) -> dict[str, Any]:
         settings = self.settings_getter()

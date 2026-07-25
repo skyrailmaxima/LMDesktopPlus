@@ -24,12 +24,11 @@ from pathlib import Path
 from typing import Any
 
 from ..fncache import UseLevel, register_fn
+from ..preopt import try_atomic_write, try_atomic_write_json, try_run
 from ..util import (
     app_config_dir,
-    atomic_write_json,
     executable,
     read_json,
-    run_capture,
     xdg_config_home,
 )
 from .base import command_error, dispatch_command
@@ -182,6 +181,16 @@ def weave_vapor_chords(
     return woven
 
 
+@register_fn(
+    "keybinds.dispatch_allowed",
+    UseLevel.MEDIUM,
+    "True when dispatch starts with a matrix allowlisted prefix",
+)
+def dispatch_allowed(dispatch: str) -> bool:
+    # @use: medium use — purpose: O(prefixes) gate extracted from etch loop
+    return any(dispatch.startswith(prefix) for prefix in ALLOWED_DISPATCH_PREFIXES)
+
+
 def etch_matrix_binds(woven: dict[str, dict[str, Any]]) -> str:
     """Render owned hypr-binds.conf text from woven chords."""
     # Start with the ownership header so install/theme guards can recognize us.
@@ -190,7 +199,7 @@ def etch_matrix_binds(woven: dict[str, dict[str, Any]]) -> str:
         row = woven[chord_id]
         dispatch = row["dispatch"]
         # Skip anything that slipped past the matrix allowlist.
-        if not any(dispatch.startswith(prefix) for prefix in ALLOWED_DISPATCH_PREFIXES):
+        if not dispatch_allowed(dispatch):
             continue
         lines.append(f"bind = {row['combo']}, {dispatch}")
     lines.append("")
@@ -220,15 +229,9 @@ def ensure_matrix_chord_source(hypr_path: Path, source_line: str) -> bool:
     return True
 
 
-def _atomic_write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    try:
-        tmp.chmod(0o600)
-    except OSError:
-        pass
-    tmp.replace(path)
+def _atomic_write_text(path: Path, text: str) -> bool:
+    # @use: low use — purpose: fail-soft etch of hypr-binds.conf
+    return try_atomic_write(path, text).ok
 
 
 def load_vapor_overrides(path: Path) -> dict[str, Any]:
@@ -236,8 +239,9 @@ def load_vapor_overrides(path: Path) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
-def synth_vapor_overrides(path: Path, vapor: dict[str, Any]) -> None:
-    atomic_write_json(path, vapor)
+def synth_vapor_overrides(path: Path, vapor: dict[str, Any]) -> bool:
+    # @use: low use — purpose: persist vapor keybinds.json without raising
+    return try_atomic_write_json(path, vapor).ok
 
 
 class ChordAdapter:
@@ -328,7 +332,8 @@ class ChordAdapter:
             vapor.pop(chord_id, None)
         else:
             vapor[chord_id] = {"combo": neon}
-        synth_vapor_overrides(self.vapor_path(), vapor)
+        if not synth_vapor_overrides(self.vapor_path(), vapor):
+            return command_error("permission_denied", "could not write vapor keybinds")
         result = self._synth_matrix()
         result["chords"] = self._woven()
         return result
@@ -344,16 +349,19 @@ class ChordAdapter:
             return command_error("invalid_argument", "unknown chord id")
         else:
             return command_error("invalid_argument", "invalid chord id")
-        synth_vapor_overrides(self.vapor_path(), vapor)
+        if not synth_vapor_overrides(self.vapor_path(), vapor):
+            return command_error("permission_denied", "could not write vapor keybinds")
         result = self._synth_matrix()
         result["chords"] = self._woven()
         return result
 
     def _synth_matrix(self, *, pulse: bool | None = None) -> dict[str, Any]:
+        # @use: low use — purpose: etch hypr-binds + optional pulse; write soft
         woven = self._woven()
         text = etch_matrix_binds(woven)
         path = self.matrix_path()
-        _atomic_write_text(path, text)
+        if not _atomic_write_text(path, text):
+            return command_error("permission_denied", f"could not write {path}")
         source_line = f"source = {path}"
         appended = ensure_matrix_chord_source(self.hypr_path(), source_line)
         did_pulse = False
@@ -368,13 +376,10 @@ class ChordAdapter:
         }
 
     def _pulse_hyprland(self) -> bool:
+        # @use: low use — purpose: hyprctl reload via try_run (timeout soft)
         hyprctl = self._hyprctl
         if hyprctl is None:
             hyprctl = executable("hyprctl")
         if not hyprctl:
             return False
-        try:
-            cp = run_capture([hyprctl, "reload"], timeout=3)
-            return cp.returncode == 0
-        except (OSError, RuntimeError):
-            return False
+        return try_run([hyprctl, "reload"], timeout=3).ok

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from ..fncache import UseLevel, register_fn
-from ..preopt import clamp_int, parse_int
+from ..preopt import clamp_int, parse_int, try_mkdir
 from ..util import app_config_dir, app_data_dir, executable, spawn, xdg_config_home
 from .base import command_error, dispatch_command
 
@@ -233,26 +233,30 @@ class LiveWallpaperAdapter:
             parsed = parse_int(payload["intensity"])
             intensity = intensity if parsed is None else clamp_int(parsed, 0, 100)
         root = self._root()
-        root.mkdir(parents=True, exist_ok=True)
+        if not try_mkdir(root).ok:
+            return command_error("permission_denied", f"could not create {root}")
         rules_path = root / "hypr-live-wallpaper.conf"
         script_path = root / "live-wallpaper-generated.sh"
-        rules_path.write_text(etch_hypr_rules(), encoding="utf-8")
-        source_line = f"source = {rules_path}"
-        appended = ensure_hypr_live_source(self._hypr_path(), source_line)
         video = self._video_path()
-        script_path.write_text(
-            etch_launcher_script(
-                python=self.python,
-                intensity=intensity,
-                mpvpaper=self.mpvpaper,
-                video=video,
-            ),
-            encoding="utf-8",
-        )
         try:
-            script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR)
-        except OSError:
-            pass
+            rules_path.write_text(etch_hypr_rules(), encoding="utf-8")
+            source_line = f"source = {rules_path}"
+            appended = ensure_hypr_live_source(self._hypr_path(), source_line)
+            script_path.write_text(
+                etch_launcher_script(
+                    python=self.python,
+                    intensity=intensity,
+                    mpvpaper=self.mpvpaper,
+                    video=video,
+                ),
+                encoding="utf-8",
+            )
+            try:
+                script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR)
+            except OSError:
+                pass
+        except OSError as exc:
+            return command_error("permission_denied", str(exc))
         # Stop any previous instance first.
         self._stop(clear_flag=False)
         # Prefer mpvpaper when video exists; else HTML/DV.rain python module.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -12,12 +13,23 @@ from lmdesktopplus.actions import (
 )
 
 
+def completed(stdout: str = "", stderr: str = "", returncode: int = 0):
+    return subprocess.CompletedProcess([], returncode, stdout, stderr)
+
+
 class WrapInTerminalTests(unittest.TestCase):
     @patch("lmdesktopplus.actions.first_executable", return_value="/usr/bin/kitty")
     def test_kitty_hold_spreads_argv(self, _first):
         self.assertEqual(
             wrap_in_terminal(["tmux", "attach"], hold=True),
             ["/usr/bin/kitty", "--hold", "tmux", "attach"],
+        )
+
+    @patch("lmdesktopplus.actions.first_executable", return_value="/usr/bin/kitty")
+    def test_kitty_directory_and_hold(self, _first):
+        self.assertEqual(
+            wrap_in_terminal(["claude"], hold=True, directory="/tmp/work"),
+            ["/usr/bin/kitty", "--directory", "/tmp/work", "--hold", "claude"],
         )
 
     @patch("lmdesktopplus.actions.first_executable", return_value="/usr/bin/gnome-terminal")
@@ -89,6 +101,24 @@ class ActionDispatchTests(unittest.TestCase):
         self.assertEqual(result["pid"], 42)
         opened = Path(spawn.call_args.args[0][1])
         self.assertTrue(str(opened).endswith("lmdesktopplus") or "lmdesktopplus" in str(opened))
+
+    @patch("lmdesktopplus.actions.executable", return_value="/usr/bin/loginctl")
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
+    def test_lock_uses_first_ok_scan(self, run_capture, _exe):
+        result = ActionRunner(lambda: {}).lock()
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["method"], "loginctl")
+        self.assertEqual(run_capture.call_args[0][0], ["loginctl", "lock-session"])
+
+    @patch("lmdesktopplus.actions.executable", return_value="/usr/bin/loginctl")
+    @patch(
+        "lmdesktopplus.preopt.run_capture",
+        side_effect=subprocess.TimeoutExpired(["loginctl"], 5),
+    )
+    def test_lock_timeout_fails_soft(self, _run, _exe):
+        result = ActionRunner(lambda: {}).lock()
+        self.assertFalse(result["ok"])
+        self.assertIn("timed out", result.get("error", ""))
 
 
 if __name__ == "__main__":

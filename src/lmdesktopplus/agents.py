@@ -22,15 +22,16 @@ import os
 import re
 import shlex
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from .actions import wrap_in_terminal
 from .fncache import UseLevel, register_fn
+from .preopt import try_atomic_write_json, try_mkdir
 from .util import (
     app_config_dir,
     app_data_dir,
-    atomic_write_json,
     executable,
     read_json,
     safe_name,
@@ -233,28 +234,33 @@ class AgentRegistry:
     def __init__(self, path: Path | None = None) -> None:
         # Resolve roster path (tests inject a tempfile).
         self.path = path or app_config_dir() / "agents.json"
+        self.last_error: str | None = None
         # Load JSON; empty/missing files fall back to matrix defaults.
         loaded = read_json(self.path, [])
         seed = loaded if isinstance(loaded, list) and loaded else DEFAULT_AGENTS
         # Weave raw rows into validated peers.
         self._peers = weave_peer_roster(seed)
-        # Persist the woven roster so on-disk shape stays canonical.
-        self.save()
-        # Ensure per-peer home/workspace directories exist.
+        # Persist the woven roster so on-disk shape stays canonical (soft).
+        if not self.save():
+            # Boot continues with in-memory roster when disk is read-only.
+            pass
+        # Ensure per-peer home/workspace directories exist (soft per peer).
         self.ensure_directories()
 
-    def save(self) -> None:
-        """Atomically write the current peer roster to disk."""
+    def save(self) -> bool:
+        """Atomically write the current peer roster to disk (fail soft)."""
         # Write peers only (no availability fields).
-        atomic_write_json(self.path, self._peers)
+        result = try_atomic_write_json(self.path, self._peers)
+        self.last_error = None if result.ok else result.error
+        return result.ok
 
     def ensure_directories(self) -> None:
-        """Create home and workspace directories for every peer in the roster."""
+        """Create home and workspace directories for every peer (one loop, soft)."""
         for peer in self._peers:
-            # Agent-private HOME under XDG data.
-            self.peer_home(peer["name"]).mkdir(parents=True, exist_ok=True)
-            # Expand and create the configured workspace path.
-            self.peer_workspace(peer).mkdir(parents=True, exist_ok=True)
+            home = try_mkdir(self.peer_home(peer["name"]))
+            work = try_mkdir(self.peer_workspace(peer))
+            if not home.ok or not work.ok:
+                self.last_error = home.error or work.error
 
     def scan_peers(self) -> list[dict[str, Any]]:
         """Return UI-facing peer rows with availability and resolved paths."""
@@ -339,7 +345,13 @@ class AgentRegistry:
             return {"ok": False, "error_code": "invalid_argument", "error": "peer rejected"}
         # Append, persist, and ensure directories for the new peer.
         self._peers.append(woven[0])
-        self.save()
+        if not self.save():
+            self._peers.pop()
+            return {
+                "ok": False,
+                "error_code": "permission_denied",
+                "error": self.last_error or "could not save roster",
+            }
         self.ensure_directories()
         return {"ok": True, "peer": self.fetch_peer(name), "agents": self.scan_peers()}
 
@@ -365,8 +377,15 @@ class AgentRegistry:
         woven = weave_peer_roster([current])
         if not woven:
             return {"ok": False, "error_code": "invalid_argument", "error": "peer rejected"}
+        previous = self._peers[index]
         self._peers[index] = woven[0]
-        self.save()
+        if not self.save():
+            self._peers[index] = previous
+            return {
+                "ok": False,
+                "error_code": "permission_denied",
+                "error": self.last_error or "could not save roster",
+            }
         self.ensure_directories()
         return {"ok": True, "peer": self.fetch_peer(name), "agents": self.scan_peers()}
 
@@ -412,10 +431,17 @@ class AgentRegistry:
             return {"ok": False, "error_code": "invalid_argument", "error": "invalid peer name"}
         before = len(self._peers)
         # Filter the peer out; leave on-disk home/workspace untouched.
+        previous = list(self._peers)
         self._peers = [peer for peer in self._peers if peer["name"] != name]
         if len(self._peers) == before:
             return {"ok": False, "error_code": "invalid_argument", "error": "unknown peer"}
-        self.save()
+        if not self.save():
+            self._peers = previous
+            return {
+                "ok": False,
+                "error_code": "permission_denied",
+                "error": self.last_error or "could not save roster",
+            }
         return {"ok": True, "melted": name, "agents": self.scan_peers()}
 
     def spawn_peer(self, name: str) -> dict[str, Any]:
@@ -429,30 +455,18 @@ class AgentRegistry:
             return {"ok": False, "error": f"{peer['command'][0]} is not installed"}
         # Ensure workspace exists before opening the terminal.
         workspace = self.peer_workspace(peer)
-        workspace.mkdir(parents=True, exist_ok=True)
+        if not try_mkdir(workspace).ok:
+            return {"ok": False, "error": f"could not create workspace: {workspace}"}
         # Re-enter this package with --agent-run for sandbox/exec handling.
         argv = self.launcher_argv(name)
-        # Prefer kitty, then GNOME/XFCE/generic terminal wrappers.
-        terminal = (
-            executable("kitty")
-            or executable("gnome-terminal")
-            or executable("x-terminal-emulator")
-            or executable("xfce4-terminal")
-        )
-        if not terminal:
+        # Shared terminal etch with actions.wrap_in_terminal (hold + directory).
+        cmd = wrap_in_terminal(argv, hold=True, directory=workspace)
+        if not cmd:
             return {"ok": False, "error": "no supported terminal emulator found"}
-        base = Path(terminal).name
-        # Terminal-specific argv shapes (hold / working-directory flags differ).
-        if base == "kitty":
-            cmd = [terminal, "--directory", str(workspace), "--hold", *argv]
-        elif base == "gnome-terminal":
-            cmd = [terminal, f"--working-directory={workspace}", "--", *argv]
-        elif base == "xfce4-terminal":
-            cmd = [terminal, f"--working-directory={workspace}", "--hold", "--command", shlex.join(argv)]
-        else:
-            cmd = [terminal, "-e", shlex.join(argv)]
-        # Detach the terminal process and return its pid.
-        return {"ok": True, "pid": spawn(cmd, cwd=workspace), "agent": name}
+        try:
+            return {"ok": True, "pid": spawn(cmd, cwd=workspace), "agent": name}
+        except OSError as exc:
+            return {"ok": False, "error": str(exc)}
 
     # Compat alias for /api/v1/agents/launch.
     launch = spawn_peer
@@ -472,8 +486,8 @@ class AgentRegistry:
         command = [binary, *command[1:]]
         workspace = self.peer_workspace(peer)
         home = self.peer_home(name)
-        workspace.mkdir(parents=True, exist_ok=True)
-        home.mkdir(parents=True, exist_ok=True)
+        try_mkdir(workspace)
+        try_mkdir(home)
         # Scoped environment: peer HOME + LMDP markers.
         env = dict(os.environ)
         env["HOME"] = str(home)
@@ -491,6 +505,22 @@ class AgentRegistry:
 
     # Compat alias for --agent-run.
     exec_agent = exec_peer
+
+    @staticmethod
+    def append_existing_binds(
+        argv: list[str],
+        paths: Sequence[str | Path],
+        *,
+        mode: str = "ro-bind",
+    ) -> None:
+        """Append `--{mode} src dest` for each existing path (one loop)."""
+        # @use: medium use — purpose: bwrap path binds without nested loops
+        flag = f"--{mode}"
+        for path in paths:
+            resolved = Path(path)
+            if resolved.exists():
+                text = str(resolved)
+                argv += [flag, text, text]
 
     @staticmethod
     def etch_bubblewrap_argv(
@@ -518,13 +548,17 @@ class AgentRegistry:
             "/tmp",
         ]
         # Read-only host roots that agents typically need.
-        for path in ("/usr", "/bin", "/sbin", "/lib", "/lib64", "/etc", "/opt"):
-            if Path(path).exists():
-                argv += ["--ro-bind", path, path]
+        AgentRegistry.append_existing_binds(
+            argv,
+            ("/usr", "/bin", "/sbin", "/lib", "/lib64", "/etc", "/opt"),
+            mode="ro-bind",
+        )
         # Session bus / runtime dirs when present.
-        for path in (Path("/run/user") / str(os.getuid()), Path("/var/lib/dbus")):
-            if path.exists():
-                argv += ["--ro-bind", str(path), str(path)]
+        AgentRegistry.append_existing_binds(
+            argv,
+            (Path("/run/user") / str(os.getuid()), Path("/var/lib/dbus")),
+            mode="ro-bind",
+        )
         # Writable peer home + workspace; set HOME and chdir.
         argv += [
             "--bind",
