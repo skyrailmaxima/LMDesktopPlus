@@ -1,21 +1,23 @@
 """Apt upgradable count + Mint Update launcher (Stage B).
 
+Preoptimized: try_run for apt list; ternary fail-soft snapshot; one loop in count.
 @use levels: snapshot is medium (long TTL); refresh/open are low use.
-Counting uses `apt list --upgradable`; open only launches mintupdate.
 """
 
 from __future__ import annotations
 
 import re
-import subprocess
 import time
 from typing import Any
 
 from ..fncache import UseLevel, register_fn
-from ..util import executable, run_capture, spawn
+from ..preopt import try_run
+from ..util import executable, spawn
 from .base import command_error, dispatch_command
 
 _UPGRADABLE_RE = re.compile(r"\bupgradable\b", re.IGNORECASE)
+# apt list may exit 100 when indexes are stale but still emits package lines.
+_APT_OK = frozenset({0, 100})
 
 
 @register_fn(
@@ -33,8 +35,7 @@ def count_upgradable(output: str) -> int:
         lower = stripped.lower()
         if lower.startswith("listing") or lower.startswith("warning:"):
             continue
-        if _UPGRADABLE_RE.search(stripped):
-            count += 1
+        count += 1 if _UPGRADABLE_RE.search(stripped) else 0
     return count
 
 
@@ -67,24 +68,29 @@ class UpdatesAdapter:
         now = time.monotonic()
         if self._cached_snapshot is not None and now - self._cached_at < self.cache_ttl:
             return self._cached_snapshot.copy()
-        try:
-            result = run_capture([self.apt, "list", "--upgradable"], timeout=20)
-            if result.returncode not in {0, 100}:
-                # apt may return non-zero when lists are locked; keep fail-soft
-                raise RuntimeError(result.stderr.strip() or "apt list --upgradable failed")
-            snapshot = {
-                "available": True,
-                "count": count_upgradable(result.stdout + "\n" + result.stderr),
-                "mintupdate_available": bool(self.mintupdate),
-            }
-        except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
-            snapshot = {
-                "available": False,
-                "last_error": str(exc),
-            }
+        snapshot = self._probe_upgradable()
         self._cached_at = now
         self._cached_snapshot = snapshot
         return snapshot.copy()
+
+    def _probe_upgradable(self) -> dict[str, Any]:
+        # @use: medium use — purpose: one apt list probe → Outcome-shaped snapshot
+        run = try_run([self.apt, "list", "--upgradable"], timeout=20)
+        code = -1 if run.completed is None else run.completed.returncode
+        # Launched + allowed exit → count; else fail-soft with last_error.
+        return (
+            {
+                "available": True,
+                "count": count_upgradable(run.stdout + "\n" + run.stderr),
+                "mintupdate_available": bool(self.mintupdate),
+            }
+            if run.launched and code in _APT_OK
+            else {
+                "available": False,
+                "last_error": run.error
+                or (run.stderr.strip() or "apt list --upgradable failed"),
+            }
+        )
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
         # @use: low use — purpose: refresh/open via command hashmap
@@ -102,13 +108,15 @@ class UpdatesAdapter:
             return command_error("unavailable", "apt is not installed")
         self._cached_snapshot = None
         snap = self.snapshot()
-        if not snap.get("available"):
-            return command_error("unavailable", snap.get("last_error") or "refresh failed")
-        return {
-            "ok": True,
-            "count": snap["count"],
-            "mintupdate_available": snap["mintupdate_available"],
-        }
+        return (
+            {
+                "ok": True,
+                "count": snap["count"],
+                "mintupdate_available": snap["mintupdate_available"],
+            }
+            if snap.get("available")
+            else command_error("unavailable", snap.get("last_error") or "refresh failed")
+        )
 
     def _open(self, _payload: dict[str, Any]) -> dict[str, Any]:
         # @use: low use — purpose: spawn Mint Update UI only

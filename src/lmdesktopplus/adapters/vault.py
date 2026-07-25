@@ -1,5 +1,6 @@
 """App vault — FEATURE_PACKAGES map + allowlisted pkexec apt installs (Tranche 6).
 
+Preoptimized: try_run for dpkg-query / pkexec apt-get; map-first feature rows.
 Vapor typology: **vault** (feature catalog), **probe** (scan), **forge_pack**
 (install via explicit confirm). Package names never come from the client — only
 ids that resolve inside FEATURE_PACKAGES.
@@ -11,7 +12,8 @@ import time
 from typing import Any
 
 from ..fncache import UseLevel, register_fn
-from ..util import executable, run_capture
+from ..preopt import try_run
+from ..util import executable
 from .base import command_error, dispatch_command
 
 # Canonical vault map — UI and install both consume this hashmap.
@@ -119,11 +121,8 @@ def package_installed(pkg: str, *, dpkg_query: str | None = None) -> bool:
     binary = dpkg_query or executable("dpkg-query")
     if not binary or not pkg:
         return False
-    try:
-        cp = run_capture([binary, "-W", "-f=${Status}", pkg], timeout=2)
-    except (OSError, RuntimeError):
-        return False
-    return cp.returncode == 0 and "install ok installed" in (cp.stdout or "")
+    run = try_run([binary, "-W", "-f=${Status}", pkg], timeout=2)
+    return run.ok and "install ok installed" in run.stdout
 
 
 @register_fn(
@@ -135,10 +134,8 @@ def feature_row(feature_id: str, spec: dict[str, Any]) -> dict[str, Any]:
     # @use: medium use — purpose: unify Apps vault card fields from FEATURE_PACKAGES
     apt_pkgs = [str(p) for p in spec.get("apt") or [] if isinstance(p, str) and p]
     detect = spec.get("detect")
-    detected = bool(detect and executable(str(detect)))
-    # If no detect binary, treat optional UI-only features as present when listed.
-    if detect is None:
-        detected = True
+    # No detect binary → optional UI-only features count as present when listed.
+    detected = True if detect is None else bool(detect and executable(str(detect)))
     installed = all(package_installed(pkg) for pkg in apt_pkgs) if apt_pkgs else detected
     return {
         "id": feature_id,
@@ -229,12 +226,9 @@ class VaultAdapter:
             return command_error("unavailable", "pkexec or apt-get is not available")
         # Packages come only from FEATURE_PACKAGES — never from client strings.
         argv = [self.pkexec, self.apt_get, "install", "-y", "--", *packages]
-        try:
-            cp = run_capture(argv, timeout=600)
-        except Exception as exc:  # noqa: BLE001 — host boundary
-            return command_error("internal_error", f"apt install failed: {exc}")
-        if cp.returncode != 0:
-            detail = (cp.stderr or cp.stdout or "apt-get failed").strip()[:240]
+        run = try_run(argv, timeout=600)
+        if not run.ok:
+            detail = (run.error or run.stderr or run.stdout or "apt-get failed").strip()[:240]
             return {
                 "ok": False,
                 "error_code": "internal_error",

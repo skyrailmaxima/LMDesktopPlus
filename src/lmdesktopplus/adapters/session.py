@@ -1,5 +1,6 @@
 """Hyprland one-shot arm / disarm for TTY handoff (Stage A).
 
+Preoptimized: lifecycle status table + ternary chip; file I/O stays local OSError.
 @use levels: snapshot is high use (desktop session chip); arm/disarm are low use.
 Arming writes only a flag under app data — never logs out of Cinnamon.
 """
@@ -12,6 +13,12 @@ from typing import Any
 
 from ..util import app_data_dir, executable
 from .base import command_error, dispatch_command, envelope
+
+# Ordered lifecycle gates — first matching predicate wins.
+_LIFECYCLE_GATES: tuple[tuple[str, str], ...] = (
+    ("hyprland_active", "active"),
+    ("armed", "armed"),
+)
 
 
 class SessionAdapter:
@@ -28,13 +35,14 @@ class SessionAdapter:
 
     def _lifecycle_status(self, snap: dict[str, Any]) -> str:
         # @use: high use — purpose: map session flags → lifecycle chip status
-        if snap["hyprland_active"]:
-            return "active"
-        if snap["armed"]:
-            return "armed"
-        if executable("Hyprland") or executable("hyprland"):
-            return "ready"
-        return "not_installed"
+        for key, status in _LIFECYCLE_GATES:
+            if snap.get(key):
+                return status
+        return (
+            "ready"
+            if executable("Hyprland") or executable("hyprland")
+            else "not_installed"
+        )
 
     def snapshot(self) -> dict[str, Any]:
         # @use: high use — purpose: Desktop session / Hyprland arm chip
@@ -113,7 +121,13 @@ class SessionAdapter:
                 flag.unlink()
         except OSError as exc:
             return command_error("permission_denied", f"could not disarm Hyprland one-shot: {exc}")
-        return {"ok": True, "armed": False, "lifecycle": self._lifecycle_status({
-            "hyprland_active": bool(os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")),
+        return {
+            "ok": True,
             "armed": False,
-        })}
+            "lifecycle": self._lifecycle_status(
+                {
+                    "hyprland_active": bool(os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")),
+                    "armed": False,
+                }
+            ),
+        }

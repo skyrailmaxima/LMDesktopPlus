@@ -34,7 +34,7 @@ class PrintersAdapterTests(unittest.TestCase):
             False,
         )
 
-    @patch("lmdesktopplus.adapters.printers.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_snapshot_and_refresh(self, run_capture):
         run_capture.return_value = completed(stdout=LPSTAT)
         adapter = PrintersAdapter(lpstat="/usr/bin/lpstat", printer_ui="", cache_ttl=0)

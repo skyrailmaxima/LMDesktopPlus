@@ -1,5 +1,6 @@
 """Live matrix wallpaper — HTML/DV.rain window or optional mpvpaper (Stage D Task 22).
 
+Preoptimized: clamp_int/parse_int intensity; ternary pid/backend gates.
 Feature-flagged (`features.live_wallpaper`, default on). Writes only owned files
 under `~/.config/lmdesktopplus/` and appends a hypr `source=` line when the
 hyprland.conf is already LMDesktopPlus-owned. Start is still explicit from the UI
@@ -17,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from ..fncache import UseLevel, register_fn
+from ..preopt import clamp_int, parse_int
 from ..util import app_config_dir, app_data_dir, executable, spawn, xdg_config_home
 from .base import command_error, dispatch_command
 
@@ -165,18 +167,20 @@ class LiveWallpaperAdapter:
             return 55
         settings = self._settings_get() or {}
         appearance = settings.get("appearance") or {}
-        try:
-            return max(0, min(100, int(appearance.get("rain_intensity", 55))))
-        except (TypeError, ValueError):
-            return 55
+        parsed = parse_int(appearance.get("rain_intensity", 55))
+        return 55 if parsed is None else clamp_int(parsed, 0, 100)
 
     def _running_pid(self) -> int | None:
+        # @use: medium use — purpose: alive-check pidfile without raising into poll
         path = self._pid_path()
         if not path.is_file():
             return None
         try:
-            pid = int(path.read_text(encoding="utf-8").strip())
-        except (OSError, ValueError):
+            text = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return None
+        pid = parse_int(text)
+        if pid is None or pid <= 0:
             return None
         try:
             os.kill(pid, 0)
@@ -226,10 +230,8 @@ class LiveWallpaperAdapter:
             self._settings_update({"features": {"live_wallpaper": True}})
         intensity = self._intensity()
         if "intensity" in payload:
-            try:
-                intensity = max(0, min(100, int(payload["intensity"])))
-            except (TypeError, ValueError):
-                pass
+            parsed = parse_int(payload["intensity"])
+            intensity = intensity if parsed is None else clamp_int(parsed, 0, 100)
         root = self._root()
         root.mkdir(parents=True, exist_ok=True)
         rules_path = root / "hypr-live-wallpaper.conf"
@@ -237,12 +239,13 @@ class LiveWallpaperAdapter:
         rules_path.write_text(etch_hypr_rules(), encoding="utf-8")
         source_line = f"source = {rules_path}"
         appended = ensure_hypr_live_source(self._hypr_path(), source_line)
+        video = self._video_path()
         script_path.write_text(
             etch_launcher_script(
                 python=self.python,
                 intensity=intensity,
                 mpvpaper=self.mpvpaper,
-                video=self._video_path(),
+                video=video,
             ),
             encoding="utf-8",
         )
@@ -252,9 +255,11 @@ class LiveWallpaperAdapter:
             pass
         # Stop any previous instance first.
         self._stop(clear_flag=False)
-        try:
-            # Prefer launching python module directly so PID is the wallpaper process.
-            argv = [
+        # Prefer mpvpaper when video exists; else HTML/DV.rain python module.
+        argv = (
+            [self.mpvpaper, "-o", "no-audio --loop", "*", str(video)]
+            if self.mpvpaper and video is not None
+            else [
                 self.python,
                 "-m",
                 "lmdesktopplus",
@@ -262,9 +267,8 @@ class LiveWallpaperAdapter:
                 "--rain-intensity",
                 str(intensity),
             ]
-            video = self._video_path()
-            if self.mpvpaper and video is not None:
-                argv = [self.mpvpaper, "-o", "no-audio --loop", "*", str(video)]
+        )
+        try:
             pid = spawn(argv)
             self._pid_path().write_text(f"{pid}\n", encoding="utf-8")
         except OSError as exc:

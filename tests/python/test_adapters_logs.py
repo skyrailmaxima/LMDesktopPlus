@@ -24,7 +24,7 @@ class LogsAdapterTests(unittest.TestCase):
     def test_unavailable_without_journalctl(self):
         self.assertFalse(LogsAdapter(journalctl="").snapshot().get("available"))
 
-    @patch("lmdesktopplus.adapters.logs.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_snapshot_returns_sanitized_lines(self, run_capture):
         run_capture.return_value = completed(stdout="2026-07-24T00:00:00 hello\nworld\n")
         adapter = LogsAdapter(journalctl="/usr/bin/journalctl", cache_ttl=0)

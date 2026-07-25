@@ -52,7 +52,7 @@ class IdleAdapterTests(unittest.TestCase):
             self.assertIn("timeout 600", body)
             self.assertIn("timeout 1200", body)
 
-    @patch("lmdesktopplus.adapters.idle.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_apply_cinnamon_gsettings_when_present(self, run_capture):
         run_capture.return_value = type("CP", (), {"returncode": 0, "stdout": "", "stderr": ""})()
         with tempfile.TemporaryDirectory() as tmp:

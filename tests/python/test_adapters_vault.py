@@ -32,7 +32,7 @@ class VaultAdapterTests(unittest.TestCase):
         self.assertEqual(snap["feature_order"][0], "kitty")
 
     @patch("lmdesktopplus.adapters.vault.package_installed", return_value=True)
-    @patch("lmdesktopplus.adapters.vault.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_install_uses_allowlisted_packages_only(self, run_capture, _installed):
         run_capture.return_value = completed(returncode=0)
         adapter = VaultAdapter(

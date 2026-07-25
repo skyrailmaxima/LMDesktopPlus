@@ -1,4 +1,7 @@
-"""User journal logs adapter — capped journalctl panel (Stage D Task 21)."""
+"""User journal logs adapter — capped journalctl panel (Stage D Task 21).
+
+Preoptimized: try_run for journalctl; ternary fail-soft snapshot.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +10,8 @@ import time
 from typing import Any
 
 from ..fncache import UseLevel, register_fn
-from ..util import executable, run_capture
+from ..preopt import clamp_int, try_run
+from ..util import executable
 from .base import command_error, dispatch_command
 
 _CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -32,16 +36,12 @@ def sanitize_journal(
     """
     # Normalize newlines and drop NULs / other controls (keep tab via space).
     cleaned = _CTRL_RE.sub("", text.replace("\r\n", "\n").replace("\r", "\n"))
-    if len(cleaned) > max_chars:
-        cleaned = cleaned[-max_chars:]
+    cleaned = cleaned if len(cleaned) <= max_chars else cleaned[-max_chars:]
     lines = cleaned.split("\n")
     # Keep the newest N lines when over cap.
-    if len(lines) > max_lines:
-        lines = lines[-max_lines:]
+    lines = lines if len(lines) <= max_lines else lines[-max_lines:]
     # Drop a single trailing empty line from journalctl.
-    if lines and lines[-1] == "":
-        lines = lines[:-1]
-    return lines
+    return lines[:-1] if lines and lines[-1] == "" else lines
 
 
 class LogsAdapter:
@@ -58,7 +58,7 @@ class LogsAdapter:
     ) -> None:
         self.journalctl = journalctl if journalctl is not None else executable("journalctl")
         self.cache_ttl = cache_ttl
-        self.max_lines = max(10, min(500, int(max_lines)))
+        self.max_lines = clamp_int(int(max_lines), 10, 500)
         self._cached_at = 0.0
         self._cached_snapshot: dict[str, Any] | None = None
 
@@ -72,34 +72,38 @@ class LogsAdapter:
         now = time.monotonic()
         if self._cached_snapshot is not None and now - self._cached_at < self.cache_ttl:
             return self._cached_snapshot.copy()
-        try:
-            cp = run_capture(
-                [
-                    self.journalctl,
-                    "--user",
-                    "-n",
-                    str(self.max_lines),
-                    "--no-pager",
-                    "-o",
-                    "short-iso",
-                ],
-                timeout=5,
-            )
-            if cp.returncode != 0:
-                raise RuntimeError(cp.stderr.strip() or "journalctl failed")
-            lines = sanitize_journal(cp.stdout, max_lines=self.max_lines)
-            snapshot = {
-                "available": True,
-                "backend": "journalctl",
-                "lines": lines,
-                "count": len(lines),
-                "max_lines": self.max_lines,
-            }
-        except (OSError, RuntimeError) as exc:
-            snapshot = {"available": False, "last_error": str(exc)}
+        snapshot = self._probe_journal()
         self._cached_at = now
         self._cached_snapshot = snapshot
         return snapshot.copy()
+
+    def _probe_journal(self) -> dict[str, Any]:
+        # @use: high use — purpose: try_run journalctl --user → sanitized lines
+        run = try_run(
+            [
+                self.journalctl,
+                "--user",
+                "-n",
+                str(self.max_lines),
+                "--no-pager",
+                "-o",
+                "short-iso",
+            ],
+            timeout=5,
+        )
+        if not run.ok:
+            return {
+                "available": False,
+                "last_error": run.error or (run.stderr.strip() or "journalctl failed"),
+            }
+        lines = sanitize_journal(run.stdout, max_lines=self.max_lines)
+        return {
+            "available": True,
+            "backend": "journalctl",
+            "lines": lines,
+            "count": len(lines),
+            "max_lines": self.max_lines,
+        }
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
         return dispatch_command(self._commands(), name, payload, adapter_id=self.id)
@@ -111,8 +115,10 @@ class LogsAdapter:
         # @use: medium use — purpose: force journal re-read for Monitor panel
         self._cached_snapshot = None
         snap = self.snapshot()
-        if not snap.get("available"):
-            return command_error(
+        return (
+            {"ok": True, **snap}
+            if snap.get("available")
+            else command_error(
                 "unavailable", snap.get("last_error") or "journalctl unavailable"
             )
-        return {"ok": True, **snap}
+        )

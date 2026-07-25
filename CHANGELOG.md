@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.5 — Preopt remaining Stage B–D adapters
+
+- Moved updates, printers, logs, idle, vault, session, and live_wallpaper onto
+  `try_run` / `parse_int` / `clamp_int` and ternary fail-soft snapshots so poll
+  ticks no longer catch `TimeoutExpired` / `RuntimeError` from host probes.
+- Apt upgradable probe treats exit codes `{0, 100}` as success without raising.
+- Session lifecycle chip uses an ordered gate table; live wallpaper intensity /
+  pid checks use parse helpers. True file I/O (`mkdir`/`touch`/`chmod`) stays
+  local `OSError` → `command_error`.
+
 ## 0.6.4 — Branchless preoptimized hot paths
 
 - Added `preopt` outcomes (`Outcome`, `RunOutcome`, `try_run`, `first_ok_scan`,
