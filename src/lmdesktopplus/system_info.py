@@ -7,7 +7,9 @@ import time
 from pathlib import Path
 from typing import Any
 
+from . import platform_freebsd as bsd
 from .fncache import UseLevel, register_fn
+from .platform_os import is_freebsd, is_linux
 from .preopt import Outcome, first_ok_scan, parse_float, parse_int, try_run
 from .util import first_executable
 
@@ -213,6 +215,11 @@ class SystemSampler:
 
     @staticmethod
     def _read_boot_time() -> float:
+        if is_freebsd():
+            boot = bsd.boot_time()
+            return boot if boot is not None else time.time()
+        if not is_linux():
+            return time.time()
         try:
             for line in Path("/proc/stat").read_text().splitlines():
                 if line.startswith("btime "):
@@ -223,6 +230,10 @@ class SystemSampler:
 
     @staticmethod
     def _cpu_rows() -> list[tuple[int, int]]:
+        if is_freebsd():
+            return bsd.cpu_rows()
+        if not is_linux():
+            return []
         rows: list[tuple[int, int]] = []
         try:
             for line in Path("/proc/stat").read_text().splitlines():
@@ -251,6 +262,10 @@ class SystemSampler:
 
     @staticmethod
     def _memory() -> dict[str, Any]:
+        if is_freebsd():
+            return bsd.memory_snapshot()
+        if not is_linux():
+            return {"total": 0, "used": 0, "available": 0, "percent": 0.0}
         data: dict[str, int] = {}
         try:
             for line in Path("/proc/meminfo").read_text().splitlines():
@@ -281,6 +296,10 @@ class SystemSampler:
 
     @staticmethod
     def _net_totals() -> tuple[int, int]:
+        if is_freebsd():
+            return bsd.net_totals()
+        if not is_linux():
+            return 0, 0
         rx = tx = 0
         try:
             for line in Path("/proc/net/dev").read_text().splitlines()[2:]:
@@ -309,6 +328,10 @@ class SystemSampler:
 
     @staticmethod
     def _temperatures() -> list[dict[str, Any]]:
+        if is_freebsd():
+            return bsd.temperatures()
+        if not is_linux():
+            return []
         values: list[dict[str, Any]] = []
         base = Path("/sys/class/thermal")
         if not base.exists():
@@ -411,6 +434,10 @@ class SystemSampler:
 
     @staticmethod
     def _battery() -> dict[str, Any] | None:
+        if is_freebsd():
+            return bsd.battery()
+        if not is_linux():
+            return None
         for bat in sorted(Path("/sys/class/power_supply").glob("BAT*")):
             try:
                 capacity = int((bat / "capacity").read_text().strip())
@@ -422,18 +449,22 @@ class SystemSampler:
 
     @staticmethod
     def identity() -> dict[str, Any]:
-        os_release: dict[str, str] = {}
-        try:
-            for line in Path("/etc/os-release").read_text().splitlines():
-                if "=" in line:
-                    key, value = line.split("=", 1)
-                    os_release[key] = value.strip().strip('"')
-        except OSError:
-            pass
+        if is_freebsd():
+            os_pretty = bsd.pretty_os()
+        else:
+            os_release: dict[str, str] = {}
+            try:
+                for line in Path("/etc/os-release").read_text().splitlines():
+                    if "=" in line:
+                        key, value = line.split("=", 1)
+                        os_release[key] = value.strip().strip('"')
+            except OSError:
+                pass
+            os_pretty = os_release.get("PRETTY_NAME", platform.platform())
         return {
             "hostname": socket.gethostname(),
             "user": os.environ.get("USER") or os.environ.get("LOGNAME") or "user",
-            "os": os_release.get("PRETTY_NAME", platform.platform()),
+            "os": os_pretty,
             "kernel": platform.release(),
             "architecture": platform.machine(),
             "session": os.environ.get("XDG_CURRENT_DESKTOP") or os.environ.get("DESKTOP_SESSION") or "unknown",
@@ -444,12 +475,15 @@ class SystemSampler:
 
     @staticmethod
     def _cpu_model() -> str:
-        try:
-            for line in Path("/proc/cpuinfo").read_text(errors="replace").splitlines():
-                if line.lower().startswith("model name"):
-                    return line.split(":", 1)[1].strip()
-        except OSError:
-            pass
+        if is_freebsd():
+            return bsd.cpu_model()
+        if is_linux():
+            try:
+                for line in Path("/proc/cpuinfo").read_text(errors="replace").splitlines():
+                    if line.lower().startswith("model name"):
+                        return line.split(":", 1)[1].strip()
+            except OSError:
+                pass
         return platform.processor() or "unknown"
 
     def sample(self) -> dict[str, Any]:

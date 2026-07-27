@@ -1,6 +1,8 @@
 """Allowlisted desktop actions — preopt try_run / first_ok_scan on host edges.
 
 @use levels: capabilities/launch are high/medium; lock/power are low.
+Linux Mint remains the primary rice; FreeBSD ships the UI package with
+sysctl-friendly lock/power argv and broader terminal candidates.
 """
 
 from __future__ import annotations
@@ -11,10 +13,39 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .fncache import UseLevel, register_fn
+from .platform_os import is_freebsd
 from .preopt import Outcome, first_ok_scan, try_mkdir, try_run
 from .util import app_config_dir, executable, first_executable, spawn
 
-TERMINAL_CANDIDATES = ("kitty", "gnome-terminal", "x-terminal-emulator", "xfce4-terminal")
+# kitty/gnome first for Mint; xterm/alacritty cover FreeBSD ports defaults.
+TERMINAL_CANDIDATES = (
+    "kitty",
+    "alacritty",
+    "gnome-terminal",
+    "x-terminal-emulator",
+    "xfce4-terminal",
+    "mate-terminal",
+    "xterm",
+    "uxterm",
+    "urxvt",
+)
+
+EDITOR_CANDIDATES = ("pulsar", "cursor", "codium", "code", "xed", "mousepad", "gedit")
+BROWSER_CANDIDATES = (
+    "firefox",
+    "google-chrome",
+    "chromium",
+    "ungoogled-chromium",
+    "chrome",
+    "xdg-open",
+)
+FILE_MANAGER_CANDIDATES = ("nemo", "nautilus", "thunar", "caja", "pcmanfm", "xdg-open")
+MONITOR_CANDIDATES = ("btop", "gnome-system-monitor", "htop", "top")
+SETTINGS_CANDIDATES = (
+    "cinnamon-settings",
+    "gnome-control-center",
+    "xfce4-settings-manager",
+)
 
 
 @register_fn(
@@ -61,6 +92,15 @@ def wrap_in_terminal(
             return [*prefix, "--hold", "--command", joined]
         return [*prefix, "--command", joined]
 
+    def alacritty() -> list[str]:
+        prefix = [terminal]
+        if workdir:
+            prefix += ["--working-directory", workdir]
+        if hold:
+            # alacritty has no --hold; leave process attached via shell.
+            return [*prefix, "-e", "sh", "-c", f"{shlex.join(argv)}; echo; read -r _"]
+        return [*prefix, "-e", *argv]
+
     def default() -> list[str]:
         if len(argv) == 1 and not hold:
             return [terminal, "-e", argv[0]]
@@ -69,9 +109,51 @@ def wrap_in_terminal(
     wrappers: dict[str, Callable[[], list[str]]] = {
         "kitty": kitty,
         "gnome-terminal": gnome,
+        "mate-terminal": gnome,
         "xfce4-terminal": xfce,
+        "alacritty": alacritty,
     }
     return wrappers.get(base, default)()
+
+
+def _lock_candidates() -> list[list[str]]:
+    # @use: low use — purpose: Linux + FreeBSD lock argv etch (first success wins)
+    argv_table: tuple[list[str], ...] = (
+        ["loginctl", "lock-session"],
+        ["cinnamon-screensaver-command", "--lock"],
+        ["xdg-screensaver", "lock"],
+        ["xscreensaver-command", "-lock"],
+        ["xlock"],
+        ["swaylock"],
+        ["i3lock"],
+    )
+    return [argv for argv in argv_table if executable(argv[0])]
+
+
+def _power_argv(action: str) -> list[str] | None:
+    # @use: low use — purpose: OS-specific allowlisted power command
+    uid = str(os.getuid())
+    if is_freebsd():
+        freebsd_map: dict[str, list[str]] = {
+            "logout": ["loginctl", "terminate-user", uid],
+            "suspend": ["zzz"] if executable("zzz") else ["acpiconf", "-s", "3"],
+            "reboot": ["shutdown", "-r", "now"],
+            "poweroff": ["shutdown", "-p", "now"],
+        }
+        argv = freebsd_map.get(action)
+        if argv is None:
+            return None
+        # FreeBSD logout without elogind/loginctl: soft fail at spawn time.
+        if action == "logout" and not executable("loginctl"):
+            return None
+        return argv
+    linux_map = {
+        "logout": ["loginctl", "terminate-user", uid],
+        "suspend": ["systemctl", "suspend"],
+        "reboot": ["systemctl", "reboot"],
+        "poweroff": ["systemctl", "poweroff"],
+    }
+    return linux_map.get(action)
 
 
 class ActionRunner:
@@ -82,17 +164,17 @@ class ActionRunner:
     def capabilities() -> dict[str, Any]:
         apps = {
             "terminal": first_executable(TERMINAL_CANDIDATES),
-            "editor": first_executable(["pulsar", "cursor", "codium", "code", "xed"]),
-            "browser": first_executable(["firefox", "google-chrome", "chromium", "xdg-open"]),
-            "monitor": first_executable(["btop", "gnome-system-monitor", "htop"]),
+            "editor": first_executable(EDITOR_CANDIDATES),
+            "browser": first_executable(BROWSER_CANDIDATES),
+            "monitor": first_executable(MONITOR_CANDIDATES),
             "rofi": executable("rofi"),
-            "settings": first_executable(["cinnamon-settings", "gnome-control-center"]),
-            "file_manager": first_executable(["nemo", "nautilus", "thunar", "xdg-open"]),
+            "settings": first_executable(SETTINGS_CANDIDATES),
+            "file_manager": first_executable(FILE_MANAGER_CANDIDATES),
             "tmux": executable("tmux"),
             "hyprctl": executable("hyprctl"),
             "nmcli": executable("nmcli"),
             "playerctl": executable("playerctl"),
-            "audio": first_executable(["wpctl", "pactl"]),
+            "audio": first_executable(["wpctl", "pactl", "mixer"]),
             "bubblewrap": executable("bwrap"),
         }
         return {key: {"available": bool(value), "path": value} for key, value in apps.items()}
@@ -134,14 +216,14 @@ class ActionRunner:
 
     @staticmethod
     def _editor() -> dict[str, Any]:
-        cmd = first_executable(["pulsar", "cursor", "codium", "code", "xed"])
+        cmd = first_executable(EDITOR_CANDIDATES)
         if not cmd:
             return {"ok": False, "error": "no supported editor found"}
         return {"ok": True, "pid": spawn([cmd, str(Path.home() / "work")])}
 
     @staticmethod
     def _browser() -> dict[str, Any]:
-        cmd = first_executable(["firefox", "google-chrome", "chromium", "xdg-open"])
+        cmd = first_executable(BROWSER_CANDIDATES)
         if not cmd:
             return {"ok": False, "error": "no browser found"}
         return {"ok": True, "pid": spawn([cmd, "about:blank"])}
@@ -151,7 +233,7 @@ class ActionRunner:
         gui = executable("gnome-system-monitor")
         if gui:
             return {"ok": True, "pid": spawn([gui])}
-        btop = executable("btop") or executable("htop")
+        btop = first_executable(["btop", "htop", "top"])
         if not btop:
             return {"ok": False, "error": "no supported system monitor found"}
         wrapped = wrap_in_terminal([btop], hold=True)
@@ -168,7 +250,7 @@ class ActionRunner:
 
     @staticmethod
     def _settings() -> dict[str, Any]:
-        cmd = first_executable(["cinnamon-settings", "gnome-control-center"])
+        cmd = first_executable(SETTINGS_CANDIDATES)
         if not cmd:
             return {"ok": False, "error": "desktop settings application not found"}
         return {"ok": True, "pid": spawn([cmd])}
@@ -180,7 +262,7 @@ class ActionRunner:
         made = try_mkdir(path)
         if not made.ok:
             return {"ok": False, "error": made.error or "could not create path"}
-        cmd = first_executable(["nemo", "nautilus", "thunar", "xdg-open"])
+        cmd = first_executable(FILE_MANAGER_CANDIDATES)
         if not cmd:
             return {"ok": False, "error": "file manager not found"}
         try:
@@ -191,15 +273,7 @@ class ActionRunner:
     @staticmethod
     def lock() -> dict[str, Any]:
         # @use: low use — purpose: lock-session via first_ok_scan + try_run
-        candidates = [
-            argv
-            for argv in (
-                ["loginctl", "lock-session"],
-                ["cinnamon-screensaver-command", "--lock"],
-                ["xdg-screensaver", "lock"],
-            )
-            if executable(argv[0])
-        ]
+        candidates = _lock_candidates()
 
         def probe(argv: list[str]) -> Outcome:
             run = try_run(argv, timeout=5)
@@ -224,13 +298,9 @@ class ActionRunner:
         settings = self.settings_getter()
         if not settings.get("behavior", {}).get("allow_power_actions", False):
             return {"ok": False, "error": "power actions are disabled in LMDesktopPlus settings"}
-        mapping = {
-            "logout": ["loginctl", "terminate-user", str(os.getuid())],
-            "suspend": ["systemctl", "suspend"],
-            "reboot": ["systemctl", "reboot"],
-            "poweroff": ["systemctl", "poweroff"],
-        }
-        argv = mapping[action]
+        argv = _power_argv(action)
+        if argv is None:
+            return {"ok": False, "error": f"no power backend for {action}"}
         if not executable(argv[0]):
             return {"ok": False, "error": f"{argv[0]} is unavailable"}
         try:

@@ -6,19 +6,28 @@ Hyprland session, and supplies a local control center for system telemetry,
 application launchers, agent workspaces, NetworkManager, media, settings, and
 desktop integration.
 
-Version **0.6.7** adds AMD GPU metrics (`rocm-smi` + amdgpu sysfs) alongside
-NVIDIA, on top of the 0.6.6 preopt pass. Live matrix wallpaper defaults **on**
-(START still explicit).
+Version **0.6.8** adds a FreeBSD UI package path (sysctl metrics + ports/tarball
+packaging) on top of 0.6.7 AMD GPU metrics. Live matrix wallpaper defaults **on**
+(START still explicit). Mint rice via `install.sh` remains Linux-only.
 
 ## Install the machine UI
 
-The Debian package is the cleanest system-wide installation:
+The Debian package is the cleanest system-wide installation on Mint/Ubuntu:
 
 ```bash
-sudo apt install ./lmdesktopplus_0.6.7_all.deb
+sudo apt install ./lmdesktopplus_0.6.8_all.deb
 lmdesktopplus
 ```
 
+On FreeBSD, stage the UI package (or use the ports skeleton):
+
+```bash
+./packaging/build-freebsd-ui.sh
+sudo tar -xJf dist/lmdesktopplus-0.6.8-freebsd.txz -C /
+lmdesktopplus --browser   # if WebKit/GI is not installed
+```
+
+See [`docs/freebsd-ui.md`](docs/freebsd-ui.md).
 Launch modes:
 
 ```bash

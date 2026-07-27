@@ -1,0 +1,5 @@
+Digitalvapor vapor//matrix machine UI for FreeBSD.
+
+Provides the local control center (metrics, launchers, settings, agents)
+with sysctl/netstat backends. The Linux Mint rice (install.sh) is not
+included. Use lmdesktopplus --browser when WebKit/GI is unavailable.

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import shutil
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
@@ -73,6 +75,21 @@ def first_executable(names: Iterable[str]) -> str | None:
     return None
 
 
+@lru_cache(maxsize=1)
+def capture_locale() -> str:
+    """Locale for subprocess capture — C.UTF-8 on Linux; FreeBSD-safe fallbacks.
+
+    FreeBSD 13+ ships C.UTF-8; older images may only have C / en_US.UTF-8.
+    """
+    if platform.system().lower() == "linux":
+        return "C.UTF-8"
+    for name in ("C.UTF-8", "C.utf8", "en_US.UTF-8", "C"):
+        for base in (Path("/usr/share/locale"), Path("/usr/lib/locale")):
+            if (base / name).exists():
+                return name
+    return "C"
+
+
 def run_capture(
     argv: Sequence[str],
     timeout: float = 4.0,
@@ -86,7 +103,7 @@ def run_capture(
         stderr=subprocess.PIPE,
         timeout=timeout,
         check=False,
-        env={**os.environ, "LC_ALL": "C.UTF-8"},
+        env={**os.environ, "LC_ALL": capture_locale()},
     )
 
 

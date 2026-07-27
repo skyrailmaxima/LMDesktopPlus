@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.8 — FreeBSD UI package
+
+- OS family gate (`platform_os`) plus FreeBSD metrics backends (`sysctl` /
+  `netstat`) for CPU, memory, network, temperature, battery, uptime, and
+  identity — Linux keeps `/proc` + `/sys`.
+- Lock/power actions accept FreeBSD peers (`zzz`/`acpiconf`, `shutdown -r/-p`,
+  xscreensaver/xlock/swaylock); terminal candidates include alacritty/xterm.
+- `run_capture` picks a FreeBSD-safe `LC_ALL` when `C.UTF-8` is missing.
+- Packaging: `packaging/build-freebsd-ui.sh` stages a `/usr/local` UI tarball;
+  `packaging/freebsd/` ports skeleton + [`docs/freebsd-ui.md`](docs/freebsd-ui.md).
+  Mint rice (`install.sh`) remains Linux-only; Linux-only adapters stay fail-soft.
+
 ## 0.6.7 — AMD GPU metrics + cloud smoke guest
 
 - GPU sampling priority: `nvidia-smi` → `rocm-smi` CSV → `amdgpu` sysfs
