@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.9 — GitHub CI + collapse prep
+
+- Added `.github/workflows/ci.yml`: Ubuntu runner executes `./tests/run-all.sh`
+  on push/PR to `main` and `feature/lmdesktopplus`, uploads `.deb` /
+  FreeBSD `.txz` artifacts.
+- `tests/run-all.sh` prints step banners, stages the FreeBSD UI tarball (rejects
+  root-level `plist`), and dry-runs `scripts/collapse-stack.sh`.
+- Post-review checklist: [`docs/collapse-trunk.md`](docs/collapse-trunk.md);
+  `scripts/collapse-stack.sh --check` / `--delete` for stack branch cleanup.
+- Branching docs + `AGENTS.md` updated for CI status check **test (ubuntu)**.
+
 ## 0.6.8 — FreeBSD UI package
 
 - OS family gate (`platform_os`) plus FreeBSD metrics backends (`sysctl` /
