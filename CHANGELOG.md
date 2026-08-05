@@ -7,6 +7,8 @@
   FreeBSD `.txz` artifacts.
 - `tests/run-all.sh` prints step banners, stages the FreeBSD UI tarball (rejects
   root-level `plist`), and dry-runs `scripts/collapse-stack.sh`.
+- Smoke guest apply path: `scripts/vm/guest-apply-build.sh` (install-ui + `.deb`)
+  invoked by `smoke-cloud-guest.sh` under QEMU TCG when `/dev/kvm` is missing.
 - Post-review checklist: [`docs/collapse-trunk.md`](docs/collapse-trunk.md);
   `scripts/collapse-stack.sh --check` / `--delete` for stack branch cleanup.
 - Branching docs + `AGENTS.md` updated for CI status check **test (ubuntu)**.
