@@ -59,15 +59,15 @@ PYTHONPATH=${PREFIX}/lib/lmdesktopplus exec python3 -m lmdesktopplus "\$@"
 WRAPPER
 chmod 0755 "$STAGE${PREFIX}/bin/lmdesktopplus"
 
-# File list for operators / ports pkg-plist generation.
+# File list for operators / ports pkg-plist generation (under PREFIX — never /plist).
 (
   cd "$STAGE"
   find ".${PREFIX}" -type f | sed 's#^\./##' | sort
-) > "$STAGE/plist"
+) > "$STAGE${PREFIX}/share/doc/lmdesktopplus/plist"
 
 if command -v bsdtar >/dev/null 2>&1; then
-  (cd "$STAGE" && bsdtar --uid 0 --gid 0 -cJf "$OUT" ".${PREFIX}" plist)
+  (cd "$STAGE" && bsdtar --uid 0 --gid 0 -cJf "$OUT" ".${PREFIX}")
 else
-  (cd "$STAGE" && tar -cJf "$OUT" ".${PREFIX}" plist)
+  (cd "$STAGE" && tar -cJf "$OUT" ".${PREFIX}")
 fi
 printf '%s\n' "$OUT"

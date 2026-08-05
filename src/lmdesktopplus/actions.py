@@ -15,16 +15,16 @@ from typing import Any, Callable
 from .fncache import UseLevel, register_fn
 from .platform_os import is_freebsd
 from .preopt import Outcome, first_ok_scan, try_mkdir, try_run
-from .util import app_config_dir, executable, first_executable, spawn
+from .util import app_config_dir, executable, first_executable, resolve_executable, spawn
 
-# kitty/gnome first for Mint; xterm/alacritty cover FreeBSD ports defaults.
+# Mint DE terminals before portable fallbacks (alacritty/xterm) so Linux defaults stay stable.
 TERMINAL_CANDIDATES = (
     "kitty",
-    "alacritty",
     "gnome-terminal",
     "x-terminal-emulator",
     "xfce4-terminal",
     "mate-terminal",
+    "alacritty",
     "xterm",
     "uxterm",
     "urxvt",
@@ -101,10 +101,11 @@ def wrap_in_terminal(
             return [*prefix, "-e", "sh", "-c", f"{shlex.join(argv)}; echo; read -r _"]
         return [*prefix, "-e", *argv]
 
-    def default() -> list[str]:
-        if len(argv) == 1 and not hold:
-            return [terminal, "-e", argv[0]]
-        return [terminal, "-e", shlex.join(argv)]
+    def xterm_family() -> list[str]:
+        # xterm/uxterm/urxvt: -e takes an argv vector, not one joined shell string.
+        if hold:
+            return [terminal, "-e", "sh", "-c", f"{shlex.join(argv)}; echo; read -r _"]
+        return [terminal, "-e", *argv]
 
     wrappers: dict[str, Callable[[], list[str]]] = {
         "kitty": kitty,
@@ -112,8 +113,11 @@ def wrap_in_terminal(
         "mate-terminal": gnome,
         "xfce4-terminal": xfce,
         "alacritty": alacritty,
+        "xterm": xterm_family,
+        "uxterm": xterm_family,
+        "urxvt": xterm_family,
     }
-    return wrappers.get(base, default)()
+    return wrappers.get(base, xterm_family)()
 
 
 def _lock_candidates() -> list[list[str]]:
@@ -134,19 +138,24 @@ def _power_argv(action: str) -> list[str] | None:
     # @use: low use — purpose: OS-specific allowlisted power command
     uid = str(os.getuid())
     if is_freebsd():
-        freebsd_map: dict[str, list[str]] = {
-            "logout": ["loginctl", "terminate-user", uid],
-            "suspend": ["zzz"] if executable("zzz") else ["acpiconf", "-s", "3"],
-            "reboot": ["shutdown", "-r", "now"],
-            "poweroff": ["shutdown", "-p", "now"],
-        }
-        argv = freebsd_map.get(action)
-        if argv is None:
+        # Resolve via sbin-aware lookup — FreeBSD keeps shutdown/acpiconf out of user PATH.
+        if action == "logout":
+            loginctl = resolve_executable("loginctl")
+            return [loginctl, "terminate-user", uid] if loginctl else None
+        if action == "suspend":
+            zzz = resolve_executable("zzz")
+            if zzz:
+                return [zzz]
+            acpi = resolve_executable("acpiconf")
+            return [acpi, "-s", "3"] if acpi else None
+        shutdown = resolve_executable("shutdown")
+        if not shutdown:
             return None
-        # FreeBSD logout without elogind/loginctl: soft fail at spawn time.
-        if action == "logout" and not executable("loginctl"):
-            return None
-        return argv
+        if action == "reboot":
+            return [shutdown, "-r", "now"]
+        if action == "poweroff":
+            return [shutdown, "-p", "now"]
+        return None
     linux_map = {
         "logout": ["loginctl", "terminate-user", uid],
         "suspend": ["systemctl", "suspend"],
@@ -301,7 +310,8 @@ class ActionRunner:
         argv = _power_argv(action)
         if argv is None:
             return {"ok": False, "error": f"no power backend for {action}"}
-        if not executable(argv[0]):
+        # Linux still uses PATH names; FreeBSD returns absolute paths from resolve_executable.
+        if not Path(argv[0]).is_file() and not executable(argv[0]):
             return {"ok": False, "error": f"{argv[0]} is unavailable"}
         try:
             return {"ok": True, "pid": spawn(argv), "action": action}

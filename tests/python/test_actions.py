@@ -50,6 +50,13 @@ class WrapInTerminalTests(unittest.TestCase):
     def test_missing_terminal(self, _first):
         self.assertIsNone(wrap_in_terminal(["btop"]))
 
+    @patch("lmdesktopplus.actions.first_executable", return_value="/usr/local/bin/xterm")
+    def test_xterm_spreads_argv(self, _first):
+        self.assertEqual(
+            wrap_in_terminal(["tmux", "new-session", "-A", "-s", "lmdesktopplus"]),
+            ["/usr/local/bin/xterm", "-e", "tmux", "new-session", "-A", "-s", "lmdesktopplus"],
+        )
+
 
 class ActionDispatchTests(unittest.TestCase):
     def test_action_handlers_cover_known_peers(self):

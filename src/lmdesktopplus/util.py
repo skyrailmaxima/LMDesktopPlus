@@ -77,17 +77,34 @@ def first_executable(names: Iterable[str]) -> str | None:
 
 @lru_cache(maxsize=1)
 def capture_locale() -> str:
-    """Locale for subprocess capture — C.UTF-8 on Linux; FreeBSD-safe fallbacks.
+    """Locale for subprocess capture — prefer C.UTF-8 on Linux and FreeBSD.
 
-    FreeBSD 13+ ships C.UTF-8; older images may only have C / en_US.UTF-8.
+    FreeBSD 13+ accepts C.UTF-8 even when /usr/share/locale/C.UTF-8 is absent.
+    Older / exotic images fall back via locale dir probes, then C.
     """
-    if platform.system().lower() == "linux":
+    system = platform.system().lower()
+    if system in {"linux", "freebsd", "dragonfly", "midnightbsd"}:
         return "C.UTF-8"
     for name in ("C.UTF-8", "C.utf8", "en_US.UTF-8", "C"):
         for base in (Path("/usr/share/locale"), Path("/usr/lib/locale")):
             if (base / name).exists():
                 return name
     return "C"
+
+
+def resolve_executable(name: str) -> str | None:
+    """Resolve a command, also checking /sbin and /usr/sbin (FreeBSD power tools)."""
+    found = executable(name)
+    if found:
+        return found
+    for prefix in ("/sbin", "/usr/sbin", "/usr/local/sbin"):
+        path = Path(prefix) / name
+        try:
+            if path.is_file() and os.access(path, os.X_OK):
+                return str(path)
+        except OSError:
+            continue
+    return None
 
 
 def run_capture(

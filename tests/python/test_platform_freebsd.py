@@ -63,25 +63,43 @@ class FreeBsdParsersTests(unittest.TestCase):
 
 class FreeBsdPowerTests(unittest.TestCase):
     @patch("lmdesktopplus.actions.is_freebsd", return_value=True)
-    @patch("lmdesktopplus.actions.executable", side_effect=lambda n: "/bin/zzz" if n == "zzz" else None)
-    def test_freebsd_suspend_prefers_zzz(self, _exe, _bsd):
+    @patch(
+        "lmdesktopplus.actions.resolve_executable",
+        side_effect=lambda n: "/bin/zzz" if n == "zzz" else None,
+    )
+    def test_freebsd_suspend_prefers_zzz(self, _resolve, _bsd):
         from lmdesktopplus.actions import _power_argv
 
-        self.assertEqual(_power_argv("suspend"), ["zzz"])
+        self.assertEqual(_power_argv("suspend"), ["/bin/zzz"])
 
     @patch("lmdesktopplus.actions.is_freebsd", return_value=True)
-    @patch("lmdesktopplus.actions.executable", return_value=None)
-    def test_freebsd_suspend_falls_back_to_acpiconf(self, _exe, _bsd):
+    @patch(
+        "lmdesktopplus.actions.resolve_executable",
+        side_effect=lambda n: "/usr/sbin/acpiconf" if n == "acpiconf" else None,
+    )
+    def test_freebsd_suspend_falls_back_to_acpiconf(self, _resolve, _bsd):
         from lmdesktopplus.actions import _power_argv
 
-        self.assertEqual(_power_argv("suspend"), ["acpiconf", "-s", "3"])
+        self.assertEqual(_power_argv("suspend"), ["/usr/sbin/acpiconf", "-s", "3"])
 
     @patch("lmdesktopplus.actions.is_freebsd", return_value=True)
-    def test_freebsd_reboot_shutdown(self, _bsd):
+    @patch(
+        "lmdesktopplus.actions.resolve_executable",
+        side_effect=lambda n: "/sbin/shutdown" if n == "shutdown" else None,
+    )
+    def test_freebsd_reboot_shutdown(self, _resolve, _bsd):
         from lmdesktopplus.actions import _power_argv
 
-        self.assertEqual(_power_argv("reboot"), ["shutdown", "-r", "now"])
-        self.assertEqual(_power_argv("poweroff"), ["shutdown", "-p", "now"])
+        self.assertEqual(_power_argv("reboot"), ["/sbin/shutdown", "-r", "now"])
+        self.assertEqual(_power_argv("poweroff"), ["/sbin/shutdown", "-p", "now"])
+
+
+class FreeBsdBatteryTests(unittest.TestCase):
+    def test_battery_status_label(self):
+        self.assertEqual(bsd.battery_status_label("2"), "Charging")
+        self.assertEqual(bsd.battery_status_label("1"), "Discharging")
+        self.assertEqual(bsd.battery_status_label("0"), "Full")
+        self.assertEqual(bsd.battery_status_label(None), "unknown")
 
 
 if __name__ == "__main__":

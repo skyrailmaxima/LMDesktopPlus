@@ -202,13 +202,33 @@ def temperatures() -> list[dict[str, Any]]:
     return values[:12]
 
 
+@register_fn(
+    "platform_freebsd.battery_status_label",
+    UseLevel.MEDIUM,
+    "Map hw.acpi.battery.state bitfield to Charging/Discharging/Full",
+)
+def battery_status_label(raw: str | None) -> str:
+    # ACPI_BATT_STAT_DISCHARG=1, CHARGING=2, CRITICAL=4 (FreeBSD sys/dev/acpica).
+    state = parse_int(raw)
+    if state is None:
+        return raw or "unknown"
+    if state & 2:
+        return "Charging"
+    if state & 1:
+        return "Discharging"
+    if state == 0:
+        return "Full"
+    return f"state:{state}"
+
+
 def battery() -> dict[str, Any] | None:
     life = sysctl_int("hw.acpi.battery.life")
     if life is None or life < 0:
         return None
-    # state: often 0=none/unknown; charging bit varies — keep string soft.
-    state = sysctl_n("hw.acpi.battery.state") or "unknown"
-    return {"percent": life, "status": state}
+    return {
+        "percent": life,
+        "status": battery_status_label(sysctl_n("hw.acpi.battery.state")),
+    }
 
 
 def cpu_model() -> str:

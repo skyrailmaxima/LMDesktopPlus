@@ -7,10 +7,13 @@
   identity — Linux keeps `/proc` + `/sys`.
 - Lock/power actions accept FreeBSD peers (`zzz`/`acpiconf`, `shutdown -r/-p`,
   xscreensaver/xlock/swaylock); terminal candidates include alacritty/xterm.
-- `run_capture` picks a FreeBSD-safe `LC_ALL` when `C.UTF-8` is missing.
-- Packaging: `packaging/build-freebsd-ui.sh` stages a `/usr/local` UI tarball;
-  `packaging/freebsd/` ports skeleton + [`docs/freebsd-ui.md`](docs/freebsd-ui.md).
-  Mint rice (`install.sh`) remains Linux-only; Linux-only adapters stay fail-soft.
+- `run_capture` prefers `C.UTF-8` on FreeBSD; power tools resolve via `/sbin`.
+- Packaging: `packaging/build-freebsd-ui.sh` stages a `/usr/local` UI tarball
+  (plist under `share/doc`, never `/plist`); `packaging/freebsd/` ports skeleton
+  + [`docs/freebsd-ui.md`](docs/freebsd-ui.md). Mint rice (`install.sh`) remains
+  Linux-only; Linux-only adapters stay fail-soft.
+- Review follow-ups: xterm `-e` spreads argv; Mint terminal order restored
+  (alacritty after DE terminals); ACPI battery status mapped to Charging/…
 
 ## 0.6.7 — AMD GPU metrics + cloud smoke guest
 
