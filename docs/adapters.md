@@ -123,6 +123,8 @@ A live under `static/icons/` rather than inside that HTML pack.
 
 ## Optional Suggests (not hard Depends)
 
+Canonical Suggest → adapter map: [`docs/suggests.md`](suggests.md).
+
 | Concern | Preferred tools | Notes |
 |---|---|---|
 | Bluetooth | `bluez`, `bluez-utils` | Provides `bluetoothctl` |
@@ -130,13 +132,80 @@ A live under `static/icons/` rather than inside that HTML pack.
 | Clipboard | `wl-clipboard`, `xclip` | Session-routed |
 | Screenshots | `grim`, `slurp`, `gnome-screenshot` | Hyprland vs Cinnamon |
 | Updates | `mintupdate` | Launcher only; counting uses `apt` |
+| Printers / idle / live wallpaper | `cups-client`, `swayidle`, `mpvpaper` | Stage D optional tools |
 
-## Stage C+ (still planned)
+## Stage C matrix
 
-| Concern | Preferred tools | Fallback or limitation |
+| Adapter | Preferred integration | Fallback | Commands | TTL | Missing-tool behavior |
+|---|---|---|---|---|---|
+| `vpn` | `nmcli` VPN / WireGuard profiles | — | `up`, `down`, `refresh` | 5s | Unavailable without NetworkManager; no secrets stored by LMDP |
+| `storage` | `lsblk -J` + `udisksctl` | read-only list without udisks | `mount`, `unmount`, `refresh` | 5s | Lists USB/MMC/hotplug volumes; mount/unmount only for allowlisted `/dev/sd*N`, `/dev/vd*N`, `/dev/nvme*pN`, `/dev/mmcblk*pN` |
+| `processes` | `/proc` sampling | — | `refresh`, `terminate` (SIGTERM) | 2s | Always available on Linux; terminate limited to current UID; refuses pid 1 and self |
+| `keybinds` | owned `hypr-binds.conf` + `keybinds.json` | — | `scan`, `tune`, `melt`, `synth` | always | Always available; only edits LMDP-owned overlay; vapor//matrix chord typology (`ChordAdapter`) |
+| `vault` | `FEATURE_PACKAGES` + `pkexec apt-get` | toggles-only when tools missing | `scan`/`probe`, `install`/`forge_pack` | 5s | Catalog always available; install only allowlisted apt names after UI confirm |
+
+### Vapor//matrix chord typology (`keybinds`)
+
+| Term | Meaning |
+|---|---|
+| chord | One bind (id + neon combo + dispatch + label) |
+| neon | Normalized modifier+key combo |
+| vapor | User overrides in `keybinds.json` |
+| matrix | Canonical catalog + generated `hypr-binds.conf` |
+| tune / melt / synth / scan | Set combo / reset overrides / etch overlay / snapshot |
+
+Dispatch targets stay on the matrix catalog — the UI may only tune neon combos.
+`synth` appends `source = …/hypr-binds.conf` only into Hyprland configs already
+marked `LMDesktopPlus`, then best-effort `hyprctl reload`.
+
+### App vault (`vault`)
+
+`FEATURE_PACKAGES` is the single hashmap for Apps cards and installs. Clients send
+a feature **id** only — package names never come from the UI. Install is
+`pkexec apt-get install -y -- <allowlisted…>` and fails soft without pkexec/apt.
+
+### Function use-level cache (`fncache`)
+
+Hot UI→operation callables register into `FUNCTION_CACHE` / `LMDPFnCache` with
+levels **high use**, **medium use**, or **low use** plus a purpose string.
+`resolve_fn(name)` / `LMDPFnCache.resolve(name)` are O(1) hashmap lookups for
+dispatch speed on poll/click paths.
+
+### Agent peer roster (`POST /api/v1/agents`)
+
+Vapor typology: **peer** (one agent), **roster** (`agents.json`), **forge / retune /
+melt** (create / update / delete), **scan / spawn** (list / launch).
+
+| Op | Aliases | Behavior |
 |---|---|---|
-| VPN | `nmcli` | No credentials are stored by LMDesktopPlus |
-| Removable storage | `lsblk`, `udisksctl` | Operations remain device-allowlisted |
+| `create` | `forge` | Add peer; `safe_name` id; allowlisted bare binary argv |
+| `update` | `retune` | Patch label/command/workspace/sandbox/network/description |
+| `delete` | `melt` | Remove from roster (HOME kept on disk) |
+
+Launch remains `POST /api/v1/agents/launch`. Denied binaries include shells and
+common interpreters so the UI cannot mint arbitrary code execution.
+
+## Stage D matrix
+
+| Adapter | Preferred integration | Fallback | Commands | TTL | Missing-tool behavior |
+|---|---|---|---|---|---|
+| `idle` | owned swayidle script + Cinnamon `gsettings` | note file only | `status`, `apply` | always | Always available; never edits foreign swayidle configs |
+| `printers` | `lpstat -p -d` | — | `refresh`, `open` | 5s | Unavailable without CUPS `lpstat`; open needs printer UI or `xdg-open` |
+| `logs` | `journalctl --user -n 200` | — | `refresh` | 3s | Unavailable without journalctl; lines capped + control-stripped |
+| `live_wallpaper` | HTML/`DV.rain` WebKit window | `mpvpaper` + `live-matrix.mp4` | `status`, `start`/`stop` (`pulse_on`/`pulse_off`) | always | Feature default **on**; START still explicit from UI; owned hypr window rules only on LMDP-owned configs |
+
+## Suggests tidy + stow (Task 23)
+
+Optional Debian Suggests are mapped in [`docs/suggests.md`](suggests.md)
+(source of packaging truth: `packaging/build-deb.sh`). `./stow.sh` is an
+optional GNU stow frontend for `packages/{shared,hyprland}`; `./install.sh`
+remains primary. The Digitalvapor kit scene includes Stage C/D control stories.
+
+## Stage D status
+
+Stage C power-user surface completed in **0.5.0**. Stage D Tasks 19–23 ship
+through **0.6.2** (idle, printers, logs, live wallpaper default-on, Suggests /
+stow / UI kit stories).
 
 Adapters must continue to fail soft across Cinnamon and Hyprland sessions. A
 binary being present is not sufficient: non-zero exits and timeouts are

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import shutil
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
@@ -73,6 +75,38 @@ def first_executable(names: Iterable[str]) -> str | None:
     return None
 
 
+@lru_cache(maxsize=1)
+def capture_locale() -> str:
+    """Locale for subprocess capture — prefer C.UTF-8 on Linux and FreeBSD.
+
+    FreeBSD 13+ accepts C.UTF-8 even when /usr/share/locale/C.UTF-8 is absent.
+    Older / exotic images fall back via locale dir probes, then C.
+    """
+    system = platform.system().lower()
+    if system in {"linux", "freebsd", "dragonfly", "midnightbsd"}:
+        return "C.UTF-8"
+    for name in ("C.UTF-8", "C.utf8", "en_US.UTF-8", "C"):
+        for base in (Path("/usr/share/locale"), Path("/usr/lib/locale")):
+            if (base / name).exists():
+                return name
+    return "C"
+
+
+def resolve_executable(name: str) -> str | None:
+    """Resolve a command, also checking /sbin and /usr/sbin (FreeBSD power tools)."""
+    found = executable(name)
+    if found:
+        return found
+    for prefix in ("/sbin", "/usr/sbin", "/usr/local/sbin"):
+        path = Path(prefix) / name
+        try:
+            if path.is_file() and os.access(path, os.X_OK):
+                return str(path)
+        except OSError:
+            continue
+    return None
+
+
 def run_capture(
     argv: Sequence[str],
     timeout: float = 4.0,
@@ -86,7 +120,7 @@ def run_capture(
         stderr=subprocess.PIPE,
         timeout=timeout,
         check=False,
-        env={**os.environ, "LC_ALL": "C.UTF-8"},
+        env={**os.environ, "LC_ALL": capture_locale()},
     )
 
 

@@ -32,7 +32,7 @@ class UpdatesAdapterTests(unittest.TestCase):
             {"available": False},
         )
 
-    @patch("lmdesktopplus.adapters.updates.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_snapshot_counts_and_caches(self, run_capture):
         run_capture.return_value = completed(APT_OUT)
         adapter = UpdatesAdapter(
@@ -49,7 +49,7 @@ class UpdatesAdapterTests(unittest.TestCase):
         self.assertEqual(adapter.snapshot(), expected)
         run_capture.assert_called_once()
 
-    @patch("lmdesktopplus.adapters.updates.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_refresh_invalidates_cache(self, run_capture):
         run_capture.side_effect = [
             completed(APT_OUT),

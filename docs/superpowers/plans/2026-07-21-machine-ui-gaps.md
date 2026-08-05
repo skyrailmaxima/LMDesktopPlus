@@ -325,12 +325,15 @@ git commit -m "feat: add icon asset hash map for machine UI chrome"
 
 ### Task 13: VpnAdapter
 - NM VPN connection list/up/down via `nmcli`; no secret storage in LMDP.
+- [x] Commit `feat: vpn adapter`
 
 ### Task 14: RemovableStorageAdapter
 - `lsblk -J` parse + `udisksctl mount/unmount` allowlist by device node pattern.
+- [x] Commit `feat: removable storage adapter`
 
 ### Task 15: ProcessAdapter
 - Top-N from `/proc` (CPU% approx); `terminate` only for UID==self; confirm dialog.
+- [x] Commit `feat: process list adapter`
 
 ### Task 16: Agent CRUD API
 - `POST /api/v1/agents` create/update/delete with `safe_name`; UI form on Agents settings tab.
@@ -349,14 +352,19 @@ git commit -m "feat: add icon asset hash map for machine UI chrome"
 ## Stage D — Polish / post-v1
 
 ### Task 19: Idle / lock timer settings → cinnamon-screensaver / swayidle snippets (generated files only)
+**Status:** shipped in **0.6.0** (`IdleAdapter`, Display timers, owned `swayidle-generated.sh`).
 
 ### Task 20: PrintersAdapter via `lpstat` (status read-only + open `system-config-printer`)
+**Status:** shipped in **0.6.0**.
 
 ### Task 21: Logs viewer — `journalctl --user -n 200` capped text panel (escape HTML)
+**Status:** shipped in **0.6.0** (Monitor → USER JOURNAL panel).
 
-### Task 22: Live matrix wallpaper (optional HTML wallpaper window or `mpvpaper`) — feature-flagged; default off
+### Task 22: Live matrix wallpaper (optional HTML wallpaper window or `mpvpaper`) — feature-flagged; default on
+**Status:** shipped in **0.6.1** (`LiveWallpaperAdapter`, `--live-wallpaper`, owned hypr rules); default **on** in **0.6.2** (START still explicit).
 
 ### Task 23: Stow mode / packaging Suggests tidy / UI kit stories for each new control
+**Status:** shipped in **0.6.2** (`docs/suggests.md`, `./stow.sh`, kit Stage C/D stories).
 
 ---
 

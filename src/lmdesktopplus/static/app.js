@@ -142,6 +142,14 @@ function humanBytes(bytes, rate=false) {
   return `${value.toFixed(digits)} ${units[i]}${rate ? "/s" : ""}`;
 }
 
+function formatGpuVram(gpu) {
+  // @use: high use — purpose: Monitor VRAM row for nvidia-smi / rocm-smi / amdgpu sysfs
+  if (gpu?.memory_used_mb == null || gpu?.memory_total_mb == null) return "n/a";
+  const used = humanBytes(Number(gpu.memory_used_mb) * 1024 * 1024);
+  const total = humanBytes(Number(gpu.memory_total_mb) * 1024 * 1024);
+  return `${used} / ${total}`;
+}
+
 function humanDuration(seconds) {
   let s = Math.max(0, Math.floor(Number(seconds) || 0));
   const d = Math.floor(s/86400); s %= 86400;
@@ -346,6 +354,7 @@ function wallpaperPicker() {
   return `<div class="wallpaper-grid">${cards}</div>`;
 }
 
+/** @use: high use — purpose: patch desktop volume/mute chrome on metrics ticks */
 function patchAudioBindings() {
   const audio = app.state?.adapters?.audio || {};
   const available = Boolean(audio.available);
@@ -372,6 +381,7 @@ function patchAudioBindings() {
   if (icon?.file) $$("[data-audio-icon]").forEach(node => { node.src = `/icons/${icon.file}`; });
 }
 
+/** @use: high use — purpose: patch desktop brightness chrome on metrics ticks */
 function patchDisplayBindings() {
   const display = app.state?.adapters?.display || {};
   const available = Boolean(display.available);
@@ -512,7 +522,7 @@ function renderDocs() {
   const id = app.state.identity;
   return heading("構成資料", "DOTFILES + PACKAGE", "The UI package is separate from the desktop rice, but both share one settings and palette model.") + `
     <div class="grid two">
-      ${panel("CONFIG PATHS", `<pre class="code-block">~/.config/lmdesktopplus/settings.json\n~/.config/lmdesktopplus/agents.json\n~/.config/lmdesktopplus/hypr-generated.conf\n~/.config/vapor-matrix.theme\n~/.local/share/lmdesktopplus/agents/</pre><div class="button-row" style="margin-top:14px"><button class="btn dv-btn dv-btn--outline" data-action="open-config">OPEN LMDP CONFIG</button><button class="btn dv-btn dv-btn--outline" data-launch="docs">OPEN ~/.config</button></div>`)}
+      ${panel("CONFIG PATHS", `<pre class="code-block">~/.config/lmdesktopplus/settings.json\n~/.config/lmdesktopplus/agents.json\n~/.config/lmdesktopplus/hypr-generated.conf\n~/.config/lmdesktopplus/hypr-binds.conf\n~/.config/lmdesktopplus/keybinds.json\n~/.config/vapor-matrix.theme\n~/.local/share/lmdesktopplus/agents/</pre><div class="button-row" style="margin-top:14px"><button class="btn dv-btn dv-btn--outline" data-action="open-config">OPEN LMDP CONFIG</button><button class="btn dv-btn dv-btn--outline" data-launch="docs">OPEN ~/.config</button></div>`)}
       ${panel("SYSTEM", `${statRow("Host",`${id.user}@${id.hostname}`)}${statRow("OS",id.os)}${statRow("Kernel",id.kernel)}${statRow("Session",`${id.session} · ${id.session_type}`)}${statRow("Architecture",id.architecture)}${statRow("UI version",app.state.version)}`)}
     </div>
     ${panel("PACKAGE COMMANDS", `<pre class="code-block">./install.sh                  # user-local rice + control center\n./install.sh --with-hyprland # include compositor setup\n./packaging/build-deb.sh     # build installable .deb\nlmdesktopplus               # launch machine UI\nlmdesktopplus --browser     # browser fallback\nlmdesktopplus --kiosk       # fullscreen embedded UI</pre>`, "accent")}`;
@@ -537,14 +547,46 @@ function renderMonitor() {
     <div class="grid two">
       ${panel(`<span data-live="monitor.cpu.title">CPU · ${Math.round(m.cpu.percent)}%</span>`, `${chartSvg(app.history.cpu,100,"cpu")}<div class="core-grid" data-live-cores>${cores}</div>`, "accent")}
       ${panel(`<span data-live="monitor.memory.title">MEMORY · ${Math.round(m.memory.percent)}%</span>`, `${chartSvg(app.history.ram,100,"ram")}${liveStatRow("monitor.memory.used","Used",humanBytes(m.memory.used))}${liveStatRow("monitor.memory.available","Available",humanBytes(m.memory.available))}`)}
-      ${panel(`<span data-live="monitor.gpu.title">GPU · ${m.gpu.percent == null ? "n/a" : Math.round(m.gpu.percent)+"%"}</span>`, `${chartSvg(app.history.gpu,100,"gpu")}${liveStatRow("monitor.gpu.name","Device",m.gpu.name || "unavailable")}${liveStatRow("monitor.gpu.temperature","Temperature",m.gpu.temperature_c != null ? `${m.gpu.temperature_c} °C` : "n/a")}`)}
+      ${panel(`<span data-live="monitor.gpu.title">GPU · ${m.gpu.percent == null ? "n/a" : Math.round(m.gpu.percent)+"%"}</span>`, `${chartSvg(app.history.gpu,100,"gpu")}${liveStatRow("monitor.gpu.name","Device",m.gpu.name || "unavailable")}${liveStatRow("monitor.gpu.vram","VRAM",formatGpuVram(m.gpu))}${liveStatRow("monitor.gpu.temperature","Temperature",m.gpu.temperature_c != null ? `${m.gpu.temperature_c} °C` : "n/a")}`)}
       ${panel("NETWORK", `${chartSvg(app.history.down,maxNet,"network")}${liveStatRow("monitor.network.down","Download",humanBytes(m.network.down_bps,true))}${liveStatRow("monitor.network.up","Upload",humanBytes(m.network.up_bps,true))}`)}
     </div>
     <div class="grid three" style="margin-top:16px">
       ${panel("DISK", `<div class="kpi"><span data-live="monitor.disk.percent">${Math.round(m.disk.percent)}</span><small>% used</small></div><div class="progress dv-progress"><span class="dv-progress__bar" data-live="monitor.disk.width" style="width:${clamp(m.disk.percent,0,100)}%"></span></div>${liveStatRow("monitor.disk.free","Free",humanBytes(m.disk.free))}`)}
       ${panel("THERMALS", `<div data-live-thermals>${m.temperatures?.length ? m.temperatures.slice(0,6).map(t=>statRow(t.label,`${t.celsius} °C`)).join("") : `<p class="muted">No readable thermal zones.</p>`}</div>`)}
       ${panel("POWER", `<div data-live-power>${m.battery ? `${statRow("Battery",`${m.battery.percent}%`)}${statRow("Status",m.battery.status)}` : `<div class="kpi" style="font-size:30px">AC<small>no battery detected</small></div>`}</div>`)}
-    </div>`;
+    </div>
+    ${processMonitorPanel()}
+    ${logsMonitorPanel()}`;
+}
+
+function mapProcessRows(processes) {
+  return (processes || []).map(p => {
+    const terminate = p.owned
+      ? `<button class="btn danger dv-btn dv-btn--danger" data-process-terminate="${p.pid}" data-process-name="${esc(p.name)}">TERM</button>`
+      : `<span class="muted">—</span>`;
+    return `<div class="network-row"><div><strong class="white">${esc(p.name)}</strong><div class="muted">pid ${p.pid}${p.owned ? "" : " · other uid"}</div></div><div class="signal"><small>${Number(p.cpu_percent).toFixed(1)}% · ${humanBytes(p.rss_bytes)}</small></div>${terminate}</div>`;
+  }).join("");
+}
+
+function processMonitorPanel() {
+  const procs = app.state?.adapters?.processes || {};
+  if (!procs.available) {
+    return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><h3>PROCESSES</h3><p class="muted">/proc unavailable.</p></div>`;
+  }
+  const rows = mapProcessRows(procs.processes);
+  return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><div class="card-title"><h3>TOP PROCESSES</h3><button class="btn dv-btn dv-btn--outline" data-process-refresh>REFRESH</button></div><p class="muted">Terminate is limited to processes owned by your UID. Confirm before SIGTERM.</p><div style="margin-top:12px">${rows || '<p class="muted">No process samples yet.</p>'}</div></div>`;
+}
+
+/** @use: high use — purpose: Monitor user journal panel (HTML-escaped lines) */
+function logsMonitorPanel() {
+  const logs = app.state?.adapters?.logs || {};
+  if (!logs.available) {
+    return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><h3>USER JOURNAL</h3><p class="muted">journalctl unavailable${logs.last_error ? ` · ${esc(logs.last_error)}` : ""}.</p></div>`;
+  }
+  const body = (logs.lines || [])
+    .map((line) => `<div class="muted" style="font-family:var(--dv-font-mono, monospace);font-size:12px;white-space:pre-wrap;word-break:break-word">${esc(line)}</div>`)
+    .join("");
+  return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><div class="card-title"><h3>USER JOURNAL</h3><button class="btn dv-btn dv-btn--outline" data-logs-refresh>REFRESH</button></div><p class="muted">Last ${logs.count ?? 0} lines from <span class="cyan">journalctl --user</span> (capped, escaped).</p><div style="margin-top:12px;max-height:280px;overflow:auto">${body || '<p class="muted">No journal lines.</p>'}</div></div>`;
 }
 
 function setLiveText(binding, value) {
@@ -577,6 +619,7 @@ function patchSessionBinding() {
   badgeRoot.append(badge);
 }
 
+/** @use: high use — purpose: cheap Desktop scene patch on metrics/media ticks */
 function patchDesktopBindings(changedPaths) {
   if (changedPaths.some(path => path === "agents" || path.startsWith("agents.") || path === "identity" || path.startsWith("identity.") || path === "assets" || path.startsWith("assets."))) return false;
   const m = app.state.metrics;
@@ -622,75 +665,20 @@ function patchChart(binding, values, maxValue=100) {
 }
 
 function patchMonitorCollections(metrics) {
-  const coreRoot = $("[data-live-cores]", $("#scene"));
-  if (coreRoot) {
-    const cores = metrics.cpu.cores || [];
-    while (coreRoot.children.length > cores.length) coreRoot.lastElementChild.remove();
-    while (coreRoot.children.length < cores.length) {
-      const bar = document.createElement("div");
-      bar.className = "core-bar";
-      coreRoot.append(bar);
-    }
-    cores.forEach((value,index) => {
-      const bar = coreRoot.children[index];
-      bar.title = `${Math.round(value)}%`;
-      bar.style.height = `${Math.max(3,clamp(value,0,100))}%`;
-    });
-  }
-  const thermalRoot = $("[data-live-thermals]", $("#scene"));
-  if (thermalRoot) {
-    thermalRoot.replaceChildren();
-    const temperatures = (metrics.temperatures || []).slice(0,6);
-    if (!temperatures.length) {
-      const empty = document.createElement("p");
-      empty.className = "muted";
-      empty.textContent = "No readable thermal zones.";
-      thermalRoot.append(empty);
-    } else {
-      temperatures.forEach(item => {
-        const row = document.createElement("div");
-        row.className = "stat-row";
-        const label = document.createElement("span");
-        label.className = "label";
-        label.textContent = item.label;
-        const value = document.createElement("span");
-        value.className = "value";
-        value.textContent = `${item.celsius} °C`;
-        row.append(label, value);
-        thermalRoot.append(row);
-      });
-    }
-  }
-  const powerRoot = $("[data-live-power]", $("#scene"));
-  if (powerRoot) {
-    powerRoot.replaceChildren();
-    if (metrics.battery) {
-      [["Battery",`${metrics.battery.percent}%`],["Status",metrics.battery.status]].forEach(([name,current]) => {
-        const row = document.createElement("div");
-        row.className = "stat-row";
-        const label = document.createElement("span");
-        label.className = "label";
-        label.textContent = name;
-        const value = document.createElement("span");
-        value.className = "value";
-        value.textContent = current;
-        row.append(label, value);
-        powerRoot.append(row);
-      });
-    } else {
-      const kpi = document.createElement("div");
-      kpi.className = "kpi";
-      kpi.style.fontSize = "30px";
-      kpi.append("AC");
-      const detail = document.createElement("small");
-      detail.textContent = "no battery detected";
-      kpi.append(detail);
-      powerRoot.append(kpi);
-    }
-  }
+  const binders = window.LMDPBindings || {};
+  binders.syncCoreBars?.($("[data-live-cores]", $("#scene")), metrics.cpu.cores || [], clamp);
+  binders.renderThermalRows?.(
+    $("[data-live-thermals]", $("#scene")),
+    (metrics.temperatures || []).slice(0, 6),
+  );
+  binders.renderPowerPanel?.($("[data-live-power]", $("#scene")), metrics.battery);
 }
 
-function patchMonitorBindings() {
+/** @use: high use — purpose: cheap Monitor scene patch on metrics ticks */
+function patchMonitorBindings(changedPaths=[]) {
+  if (changedPaths.some(path => path === "adapters.processes" || path.startsWith("adapters.processes."))) {
+    return false;
+  }
   const m = app.state.metrics;
   const maxNet = Math.max(1024*1024, ...app.history.down, ...app.history.up);
   setLiveText("monitor.cpu.title", `CPU · ${Math.round(m.cpu.percent)}%`);
@@ -699,6 +687,7 @@ function patchMonitorBindings() {
   setLiveText("monitor.memory.available", humanBytes(m.memory.available));
   setLiveText("monitor.gpu.title", `GPU · ${m.gpu.percent == null ? "n/a" : `${Math.round(m.gpu.percent)}%`}`);
   setLiveText("monitor.gpu.name", m.gpu.name || "unavailable");
+  setLiveText("monitor.gpu.vram", formatGpuVram(m.gpu));
   setLiveText("monitor.gpu.temperature", m.gpu.temperature_c != null ? `${m.gpu.temperature_c} °C` : "n/a");
   setLiveText("monitor.network.down", humanBytes(m.network.down_bps,true));
   setLiveText("monitor.network.up", humanBytes(m.network.up_bps,true));
@@ -714,23 +703,43 @@ function patchMonitorBindings() {
 }
 
 app.renderer.register("desktop", ["metrics","media","adapters.session","agents","identity","assets"], patchDesktopBindings);
-app.renderer.register("monitor", ["metrics"], patchMonitorBindings);
+app.renderer.register("monitor", ["metrics","adapters.processes"], patchMonitorBindings);
 app.renderer.register("terminal", ["agents"], () => false);
 
-function renderApps() {
-  const caps = app.state.capabilities;
-  const features = app.state.settings.features;
-  const entries = [
-    ["kitty","Terminal","terminal"],["tmux","Persistent sessions","tmux"],["rofi","Application launcher","rofi"],["waybar","Hyprland bar","hyprctl"],
-    ["claude","Claude agent","bubblewrap"],["cursor","Cursor editor","editor"],["aider","Aider agent","bubblewrap"],["starship","Shell prompt",null],
-    ["rust","Rust tooling",null],["minimap","Editor minimap",null],["gitn","Git integration",null],["vapor","Vapor theme",null],
-  ];
-  const cards = entries.map(([id,label,cap])=>{
-    const enabled = !!features[id];
-    const available = cap ? !!caps[cap]?.available : true;
-    return `<div class="app-card dv-card"><div class="app-head"><strong>${esc(label)}</strong><span class="badge dv-tag ${available?"ok dv-tag--mint":"warn dv-tag--warn"}">${available?"detected":"optional"}</span></div><p class="muted">${esc(id)}</p><label class="toggle dv-toggle"><input type="checkbox" data-feature="${id}" ${enabled?"checked":""}><span class="toggle-track dv-track"><span class="toggle-knob"></span></span><span>${enabled?"ENABLED":"OFF"}</span></label></div>`;
+/** @use: high use — purpose: map FEATURE_PACKAGES vault rows into Apps cards */
+function mapVaultFeatureCards(vault, settingsFeatures, caps) {
+  const features = vault.features || {};
+  const order = Array.isArray(vault.feature_order) && vault.feature_order.length
+    ? vault.feature_order
+    : Object.keys(features);
+  return order.map((id) => {
+    const row = features[id] || { id, label: id };
+    const enabled = !!settingsFeatures[id];
+    const cap = row.cap;
+    const capOk = cap ? !!caps[cap]?.available : row.detected;
+    const badge = row.installed || row.detected || capOk
+      ? "ok dv-tag--mint"
+      : "warn dv-tag--warn";
+    const badgeText = row.installed ? "installed" : row.detected || capOk ? "detected" : "optional";
+    const installBtn = row.installable
+      ? `<button class="btn dv-btn dv-btn--outline" type="button" data-vault-install="${esc(id)}" data-vault-label="${esc(row.label || id)}" data-vault-packages="${esc((row.apt || []).join(" "))}" ${vault.can_install ? "" : "disabled"}>INSTALL</button>`
+      : "";
+    return `<div class="app-card dv-card"><div class="app-head"><strong>${esc(row.label || id)}</strong><span class="badge dv-tag ${badge}">${badgeText}</span></div><p class="muted">${esc(id)}${row.apt?.length ? ` · apt: ${esc(row.apt.join(" "))}` : ""}</p><label class="toggle dv-toggle"><input type="checkbox" data-feature="${esc(id)}" ${enabled ? "checked" : ""}><span class="toggle-track dv-track"><span class="toggle-knob"></span></span><span>${enabled ? "ENABLED" : "OFF"}</span></label><div class="button-row" style="margin-top:12px">${installBtn}</div></div>`;
   }).join("");
-  return heading("拡張蔵", "APP VAULT", "Feature switches are persisted; capability badges reflect installed executables.") + `<div class="app-grid">${cards}</div>`;
+}
+
+/** @use: medium use — purpose: Apps scene from vault adapter FEATURE_PACKAGES map */
+function renderApps() {
+  const caps = app.state.capabilities || {};
+  const settingsFeatures = app.state.settings?.features || {};
+  const vault = app.state.adapters?.vault || {};
+  const cards = vault.features
+    ? mapVaultFeatureCards(vault, settingsFeatures, caps)
+    : `<p class="muted">Vault adapter unavailable.</p>`;
+  const note = vault.can_install
+    ? "Install requests pkexec apt-get for allowlisted packages only — never silent root."
+    : "Install disabled (pkexec/apt-get missing). Feature toggles still persist.";
+  return heading("拡張蔵", "APP VAULT", `FEATURE_PACKAGES catalog with capability badges. ${note}`) + `<div class="app-grid">${cards}</div>`;
 }
 
 const settingTabs = [
@@ -742,52 +751,109 @@ function renderSettings() {
   return heading("設定系", "SYSTEM SETTINGS", "Appearance changes persist immediately and generate GTK/Hyprland overlays.") + `<div class="settings-layout"><nav class="panel settings-nav dv-panel dv-sidepanel">${nav}</nav><section class="panel card dv-panel dv-card">${renderSettingsTab()}</section></div>`;
 }
 
+/** @use: medium use — purpose: Appearance live matrix wallpaper controls (default off) */
+function liveWallpaperPanel() {
+  const live = app.state?.adapters?.live_wallpaper || {};
+  const enabled = !!app.state?.settings?.features?.live_wallpaper || !!live.enabled;
+  const running = !!live.running;
+  const backend = live.backend || "html";
+  const note = live.mpvpaper_available && live.video_present
+    ? "mpvpaper video preferred when ~/.local/share/lmdesktopplus/wallpapers/live-matrix.mp4 exists."
+    : "HTML/WebKit rain window (DV.rain). Hyprland uses owned hypr-live-wallpaper.conf rules.";
+  return `<div class="setting-group" style="margin-top:24px"><h3>Live matrix wallpaper</h3>
+    <p class="muted">Feature-flagged · default off. ${esc(note)} Backend: <span class="cyan">${esc(backend)}</span>${running ? " · running" : ""}.</p>
+    <label class="toggle dv-toggle"><input type="checkbox" data-live-wallpaper-toggle ${enabled ? "checked" : ""}><span class="toggle-track dv-track"><span class="toggle-knob"></span></span><span>${enabled ? "ON" : "OFF"}</span></label>
+    <div class="button-row" style="margin-top:12px">
+      <button class="btn primary dv-btn dv-btn--primary" type="button" data-live-wallpaper-start ${running ? "disabled" : ""}>START</button>
+      <button class="btn dv-btn dv-btn--outline" type="button" data-live-wallpaper-stop ${running ? "" : "disabled"}>STOP</button>
+    </div>
+  </div>`;
+}
+
+function renderAppearanceSettings() {
+  const ap = app.state.settings.appearance;
+  const swatches = Object.entries(app.state.accents).map(([name,hex])=>`<label class="dv-choice dv-radio accent-choice ${name===ap.accent?"is-active":""}" title="${esc(name)}"><input type="radio" name="lmdp-accent" data-accent="${esc(name)}" ${name===ap.accent?"checked":""}><span class="dv-mark" style="width:30px;height:30px;background:${esc(hex)};border-color:${esc(hex)};box-shadow:0 0 10px ${esc(hex)}"></span></label>`).join("");
+  const modes = ["tiled","floating","tabbed"].map(x=>`<button class="segment dv-seg__opt ${ap.window_mode===x?"active":""}" data-window-mode="${x}">${x}</button>`).join("");
+  return `<div class="setting-group"><h3>Wallpaper</h3>${wallpaperPicker()}</div>
+    ${liveWallpaperPanel()}
+    <div class="setting-group"><h3>Accent</h3><div class="swatches dv-row dv-gap-2">${swatches}</div></div>
+    ${control("Interface font","Applied to the machine UI",`<select class="dv-input" data-setting="appearance.font"><option ${ap.font==="JetBrains Mono"?"selected":""}>JetBrains Mono</option><option ${ap.font==="DotGothic16"?"selected":""}>DotGothic16</option><option ${ap.font==="Zen Dots"?"selected":""}>Zen Dots</option><option ${ap.font==="System UI"?"selected":""}>System UI</option></select>`)}
+    ${control("Surface opacity",`${ap.opacity}%`,`<input class="dv-slider" type="range" min="40" max="100" value="${ap.opacity}" data-setting="appearance.opacity" data-number>`)}
+    ${control("Blur radius",`${ap.blur}px`,`<input class="dv-slider" type="range" min="0" max="24" value="${ap.blur}" data-setting="appearance.blur" data-number>`)}
+    ${control("Matrix intensity",`${ap.rain_intensity}%`,`<input class="dv-slider" type="range" min="0" max="100" value="${ap.rain_intensity}" data-setting="appearance.rain_intensity" data-number>`)}
+    ${control("Window mode","Hyprland preference",`<div class="segmented dv-seg">${modes}</div>`)}
+    ${toggleControl("Scanlines","CRT overlay in this UI","appearance.scanlines",ap.scanlines)}
+    ${toggleControl("Window gaps","Generated Hyprland overlay","appearance.gaps",ap.gaps)}
+    ${toggleControl("Rounded corners","Generated Hyprland overlay","appearance.rounded",ap.rounded)}
+    ${toggleControl("Drop shadows","Generated Hyprland overlay","appearance.shadows",ap.shadows)}`;
+}
+
+function renderDisplaySettings() {
+  const behavior = app.state.settings.behavior;
+  const audio = app.state.adapters?.audio || {};
+  const volume = clamp(app.audioPendingVolume ?? audio.volume ?? 0, 0, 100);
+  const audioIcon = assetIcon(audio.muted ? "audio.mute" : "audio.volume");
+  const audioControl = audio.available
+    ? `<div class="audio-control"><div class="audio-control__header">${audioIcon}<span data-bind="adapters.audio.volume">${audio.muted ? "MUTE " : ""}${volume}%</span><button class="btn dv-btn dv-btn--outline" data-audio-mute data-audio-mute-label>${audio.muted ? "UNMUTE" : "MUTE"}</button></div><input class="dv-slider dv-slider--cyan" type="range" min="0" max="100" value="${volume}" data-audio-volume data-bind="adapters.audio.volume" aria-label="Output volume"><div class="progress dv-progress"><span class="dv-progress__bar" data-bind="adapters.audio.volume" data-bind-mode="width" style="width:${volume}%"></span></div></div>`
+    : `<p class="muted">Audio controls unavailable. Install WirePlumber (wpctl) or PulseAudio tools (pactl).</p>`;
+  const display = app.state.adapters?.display || {};
+  const brightness = clamp(app.displayPendingBrightness ?? display.brightness ?? 0, 1, 100);
+  const displayIcon = assetIcon("display.brightness", "audio-icon");
+  const displayControl = display.available
+    ? `<div class="audio-control"><div class="audio-control__header">${displayIcon}<span data-bind="adapters.display.brightness">${brightness}%</span><span class="badge dv-tag ${display.writable ? "ok dv-tag--mint" : "warn dv-tag--warn"}">${display.writable ? "CONTROL" : "READ ONLY"}</span></div><input class="dv-slider" type="range" min="1" max="100" value="${brightness}" data-display-brightness data-bind="adapters.display.brightness" aria-label="Display brightness" ${display.writable ? "" : "disabled"}><div class="progress dv-progress"><span class="dv-progress__bar" data-bind="adapters.display.brightness" data-bind-mode="width" style="width:${brightness}%"></span></div></div>`
+    : `<p class="muted">Brightness unavailable. Install brightnessctl or expose a readable sysfs backlight device.</p>`;
+  return `${control("Display brightness",display.backend || "internal panel",displayControl)}
+    ${control("Output volume",audio.backend || "default audio sink",audioControl)}
+    ${control("Desktop session","One-shot handoff through a real login TTY",sessionHandoffControl())}
+    ${notificationsSettingsPanel()}
+    ${clipboardSettingsPanel()}
+    ${captureSettingsPanel()}
+    ${storageSettingsPanel()}
+    ${idleSettingsPanel()}
+    ${printersSettingsPanel()}
+    ${toggleControl("Start fullscreen","Open the embedded machine UI fullscreen","behavior.start_fullscreen",behavior.start_fullscreen)}
+    ${toggleControl("Show shortcut hints","Show keyboard hints on the desktop scene","behavior.show_hints",behavior.show_hints)}
+    ${control("Poll interval",`${behavior.poll_interval_ms} ms`,`<input class="dv-slider" type="range" min="500" max="5000" step="250" value="${behavior.poll_interval_ms}" data-setting="behavior.poll_interval_ms" data-number>`)}
+    ${toggleControl("Allow power actions","Required before logout, reboot, suspend, or poweroff API calls","behavior.allow_power_actions",behavior.allow_power_actions)}
+    <div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" data-action="lock">LOCK SYSTEM</button><button class="btn danger dv-btn dv-btn--danger" data-power="suspend">SUSPEND</button><button class="btn danger dv-btn dv-btn--danger" data-power="logout">LOG OUT</button></div>`;
+}
+
+/** @use: medium use — purpose: Display idle lock/sleep timers → owned snippets */
+function idleSettingsPanel() {
+  const idle = app.state?.adapters?.idle || {};
+  const behavior = app.state?.settings?.behavior || {};
+  const lockM = behavior.idle_lock_minutes ?? idle.lock_minutes ?? 0;
+  const sleepM = behavior.idle_sleep_minutes ?? idle.sleep_minutes ?? 0;
+  return `<div class="setting-group" style="margin-top:24px"><h3>Idle / lock timers</h3>
+    <p class="muted">Writes owned <span class="cyan">swayidle-generated.sh</span> + <span class="cyan">idle-generated.conf</span>. Cinnamon idle-delay is applied via gsettings when available. 0 disables.</p>
+    ${control("Lock after", `${lockM} min`, `<input class="dv-slider" type="range" min="0" max="120" step="1" value="${lockM}" data-setting="behavior.idle_lock_minutes" data-number aria-label="Idle lock minutes">`)}
+    ${control("Sleep after", `${sleepM} min`, `<input class="dv-slider" type="range" min="0" max="240" step="5" value="${sleepM}" data-setting="behavior.idle_sleep_minutes" data-number aria-label="Idle sleep minutes">`)}
+    <div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" type="button" data-idle-apply>APPLY IDLE SNIPPETS</button></div>
+    <p class="muted" style="margin-top:8px">${idle.swayidle_available ? "swayidle detected" : "swayidle optional"} · script ${idle.script_present ? "present" : "not written yet"}</p>
+  </div>`;
+}
+
+/** @use: medium use — purpose: Display printers panel from lpstat */
+function printersSettingsPanel() {
+  const printers = app.state?.adapters?.printers || {};
+  if (!printers.available) {
+    return `<div class="setting-group" style="margin-top:24px"><h3>Printers</h3><p class="muted">lpstat unavailable${printers.last_error ? ` · ${esc(printers.last_error)}` : ""}. Install CUPS tools.</p>
+      <div class="button-row"><button class="btn dv-btn dv-btn--outline" type="button" data-printers-open ${printers.can_open ? "" : "disabled"}>OPEN PRINTER SETTINGS</button></div></div>`;
+  }
+  const rows = (printers.printers || []).map((p) => {
+    const tag = p.disabled ? "dv-tag--warn" : p.idle ? "dv-tag--mint" : "dv-tag--cyan";
+    const def = printers.default === p.name ? " · default" : "";
+    return `<div class="list-row"><span class="badge dv-tag ${tag}">${esc(p.name)}</span><span class="value">${esc(p.status)}${def}</span></div>`;
+  }).join("");
+  return `<div class="setting-group" style="margin-top:24px"><h3>Printers</h3>
+    <div class="button-row"><button class="btn dv-btn dv-btn--outline" type="button" data-printers-refresh>REFRESH</button>
+    <button class="btn dv-btn dv-btn--outline" type="button" data-printers-open ${printers.can_open ? "" : "disabled"}>OPEN PRINTER SETTINGS</button></div>
+    <div style="margin-top:12px">${rows || '<p class="muted">No printers reported by lpstat.</p>'}</div></div>`;
+}
+
 function renderSettingsTab() {
-  const s=app.state.settings, ap=s.appearance, behavior=s.behavior;
-  if (app.settingsTab === "appearance") {
-    const swatches = Object.entries(app.state.accents).map(([name,hex])=>`<label class="dv-choice dv-radio accent-choice ${name===ap.accent?"is-active":""}" title="${esc(name)}"><input type="radio" name="lmdp-accent" data-accent="${esc(name)}" ${name===ap.accent?"checked":""}><span class="dv-mark" style="width:30px;height:30px;background:${esc(hex)};border-color:${esc(hex)};box-shadow:0 0 10px ${esc(hex)}"></span></label>`).join("");
-    const modes = ["tiled","floating","tabbed"].map(x=>`<button class="segment dv-seg__opt ${ap.window_mode===x?"active":""}" data-window-mode="${x}">${x}</button>`).join("");
-    return `<div class="setting-group"><h3>Wallpaper</h3>${wallpaperPicker()}</div>
-      <div class="setting-group"><h3>Accent</h3><div class="swatches dv-row dv-gap-2">${swatches}</div></div>
-      ${control("Interface font","Applied to the machine UI",`<select class="dv-input" data-setting="appearance.font"><option ${ap.font==="JetBrains Mono"?"selected":""}>JetBrains Mono</option><option ${ap.font==="DotGothic16"?"selected":""}>DotGothic16</option><option ${ap.font==="Zen Dots"?"selected":""}>Zen Dots</option><option ${ap.font==="System UI"?"selected":""}>System UI</option></select>`)}
-      ${control("Surface opacity",`${ap.opacity}%`,`<input class="dv-slider" type="range" min="40" max="100" value="${ap.opacity}" data-setting="appearance.opacity" data-number>`)}
-      ${control("Blur radius",`${ap.blur}px`,`<input class="dv-slider" type="range" min="0" max="24" value="${ap.blur}" data-setting="appearance.blur" data-number>`)}
-      ${control("Matrix intensity",`${ap.rain_intensity}%`,`<input class="dv-slider" type="range" min="0" max="100" value="${ap.rain_intensity}" data-setting="appearance.rain_intensity" data-number>`)}
-      ${control("Window mode","Hyprland preference",`<div class="segmented dv-seg">${modes}</div>`)}
-      ${toggleControl("Scanlines","CRT overlay in this UI","appearance.scanlines",ap.scanlines)}
-      ${toggleControl("Window gaps","Generated Hyprland overlay","appearance.gaps",ap.gaps)}
-      ${toggleControl("Rounded corners","Generated Hyprland overlay","appearance.rounded",ap.rounded)}
-      ${toggleControl("Drop shadows","Generated Hyprland overlay","appearance.shadows",ap.shadows)}`;
-  }
-  if (app.settingsTab === "display") {
-    const audio = app.state.adapters?.audio || {};
-    const volume = clamp(app.audioPendingVolume ?? audio.volume ?? 0, 0, 100);
-    const audioIcon = assetIcon(audio.muted ? "audio.mute" : "audio.volume");
-    const audioControl = audio.available
-      ? `<div class="audio-control"><div class="audio-control__header">${audioIcon}<span data-bind="adapters.audio.volume">${audio.muted ? "MUTE " : ""}${volume}%</span><button class="btn dv-btn dv-btn--outline" data-audio-mute data-audio-mute-label>${audio.muted ? "UNMUTE" : "MUTE"}</button></div><input class="dv-slider dv-slider--cyan" type="range" min="0" max="100" value="${volume}" data-audio-volume data-bind="adapters.audio.volume" aria-label="Output volume"><div class="progress dv-progress"><span class="dv-progress__bar" data-bind="adapters.audio.volume" data-bind-mode="width" style="width:${volume}%"></span></div></div>`
-      : `<p class="muted">Audio controls unavailable. Install WirePlumber (wpctl) or PulseAudio tools (pactl).</p>`;
-    const display = app.state.adapters?.display || {};
-    const brightness = clamp(app.displayPendingBrightness ?? display.brightness ?? 0, 1, 100);
-    const displayIcon = assetIcon("display.brightness", "audio-icon");
-    const displayControl = display.available
-      ? `<div class="audio-control"><div class="audio-control__header">${displayIcon}<span data-bind="adapters.display.brightness">${brightness}%</span><span class="badge dv-tag ${display.writable ? "ok dv-tag--mint" : "warn dv-tag--warn"}">${display.writable ? "CONTROL" : "READ ONLY"}</span></div><input class="dv-slider" type="range" min="1" max="100" value="${brightness}" data-display-brightness data-bind="adapters.display.brightness" aria-label="Display brightness" ${display.writable ? "" : "disabled"}><div class="progress dv-progress"><span class="dv-progress__bar" data-bind="adapters.display.brightness" data-bind-mode="width" style="width:${brightness}%"></span></div></div>`
-      : `<p class="muted">Brightness unavailable. Install brightnessctl or expose a readable sysfs backlight device.</p>`;
-    return `${control("Display brightness",display.backend || "internal panel",displayControl)}
-      ${control("Output volume",audio.backend || "default audio sink",audioControl)}
-      ${control("Desktop session","One-shot handoff through a real login TTY",sessionHandoffControl())}
-      ${notificationsSettingsPanel()}
-      ${clipboardSettingsPanel()}
-      ${captureSettingsPanel()}
-      ${toggleControl("Start fullscreen","Open the embedded machine UI fullscreen","behavior.start_fullscreen",behavior.start_fullscreen)}
-      ${toggleControl("Show shortcut hints","Show keyboard hints on the desktop scene","behavior.show_hints",behavior.show_hints)}
-      ${control("Poll interval",`${behavior.poll_interval_ms} ms`,`<input class="dv-slider" type="range" min="500" max="5000" step="250" value="${behavior.poll_interval_ms}" data-setting="behavior.poll_interval_ms" data-number>`)}
-      ${toggleControl("Allow power actions","Required before logout, reboot, suspend, or poweroff API calls","behavior.allow_power_actions",behavior.allow_power_actions)}
-      <div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" data-action="lock">LOCK SYSTEM</button><button class="btn danger dv-btn dv-btn--danger" data-power="suspend">SUSPEND</button><button class="btn danger dv-btn dv-btn--danger" data-power="logout">LOG OUT</button></div>`;
-  }
-  if (app.settingsTab === "network") return renderNetworkSettings();
-  if (app.settingsTab === "agents") return renderAgentSettings();
-  if (app.settingsTab === "keybinds") return renderKeybinds();
-  return renderAbout();
+  const render = SETTINGS_TABS[app.settingsTab] || SETTINGS_TABS.about;
+  return render();
 }
 
 function control(label,note,widget) { return `<div class="control-row"><div><label>${esc(label)}</label><small>${esc(note)}</small></div><div>${widget}</div></div>`; }
@@ -798,7 +864,35 @@ function renderNetworkSettings() {
   const active = current.connections?.length ? current.connections.map(c=>`${esc(c.name)} (${esc(c.device)})`).join(", ") : "not connected";
   const networks = app.networkScan?.networks || [];
   const rows = networks.map(n=>`<div class="network-row"><div><strong class="white">${esc(n.ssid)}</strong><div class="muted">${esc(n.security)} · ${esc(n.device)} ${n.active?"· active":""}</div></div><div class="signal"><div class="progress dv-progress"><span class="dv-progress__bar" style="width:${clamp(n.signal,0,100)}%"></span></div><small>${n.signal}%</small></div><button class="btn dv-btn dv-btn--outline" data-connect-ssid="${encodeURIComponent(n.ssid)}">${n.active?"ACTIVE":"CONNECT"}</button></div>`).join("");
-  return `<div class="setting-group"><h3>NetworkManager</h3>${statRow("Active",active)}${statRow("Adapter",current.available?"nmcli":"unavailable")}</div><div class="button-row"><button class="btn primary dv-btn dv-btn--primary" data-network-scan>SCAN WI-FI</button>${current.connections?.filter(c=>c.device).map(c=>`<button class="btn danger dv-btn dv-btn--danger" data-disconnect="${esc(c.device)}">DISCONNECT ${esc(c.device)}</button>`).join("") || ""}</div><div style="margin-top:16px">${app.networkScan ? (rows || `<p class="muted">No networks returned.</p>`) : `<p class="muted">Scan to populate live SSIDs. Passwords are sent directly to nmcli and are not persisted by LMDesktopPlus.</p>`}</div>${bluetoothSettingsPanel()}`;
+  return `<div class="setting-group"><h3>NetworkManager</h3>${statRow("Active",active)}${statRow("Adapter",current.available?"nmcli":"unavailable")}</div><div class="button-row"><button class="btn primary dv-btn dv-btn--primary" data-network-scan>SCAN WI-FI</button>${current.connections?.filter(c=>c.device).map(c=>`<button class="btn danger dv-btn dv-btn--danger" data-disconnect="${esc(c.device)}">DISCONNECT ${esc(c.device)}</button>`).join("") || ""}</div><div style="margin-top:16px">${app.networkScan ? (rows || `<p class="muted">No networks returned.</p>`) : `<p class="muted">Scan to populate live SSIDs. Passwords are sent directly to nmcli and are not persisted by LMDesktopPlus.</p>`}</div>${vpnSettingsPanel()}${bluetoothSettingsPanel()}`;
+}
+
+function mapVpnConnectionRows(connections) {
+  return (connections || []).map(c => {
+    const action = c.active ? "down" : "up";
+    const label = c.active ? "DISCONNECT" : "CONNECT";
+    const btnClass = c.active ? "btn danger dv-btn dv-btn--danger" : "btn dv-btn dv-btn--outline";
+    return `<div class="network-row"><div><strong class="white">${esc(c.name)}</strong><div class="muted">${esc(c.type)}${c.device ? ` · ${esc(c.device)}` : ""}${c.active ? " · active" : ""}</div></div><button class="${btnClass}" data-vpn-name="${esc(c.name)}" data-vpn-action="${action}">${label}</button></div>`;
+  }).join("");
+}
+
+function vpnSettingsPanel() {
+  const vpn = app.state?.adapters?.vpn || {};
+  const icon = assetIcon("vpn", "session-icon");
+  if (!vpn.available) {
+    return `<div class="setting-group" style="margin-top:24px"><h3>VPN</h3>${icon}<p class="muted">nmcli unavailable. Install NetworkManager.</p>${vpn.last_error ? `<p class="muted">${esc(vpn.last_error)}</p>` : ""}</div>`;
+  }
+  const connections = mapVpnConnectionRows(vpn.connections);
+  return `<div class="setting-group" style="margin-top:24px"><h3>VPN</h3><div class="audio-control__header">${icon}<span class="badge dv-tag ${vpn.active_count ? "ok dv-tag--mint" : "dv-tag--cyan"}">${vpn.active_count || 0} active</span></div><div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" data-vpn-refresh>REFRESH</button></div><div style="margin-top:16px">${connections || '<p class="muted">No VPN or WireGuard profiles found. Credentials stay in NetworkManager — LMDesktopPlus never stores them.</p>'}</div></div>`;
+}
+
+function mapBluetoothDeviceRows(devices) {
+  return (devices || []).map(d => {
+    const action = d.connected ? "disconnect" : "connect";
+    const label = d.connected ? "DISCONNECT" : "CONNECT";
+    const btnClass = d.connected ? "btn danger dv-btn dv-btn--danger" : "btn dv-btn dv-btn--outline";
+    return `<div class="network-row"><div><strong class="white">${esc(d.name)}</strong><div class="muted">${esc(d.mac)}${d.connected ? " · connected" : ""}</div></div><button class="${btnClass}" data-bt-device="${esc(d.mac)}" data-bt-action="${action}">${label}</button></div>`;
+  }).join("");
 }
 
 function bluetoothSettingsPanel() {
@@ -810,12 +904,7 @@ function bluetoothSettingsPanel() {
   const powerBadge = bt.powered
     ? '<span class="badge ok dv-tag dv-tag--mint" data-bind="adapters.bluetooth.powered">POWERED</span>'
     : '<span class="badge warn dv-tag dv-tag--warn" data-bind="adapters.bluetooth.powered">OFF</span>';
-  const devices = (bt.devices || []).map(d => {
-    const action = d.connected ? "disconnect" : "connect";
-    const label = d.connected ? "DISCONNECT" : "CONNECT";
-    const btnClass = d.connected ? "btn danger dv-btn dv-btn--danger" : "btn dv-btn dv-btn--outline";
-    return `<div class="network-row"><div><strong class="white">${esc(d.name)}</strong><div class="muted">${esc(d.mac)}${d.connected ? " · connected" : ""}</div></div><button class="${btnClass}" data-bt-device="${esc(d.mac)}" data-bt-action="${action}">${label}</button></div>`;
-  }).join("");
+  const devices = mapBluetoothDeviceRows(bt.devices);
   return `<div class="setting-group" style="margin-top:24px"><h3>Bluetooth</h3><div class="audio-control__header">${icon}${powerBadge}</div><div class="button-row" style="margin-top:12px"><button class="btn primary dv-btn dv-btn--primary" data-bt-power="${bt.powered ? "off" : "on"}">${bt.powered ? "POWER OFF" : "POWER ON"}</button><button class="btn dv-btn dv-btn--outline" data-bt-scan>SCAN (5s)</button></div><div style="margin-top:16px">${devices || '<p class="muted">No known devices. Scan to discover nearby Bluetooth devices.</p>'}</div></div>`;
 }
 
@@ -854,17 +943,102 @@ function captureSettingsPanel() {
   return `${control("Screenshots", `${cap.backend} · ${esc(cap.save_dir || "~/Pictures/lmdesktopplus")}`, `<div class="button-row">${icon}<button class="btn primary dv-btn dv-btn--primary" data-capture="full">FULL</button><button class="btn dv-btn dv-btn--outline" data-capture="region" ${regionDisabled}>REGION</button><button class="btn dv-btn dv-btn--outline" data-capture-folder>OPEN FOLDER</button></div>${cap.last_path ? `<p class="muted" style="margin-top:8px">Last: ${esc(cap.last_path)}</p>` : ""}`)}`;
 }
 
-function renderAgentSettings() {
-  return `<p class="muted">Agent definitions are stored in <span class="cyan">~/.config/lmdesktopplus/agents.json</span>. Commands are intentionally edited in the file rather than through the web UI, so a stray click cannot create a new arbitrary command.</p><div class="grid two">${app.state.agents.map(a=>`<div class="app-card dv-card"><div class="app-head"><strong>${esc(a.label)}</strong><span class="badge dv-tag ${a.available?"ok dv-tag--mint":"warn dv-tag--warn"}">${a.available?"ready":"missing"}</span></div>${statRow("Command",a.command.join(" "))}${statRow("Home",a.home)}${statRow("Workspace",a.workspace_resolved)}${statRow("Sandbox",a.sandbox?(a.sandbox_available?"Bubblewrap":"requested; bwrap missing"):"off")}${statRow("Network",a.network?"allowed":"isolated")}<button class="btn primary dv-btn dv-btn--primary" data-agent="${esc(a.name)}" ${a.available?"":"disabled"}>SPAWN</button></div>`).join("")}</div><div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" data-action="open-config">OPEN CONFIG FOLDER</button></div>`;
+function mapStorageDeviceRows(devices, canMount) {
+  return (devices || []).map(d => {
+    const action = d.mounted ? "unmount" : "mount";
+    const label = d.mounted ? "UNMOUNT" : "MOUNT";
+    const disabled = (!canMount || !d.allowlisted) ? "disabled" : "";
+    const btnClass = d.mounted ? "btn danger dv-btn dv-btn--danger" : "btn dv-btn dv-btn--outline";
+    const meta = [d.size, d.fstype, d.label, d.mounted ? d.mountpoint : null].filter(Boolean).map(esc).join(" · ");
+    return `<div class="network-row"><div><strong class="white">${esc(d.path)}</strong><div class="muted">${meta || d.type}</div></div><button class="${btnClass}" data-storage-device="${esc(d.path)}" data-storage-action="${action}" ${disabled}>${label}</button></div>`;
+  }).join("");
 }
 
-function renderKeybinds() {
-  const keys = [
-    ["1–0 / K","Switch UI scenes"],["Escape","Internal lock screen"],["F11","Toggle application fullscreen"],
-    ["Super + Enter","Kitty (Hyprland config)"],["Super + Space","Rofi"],["Super + A","Agent surface"],
-    ["Super + Q","Close window"],["Super + F","Fullscreen window"],["Super + V","Toggle floating"],["Super + Esc","System lock"],
+function storageSettingsPanel() {
+  const storage = app.state?.adapters?.storage || {};
+  const icon = assetIcon("usb", "session-icon");
+  if (!storage.available) {
+    return `<div class="setting-group" style="margin-top:24px"><h3>Removable storage</h3>${icon}<p class="muted">lsblk unavailable.</p>${storage.last_error ? `<p class="muted">${esc(storage.last_error)}</p>` : ""}</div>`;
+  }
+  const devices = mapStorageDeviceRows(storage.devices, storage.can_mount);
+  return `<div class="setting-group" style="margin-top:24px"><h3>Removable storage</h3><div class="audio-control__header">${icon}<span class="muted">${storage.can_mount ? "udisksctl" : "read-only · install udisks2"}</span></div><div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" data-storage-refresh>REFRESH</button></div><div style="margin-top:16px">${devices || '<p class="muted">No removable USB/MMC volumes detected.</p>'}</div></div>`;
+}
+
+/** Map one peer row into an editable roster card (retune / melt / spawn). */
+function mapPeerRosterCard(peer) {
+  const name = peer.name || "";
+  const ready = peer.available ? "ok dv-tag--mint" : "warn dv-tag--warn";
+  const cmd = Array.isArray(peer.command) ? peer.command.join(" ") : "";
+  return `<div class="app-card dv-card" data-peer-card="${esc(name)}">
+    <div class="app-head"><strong>${esc(peer.label || name)}</strong><span class="badge dv-tag ${ready}">${peer.available ? "ready" : "missing"}</span></div>
+    <div class="dv-field"><label>Label</label><input class="dv-input" data-peer-field="label" data-peer-name="${esc(name)}" value="${esc(peer.label || "")}"></div>
+    <div class="dv-field"><label>Command</label><input class="dv-input" data-peer-field="command" data-peer-name="${esc(name)}" value="${esc(cmd)}" spellcheck="false"></div>
+    <div class="dv-field"><label>Workspace</label><input class="dv-input" data-peer-field="workspace" data-peer-name="${esc(name)}" value="${esc(peer.workspace || "~/work")}"></div>
+    <div class="dv-field"><label>Description</label><input class="dv-input" data-peer-field="description" data-peer-name="${esc(name)}" value="${esc(peer.description || "")}"></div>
+    <label class="dv-toggle"><input type="checkbox" data-peer-field="sandbox" data-peer-name="${esc(name)}" ${peer.sandbox ? "checked" : ""}><span class="dv-track"></span><span style="margin-left:9px">sandbox (bwrap)</span></label>
+    <label class="dv-toggle" style="margin-top:8px"><input type="checkbox" data-peer-field="network" data-peer-name="${esc(name)}" ${peer.network ? "checked" : ""}><span class="dv-track"></span><span style="margin-left:9px">network</span></label>
+    ${statRow("Home", peer.home || "")}
+    <div class="button-row" style="margin-top:12px">
+      <button class="btn primary dv-btn dv-btn--primary" type="button" data-agent="${esc(name)}" ${peer.available ? "" : "disabled"}>SPAWN</button>
+      <button class="btn dv-btn dv-btn--outline" type="button" data-peer-retune="${esc(name)}">RETUNE</button>
+      <button class="btn dv-btn dv-btn--danger" type="button" data-peer-melt="${esc(name)}">MELT</button>
+    </div>
+  </div>`;
+}
+
+/** Settings → Agents: forge form + editable peer roster cards. */
+function renderAgentSettings() {
+  const peers = Array.isArray(app.state.agents) ? app.state.agents : [];
+  const cards = peers.map(mapPeerRosterCard).join("");
+  const forge = `<div class="setting-group"><h3>Forge peer</h3>
+    <p class="muted">Creates a roster entry in <span class="cyan">agents.json</span>. Command must be a bare binary (no paths/shells).</p>
+    <div class="grid two" style="margin-top:12px">
+      <div class="dv-field"><label>Name</label><input class="dv-input" id="peer-forge-name" placeholder="nova" spellcheck="false"></div>
+      <div class="dv-field"><label>Label</label><input class="dv-input" id="peer-forge-label" placeholder="Nova"></div>
+      <div class="dv-field"><label>Command</label><input class="dv-input" id="peer-forge-command" placeholder="aider --yes" spellcheck="false"></div>
+      <div class="dv-field"><label>Workspace</label><input class="dv-input" id="peer-forge-workspace" value="~/work"></div>
+    </div>
+    <div class="dv-field" style="margin-top:12px"><label>Description</label><input class="dv-input" id="peer-forge-description" placeholder="Short note"></div>
+    <label class="dv-toggle" style="margin-top:12px"><input type="checkbox" id="peer-forge-sandbox"><span class="dv-track"></span><span style="margin-left:9px">sandbox</span></label>
+    <label class="dv-toggle" style="margin-top:8px"><input type="checkbox" id="peer-forge-network" checked><span class="dv-track"></span><span style="margin-left:9px">network</span></label>
+    <div class="button-row" style="margin-top:14px"><button class="btn primary dv-btn dv-btn--primary" type="button" data-peer-forge>FORGE</button></div>
+  </div>`;
+  return `${forge}<div class="setting-group" style="margin-top:24px"><h3>Roster</h3><div class="grid two">${cards || '<p class="muted">No peers in roster.</p>'}</div><div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" data-action="open-config">OPEN CONFIG FOLDER</button></div></div>`;
+}
+
+function mapNeonChordRows(chords, order) {
+  const ids = Array.isArray(order) && order.length ? order : Object.keys(chords || {});
+  return ids.map((id) => {
+    const row = chords[id] || {};
+    const combo = row.combo || "";
+    const label = row.label || id;
+    const tag = row.overridden ? "dv-tag--mag" : "dv-tag--cyan";
+    return `<div class="list-row" style="align-items:center;gap:12px;flex-wrap:wrap">
+      <span class="badge dv-tag ${tag}">${esc(label)}</span>
+      <input class="dv-input" data-chord-id="${esc(id)}" value="${esc(combo)}" aria-label="${esc(label)} chord" style="max-width:220px">
+      <button class="btn dv-btn dv-btn--ghost" type="button" data-chord-melt="${esc(id)}" ${row.overridden ? "" : "disabled"}>MELT</button>
+    </div>`;
+  }).join("");
+}
+
+function renderNeonChords() {
+  const kb = app.state?.adapters?.keybinds || {};
+  const agentKeys = [
+    ["1–0 / K", "Switch UI scenes"],
+    ["Escape", "Internal lock screen"],
+    ["F11", "Toggle application fullscreen"],
   ];
-  return keys.map(([combo,act])=>`<div class="list-row"><span class="badge dv-tag">${esc(combo)}</span><span class="value">${esc(act)}</span></div>`).join("");
+  const agentRows = agentKeys
+    .map(([combo, act]) => `<div class="list-row"><span class="badge dv-tag">${esc(combo)}</span><span class="value">${esc(act)}</span></div>`)
+    .join("");
+  if (!kb.available) {
+    return `<p class="muted">Vapor//matrix chord editor unavailable.</p><div class="setting-group" style="margin-top:24px"><h3>Agent surface</h3>${agentRows}</div>`;
+  }
+  const rows = mapNeonChordRows(kb.chords || {}, kb.chord_order || []);
+  const sourced = kb.sourced
+    ? `<span class="badge dv-tag dv-tag--mint">sourced</span>`
+    : `<span class="badge dv-tag dv-tag--warn">not sourced yet</span>`;
+  return `<div class="setting-group"><h3>Hyprland chords</h3><p class="muted">Edits write <span class="cyan">~/.config/lmdesktopplus/hypr-binds.conf</span> only — never arbitrary hyprland.conf binds. ${sourced}</p><div style="margin-top:16px">${rows}</div><div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" type="button" data-chord-synth>SYNTH</button><button class="btn dv-btn dv-btn--ghost" type="button" data-chord-melt-all>MELT ALL</button></div></div><div class="setting-group" style="margin-top:24px"><h3>Agent surface</h3><p class="muted">In-app shortcuts for this vaporframe UI (not Hyprland).</p>${agentRows}</div>`;
 }
 
 function renderAbout() {
@@ -877,7 +1051,18 @@ function renderAbout() {
   return `${updatePanel}<div class="grid two" style="margin-top:16px">${panel("LMDesktopPlus", `${statRow("Version",app.state.version)}${statRow("API","loopback-only + per-launch token")}${statRow("Frontend","plain HTML/CSS/JavaScript")}${statRow("Host shell",id.session)}${statRow("Python",id.python)}`)}${panel("BOUNDARIES", `<p class="muted">This UI manages the current user session. It does not expose a remote management port, store Wi-Fi passwords, or accept arbitrary shell commands over the API.</p><p class="muted">Power operations remain disabled until explicitly enabled. Bubblewrap adds useful filesystem isolation for agents but is not equivalent to a virtual machine.</p>`)}</div>`;
 }
 
+const SETTINGS_TABS = {
+  appearance: renderAppearanceSettings,
+  display: renderDisplaySettings,
+  network: renderNetworkSettings,
+  agents: renderAgentSettings,
+  keybinds: renderNeonChords,
+  about: renderAbout,
+};
+
 function renderKit() {
+  // Stage C/D stories: static chrome samples for each new control (Task 23).
+  // Demo toasts only — production wiring stays on Settings / Monitor / Apps scenes.
   return heading("部品庫", "DIGITALVAPOR KIT", "The live control center now shares one token, component, chrome, and interaction layer.") + `
     <div class="grid three">
       ${panel("BUTTONS", `<div class="button-row"><button class="dv-btn dv-btn--primary" data-demo-toast="Primary action">PRIMARY</button><button class="dv-btn dv-btn--outline" data-demo-toast="Outline action">OUTLINE</button><button class="dv-btn dv-btn--ghost" data-demo-toast="Ghost action">GHOST</button><button class="dv-btn dv-btn--danger" data-demo-toast="Danger action">DANGER</button></div>`)}
@@ -890,6 +1075,18 @@ function renderKit() {
       ${panel("CONTEXT MENU", `<div class="context-demo" data-dv-menu><p class="dv-muted">Right-click this panel surface.</p><div class="dv-menu" hidden><div class="dv-menu__item" data-demo-toast="Open module">Open module</div><div class="dv-menu__item" data-demo-toast="Pin module">Pin to dock</div><div class="dv-menu__sep"></div><div class="dv-menu__item" data-demo-toast="Module settings">Settings</div></div></div>`)}
       ${panel("DIALOG + TOAST", `<p class="dv-muted">Modal and notification surfaces now use the same chrome.</p><div class="button-row"><button class="dv-btn dv-btn--primary" data-dv-dialog="kit-dialog">OPEN DIALOG</button><button class="dv-btn dv-btn--outline" data-demo-toast="Digitalvapor notification">SHOW TOAST</button></div>`)}
       ${panel("WINDOW CHROME", `<div class="dv-window dv-window--borderless"><div class="dv-window__bar"><span class="dv-window__title">agent://claude/workspace</span><span class="dv-window__dots"><i></i><i></i><i></i></span></div><div class="dv-window__body terminal compact"><span class="green">root@vaporframe</span> <span class="muted">~</span><br><span class="mint">❯</span> agent status<br><span class="out">ready · scoped · network on</span></div></div>`)}
+    </div>
+    <h3 class="section-title" style="margin:28px 0 12px">STAGE C / D STORIES</h3>
+    <p class="muted" style="margin-bottom:16px">Static chrome samples for Stage C/D controls. Live adapters stay on Settings, Monitor, Apps, and Keybinds.</p>
+    <div class="grid three" data-kit-stage-stories>
+      ${panel("IDLE TIMERS", `<p class="dv-muted">Display → owned swayidle snippets.</p><div class="stat-row"><span>Lock after</span><span>15 min</span></div><input class="dv-slider" type="range" min="0" max="120" value="15" aria-label="Kit idle lock"><div class="stat-row" style="margin-top:12px"><span>Sleep after</span><span>45 min</span></div><input class="dv-slider" type="range" min="0" max="240" value="45" aria-label="Kit idle sleep"><div class="button-row" style="margin-top:14px"><button class="dv-btn dv-btn--outline" type="button" data-demo-toast="Idle apply (story)">APPLY IDLE SNIPPETS</button></div>`)}
+      ${panel("PRINTERS", `<p class="dv-muted">lpstat read-only + open UI.</p><div class="button-row"><span class="dv-tag dv-tag--mint">HP-LaserJet · idle</span><span class="dv-tag dv-tag--cyan">default</span></div><div class="button-row" style="margin-top:14px"><button class="dv-btn dv-btn--outline" type="button" data-demo-toast="Printers refresh (story)">REFRESH</button><button class="dv-btn dv-btn--outline" type="button" data-demo-toast="Printer settings (story)">OPEN PRINTER SETTINGS</button></div>`)}
+      ${panel("USER JOURNAL", `<p class="dv-muted">Monitor → journalctl --user (escaped).</p><pre class="code-block" style="max-height:120px;overflow:auto">Jul 24 12:00:01 vapor systemd[1]: Started session.\nJul 24 12:00:02 vapor lmdesktopplus[42]: poll ok</pre><div class="button-row" style="margin-top:12px"><button class="dv-btn dv-btn--outline" type="button" data-demo-toast="Journal refresh (story)">REFRESH</button></div>`)}
+      ${panel("LIVE WALLPAPER", `<p class="dv-muted">Appearance · default on · START still explicit.</p><label class="dv-toggle"><input type="checkbox" checked aria-label="Kit live wallpaper"><span class="dv-track"></span><span style="margin-left:9px">ON</span></label><div class="button-row" style="margin-top:14px"><button class="dv-btn dv-btn--primary" type="button" data-demo-toast="Live wallpaper start (story)">START</button><button class="dv-btn dv-btn--outline" type="button" data-demo-toast="Live wallpaper stop (story)">STOP</button></div>`)}
+      ${panel("VAULT INSTALL", `<p class="dv-muted">Apps → FEATURE_PACKAGES + pkexec confirm.</p><div class="app-head"><strong>swayidle</strong><span class="dv-tag dv-tag--warn">missing</span></div><p class="dv-muted" style="margin-top:8px">Suggests map: docs/suggests.md</p><div class="button-row" style="margin-top:12px"><button class="dv-btn dv-btn--outline" type="button" data-demo-toast="Vault install confirm (story)">INSTALL</button></div>`)}
+      ${panel("CHORD EDITOR", `<p class="dv-muted">Keybinds → vapor//matrix neon tune.</p><div class="stat-row"><span>launcher</span><span class="cyan">SUPER+SPACE</span></div><input class="dv-input" value="SUPER+SPACE" aria-label="Kit chord combo" style="max-width:220px;margin-top:8px"><div class="button-row" style="margin-top:12px"><button class="dv-btn dv-btn--outline" type="button" data-demo-toast="Chord synth (story)">SYNTH</button><button class="dv-btn dv-btn--ghost" type="button" data-demo-toast="Chord melt (story)">MELT</button></div>`)}
+      ${panel("PEER FORGE", `<p class="dv-muted">Agents → forge / retune / melt.</p><div class="dv-field"><label>Name</label><input class="dv-input" value="nova" aria-label="Kit peer name"></div><div class="dv-field"><label>Command</label><input class="dv-input" value="aider --yes" aria-label="Kit peer command"></div><div class="button-row" style="margin-top:12px"><button class="dv-btn dv-btn--primary" type="button" data-demo-toast="Peer forge (story)">FORGE</button><button class="dv-btn dv-btn--danger" type="button" data-demo-toast="Peer melt (story)">MELT</button></div>`)}
+      ${panel("VPN / STORAGE / PROCS", `<p class="dv-muted">Stage C monitor rails.</p><div class="button-row"><span class="dv-tag dv-tag--cyan">wg0 · down</span><span class="dv-tag dv-tag--mint">sdb1 · mounted</span><span class="dv-tag dv-tag--mag">pid 4242</span></div><div class="button-row" style="margin-top:14px"><button class="dv-btn dv-btn--outline" type="button" data-demo-toast="VPN up (story)">VPN UP</button><button class="dv-btn dv-btn--outline" type="button" data-demo-toast="Unmount (story)">UNMOUNT</button><button class="dv-btn dv-btn--danger" type="button" data-demo-toast="SIGTERM (story)">TERMINATE</button></div>`)}
     </div>
     <div id="kit-dialog" class="dv-dialog-backdrop" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="kit-dialog-title">
       <div class="dv-dialog"><div class="dv-dialog__bar"><span class="dv-mag">墨</span><span id="kit-dialog-title">DIGITALVAPOR DIALOG</span><button type="button" class="dv-dialog__close" data-dv-close aria-label="Close">×</button></div><div class="dv-dialog__body">This is the same modal component used for Wi-Fi credentials and destructive-action confirmation.</div><div class="dv-dialog__actions"><button class="dv-btn dv-btn--ghost" data-dv-close>CANCEL</button><button class="dv-btn dv-btn--primary" data-demo-toast="Dialog accepted" data-dv-close>ACCEPT</button></div></div>
@@ -922,21 +1119,121 @@ async function runAction(action,target="") {
   } catch (error) { toast("Action failed", error.message, true); }
 }
 
-async function sendAudioCommand(name, payload={}) {
-  return api("/api/v1/adapter/audio", {method:"POST", body:{name, payload}});
+/** @use: high use — purpose: UI→adapter POST; resolved via LMDPFnCache when warm */
+async function adapterCommand(adapterId, name, payload = {}) {
+  return api(`/api/v1/adapter/${adapterId}`, { method: "POST", body: { name, payload } });
 }
 
-async function sendDisplayCommand(name, payload={}) {
-  return api("/api/v1/adapter/display", {method:"POST", body:{name, payload}});
+function requestVaultInstall(featureId, label, packages) {
+  // @use: low use — purpose: confirm dialog before pkexec apt install
+  const pkgList = packages || featureId;
+  app.pendingConfirm = () => forgeVaultPack(featureId);
+  $("#confirm-dialog-title").textContent = "CONFIRM APT INSTALL";
+  $("#confirm-dialog-body").textContent =
+    `Install “${label}” via pkexec apt-get install ${pkgList}? This requests administrator privileges and only allowlisted packages from FEATURE_PACKAGES.`;
+  $("#confirm-dialog-accept").textContent = "INSTALL";
+  window.Digitalvapor?.openDialog("confirm-dialog");
 }
 
-async function sendBluetoothCommand(name, payload={}) {
-  return api("/api/v1/adapter/bluetooth", {method:"POST", body:{name, payload}});
+async function forgeVaultPack(featureId) {
+  // @use: low use — purpose: run vault install after explicit confirm
+  try {
+    toast("Vault install", `Installing ${featureId}…`);
+    const result = await adapterCommand("vault", "install", { id: featureId });
+    if (app.state?.adapters?.vault && result.features) {
+      Object.assign(app.state.adapters.vault, {
+        features: result.features,
+        can_install: result.can_install ?? app.state.adapters.vault.can_install,
+      });
+    }
+    toast("Vault install complete", (result.packages || []).join(" ") || featureId);
+    renderScene(true);
+  } catch (error) {
+    toast("Vault install failed", error.message, true);
+  }
+}
+
+/** @use: low use — purpose: etch swayidle + cinnamon idle from Display settings */
+async function applyIdleSnippets() {
+  try {
+    const behavior = app.state?.settings?.behavior || {};
+    const result = await adapterCommand("idle", "apply", {
+      lock_minutes: behavior.idle_lock_minutes ?? 0,
+      sleep_minutes: behavior.idle_sleep_minutes ?? 0,
+    });
+    if (app.state?.adapters?.idle) Object.assign(app.state.adapters.idle, result);
+    toast("Idle snippets applied", `lock ${result.lock_minutes}m · sleep ${result.sleep_minutes}m`);
+    renderScene(true);
+  } catch (error) {
+    toast("Idle apply failed", error.message, true);
+  }
+}
+
+async function printersRefresh() {
+  try {
+    const result = await adapterCommand("printers", "refresh", {});
+    if (app.state?.adapters?.printers) Object.assign(app.state.adapters.printers, result);
+    toast("Printers refreshed", `${result.count ?? 0} printer(s)`);
+    renderScene(true);
+  } catch (error) {
+    toast("Printers refresh failed", error.message, true);
+  }
+}
+
+async function printersOpen() {
+  try {
+    await adapterCommand("printers", "open", {});
+    toast("Printer settings", "launched");
+  } catch (error) {
+    toast("Printer settings failed", error.message, true);
+  }
+}
+
+async function logsRefresh() {
+  try {
+    const result = await adapterCommand("logs", "refresh", {});
+    if (app.state?.adapters?.logs) Object.assign(app.state.adapters.logs, result);
+    toast("Journal refreshed", `${result.count ?? 0} lines`);
+    renderScene(true);
+  } catch (error) {
+    toast("Journal refresh failed", error.message, true);
+  }
+}
+
+/** @use: low use — purpose: start feature-flagged live matrix wallpaper */
+async function startLiveWallpaper() {
+  try {
+    const intensity = app.state?.settings?.appearance?.rain_intensity ?? 55;
+    const result = await adapterCommand("live_wallpaper", "start", { intensity });
+    if (app.state?.adapters?.live_wallpaper) Object.assign(app.state.adapters.live_wallpaper, result);
+    if (app.state?.settings?.features) app.state.settings.features.live_wallpaper = true;
+    toast("Live wallpaper", result.backend || "started");
+    renderScene(true);
+  } catch (error) {
+    toast("Live wallpaper start failed", error.message, true);
+  }
+}
+
+async function stopLiveWallpaper() {
+  try {
+    const result = await adapterCommand("live_wallpaper", "stop", {});
+    if (app.state?.adapters?.live_wallpaper) Object.assign(app.state.adapters.live_wallpaper, result);
+    if (app.state?.settings?.features) app.state.settings.features.live_wallpaper = false;
+    toast("Live wallpaper stopped");
+    renderScene(true);
+  } catch (error) {
+    toast("Live wallpaper stop failed", error.message, true);
+  }
+}
+
+async function toggleLiveWallpaper(on) {
+  if (on) await startLiveWallpaper();
+  else await stopLiveWallpaper();
 }
 
 async function bluetoothPower(on) {
   try {
-    await sendBluetoothCommand("power", {on});
+    await adapterCommand("bluetooth", "power", {on});
     if (app.state?.adapters?.bluetooth) app.state.adapters.bluetooth.powered = on;
     toast(on ? "Bluetooth powered on" : "Bluetooth powered off");
     renderScene(true);
@@ -948,7 +1245,7 @@ async function bluetoothPower(on) {
 async function bluetoothScan() {
   try {
     toast("Bluetooth scan", "Searching for 5 seconds…");
-    const result = await sendBluetoothCommand("scan", {});
+    const result = await adapterCommand("bluetooth", "scan", {});
     if (app.state?.adapters?.bluetooth) {
       app.state.adapters.bluetooth.devices = result.devices || [];
       if (typeof result.powered === "boolean") app.state.adapters.bluetooth.powered = result.powered;
@@ -962,7 +1259,7 @@ async function bluetoothScan() {
 
 async function bluetoothDevice(action, mac) {
   try {
-    await sendBluetoothCommand(action, {mac});
+    await adapterCommand("bluetooth", action, {mac});
     toast(action === "connect" ? "Bluetooth connected" : "Bluetooth disconnected", mac);
     renderScene(true);
   } catch (error) {
@@ -970,13 +1267,9 @@ async function bluetoothDevice(action, mac) {
   }
 }
 
-async function sendNotificationsCommand(name, payload={}) {
-  return api("/api/v1/adapter/notifications", {method:"POST", body:{name, payload}});
-}
-
 async function setDoNotDisturb(enabled) {
   try {
-    await sendNotificationsCommand("set_dnd", {enabled});
+    await adapterCommand("notifications", "set_dnd", {enabled});
     if (app.state?.adapters?.notifications) app.state.adapters.notifications.dnd = enabled;
     if (app.state?.settings?.behavior) app.state.settings.behavior.do_not_disturb = enabled;
     toast(enabled ? "Do not disturb on" : "Do not disturb off");
@@ -988,7 +1281,7 @@ async function setDoNotDisturb(enabled) {
 
 async function sendTestNotification() {
   try {
-    const result = await sendNotificationsCommand("send_test", {});
+    const result = await adapterCommand("notifications", "send_test", {});
     if (result.skipped) toast("Notification skipped", "Do not disturb is on");
     else toast("Test notification sent");
   } catch (error) {
@@ -996,13 +1289,9 @@ async function sendTestNotification() {
   }
 }
 
-async function sendUpdatesCommand(name, payload={}) {
-  return api("/api/v1/adapter/updates", {method:"POST", body:{name, payload}});
-}
-
 async function refreshUpdates() {
   try {
-    const result = await sendUpdatesCommand("refresh", {});
+    const result = await adapterCommand("updates", "refresh", {});
     if (app.state?.adapters?.updates) {
       app.state.adapters.updates.count = result.count;
       app.state.adapters.updates.mintupdate_available = result.mintupdate_available;
@@ -1018,20 +1307,16 @@ async function refreshUpdates() {
 
 async function openMintUpdate() {
   try {
-    await sendUpdatesCommand("open", {});
+    await adapterCommand("updates", "open", {});
     toast("Mint Update launched");
   } catch (error) {
     toast("Mint Update failed", error.message, true);
   }
 }
 
-async function sendClipboardCommand(name, payload={}) {
-  return api("/api/v1/adapter/clipboard", {method:"POST", body:{name, payload}});
-}
-
 async function clipboardPeek() {
   try {
-    const result = await sendClipboardCommand("peek", {});
+    const result = await adapterCommand("clipboard", "peek", {});
     if (app.state?.adapters?.clipboard) {
       Object.assign(app.state.adapters.clipboard, result);
     }
@@ -1046,7 +1331,7 @@ async function clipboardCopy() {
   const input = document.querySelector("[data-clipboard-input]");
   const text = input?.value ?? "";
   try {
-    await sendClipboardCommand("copy", {text});
+    await adapterCommand("clipboard", "copy", {text});
     toast("Copied to clipboard", `${text.length} chars`);
     renderScene(true);
   } catch (error) {
@@ -1056,7 +1341,7 @@ async function clipboardCopy() {
 
 async function clipboardClear() {
   try {
-    await sendClipboardCommand("clear", {});
+    await adapterCommand("clipboard", "clear", {});
     toast("Clipboard cleared");
     renderScene(true);
   } catch (error) {
@@ -1064,13 +1349,9 @@ async function clipboardClear() {
   }
 }
 
-async function sendCaptureCommand(name, payload={}) {
-  return api("/api/v1/adapter/capture", {method:"POST", body:{name, payload}});
-}
-
 async function captureScreen(mode) {
   try {
-    const result = await sendCaptureCommand(mode, {});
+    const result = await adapterCommand("capture", mode, {});
     if (app.state?.adapters?.capture) app.state.adapters.capture.last_path = result.path;
     toast(mode === "region" ? "Region captured" : "Screenshot saved", result.path);
     renderScene(true);
@@ -1081,7 +1362,7 @@ async function captureScreen(mode) {
 
 async function openCaptureFolder() {
   try {
-    const result = await sendCaptureCommand("open_folder", {});
+    const result = await adapterCommand("capture", "open_folder", {});
     toast("Opened screenshots folder", result.path);
   } catch (error) {
     toast("Open folder failed", error.message, true);
@@ -1092,7 +1373,7 @@ async function applyWallpaper(id) {
   const wallpaper = app.assets.wallpapers.get(id);
   if (!wallpaper) return;
   try {
-    await api("/api/v1/adapter/wallpaper", {method:"POST", body:{name:"apply", payload:{id}}});
+    await adapterCommand("wallpaper", "apply", {id});
     app.state.adapters.wallpaper.current_id = id;
     toast("Wallpaper applied", wallpaper.label);
     renderScene(true);
@@ -1103,7 +1384,7 @@ async function applyWallpaper(id) {
 
 async function armHyprland() {
   try {
-    await api("/api/v1/adapter/session", {method:"POST", body:{name:"arm_hyprland", payload:{}}});
+    await adapterCommand("session", "arm_hyprland", {});
     app.state.adapters.session.armed = true;
     toast("Hyprland one-shot armed", "Press Ctrl+Alt+F3, then log in.");
     renderScene(true);
@@ -1112,6 +1393,7 @@ async function armHyprland() {
   }
 }
 
+/** @use: high use — purpose: debounce desktop volume slider → audio.set_volume */
 function queueAudioVolume(value) {
   const audio = app.state?.adapters?.audio;
   if (!audio?.available) return;
@@ -1125,7 +1407,7 @@ function queueAudioVolume(value) {
   const requestId = ++app.audioRequestId;
   app.audioTimer = setTimeout(async () => {
     try {
-      await sendAudioCommand("set_volume", {volume});
+      await adapterCommand("audio", "set_volume", {volume});
       if (requestId === app.audioRequestId) {
         const currentAudio = app.state?.adapters?.audio;
         if (currentAudio) currentAudio.volume = volume;
@@ -1145,6 +1427,7 @@ function queueAudioVolume(value) {
   }, 100);
 }
 
+/** @use: high use — purpose: optimistic mute toggle → audio.toggle_mute */
 async function toggleAudioMute() {
   const audio = app.state?.adapters?.audio;
   if (!audio?.available) return;
@@ -1152,7 +1435,7 @@ async function toggleAudioMute() {
   audio.muted = !previous;
   patchAudioBindings();
   try {
-    await sendAudioCommand("toggle_mute");
+    await adapterCommand("audio", "toggle_mute");
   } catch (error) {
     audio.muted = previous;
     patchAudioBindings();
@@ -1160,6 +1443,7 @@ async function toggleAudioMute() {
   }
 }
 
+/** @use: high use — purpose: debounce brightness slider → display.set_brightness */
 function queueDisplayBrightness(value) {
   const display = app.state?.adapters?.display;
   if (!display?.available || !display.writable) return;
@@ -1173,7 +1457,7 @@ function queueDisplayBrightness(value) {
   const requestId = ++app.displayRequestId;
   app.displayTimer = setTimeout(async () => {
     try {
-      await sendDisplayCommand("set_brightness", {brightness});
+      await adapterCommand("display", "set_brightness", {brightness});
       if (requestId === app.displayRequestId) {
         const currentDisplay = app.state?.adapters?.display;
         if (currentDisplay) currentDisplay.brightness = brightness;
@@ -1221,72 +1505,329 @@ function requestConfirmation(action) {
   window.Digitalvapor?.openDialog("confirm-dialog");
 }
 
-function bindSceneEvents() {
-  const root = $("#scene");
-  $$('[data-launch]', root).forEach(n=>n.addEventListener("click",()=>runAction("launch",n.dataset.launch)));
-  $$('[data-action]', root).forEach(n=>n.addEventListener("click",()=>runAction(n.dataset.action)));
-  $$('[data-agent]', root).forEach(n=>n.addEventListener("click",async()=>{
-    try { await api("/api/v1/agents/launch",{method:"POST",body:{name:n.dataset.agent}}); toast("Agent spawned",n.dataset.agent); }
-    catch(error){ toast("Agent launch failed",error.message,true); }
-  }));
-  $$('[data-media]', root).forEach(n=>n.addEventListener("click",async()=>{
-    try { await api("/api/v1/media",{method:"POST",body:{action:n.dataset.media}}); toast("Media",n.dataset.media); }
-    catch(error){ toast("Media action failed",error.message,true); }
-  }));
-  $$('[data-settings-tab]', root).forEach(n=>n.addEventListener("click",()=>{ app.settingsTab=n.dataset.settingsTab; if(n.dataset.sceneJump) setScene(n.dataset.sceneJump); else renderScene(true); }));
-  $$('[data-scene-jump]', root).forEach(n=>n.addEventListener("click",()=>{ app.settingsTab=n.dataset.settingsTab || app.settingsTab; setScene(n.dataset.sceneJump); }));
-  $$('[data-setting]', root).forEach(n=>n.addEventListener("change",()=>{
-    let value = n.type === "checkbox" ? n.checked : n.value;
-    if (n.hasAttribute("data-number")) value = Number(value);
-    saveSetting(n.dataset.setting,value);
-  }));
-  $$('[data-audio-volume]', root).forEach(n=>n.addEventListener("input",()=>queueAudioVolume(n.value)));
-  $$('[data-audio-mute]', root).forEach(n=>n.addEventListener("click",toggleAudioMute));
-  $$('[data-display-brightness]', root).forEach(n=>n.addEventListener("input",()=>queueDisplayBrightness(n.value)));
-  $$('[data-session-arm]', root).forEach(n=>n.addEventListener("click",armHyprland));
-  $$('[data-wallpaper-id]', root).forEach(n=>n.addEventListener("click",()=>applyWallpaper(n.dataset.wallpaperId)));
-  $$('[data-accent]', root).forEach(n=>n.addEventListener("click",()=>saveSetting("appearance.accent",n.dataset.accent)));
-  $$('[data-window-mode]', root).forEach(n=>n.addEventListener("click",()=>saveSetting("appearance.window_mode",n.dataset.windowMode)));
-  $$('[data-feature]', root).forEach(n=>n.addEventListener("change",()=>saveSetting(`features.${n.dataset.feature}`,n.checked)));
-  $$('[data-network-scan]', root).forEach(n=>n.addEventListener("click",async()=>{
-    n.disabled=true; n.textContent="SCANNING…";
-    try { app.networkScan=await api("/api/v1/network/scan"); renderScene(true); }
-    catch(error){ toast("Wi-Fi scan failed",error.message,true); n.disabled=false; }
-  }));
-  $$('[data-bt-power]', root).forEach(n=>n.addEventListener("click",()=>bluetoothPower(n.dataset.btPower === "on")));
-  $$('[data-bt-scan]', root).forEach(n=>n.addEventListener("click",bluetoothScan));
-  $$('[data-bt-device]', root).forEach(n=>n.addEventListener("click",()=>bluetoothDevice(n.dataset.btAction, n.dataset.btDevice)));
-  $$('[data-notify-dnd]', root).forEach(n=>n.addEventListener("change",()=>setDoNotDisturb(n.checked)));
-  $$('[data-notify-test]', root).forEach(n=>n.addEventListener("click",sendTestNotification));
-  $$('[data-updates-refresh]', root).forEach(n=>n.addEventListener("click",refreshUpdates));
-  $$('[data-updates-open]', root).forEach(n=>n.addEventListener("click",openMintUpdate));
-  $$('[data-clipboard-peek]', root).forEach(n=>n.addEventListener("click",clipboardPeek));
-  $$('[data-clipboard-copy]', root).forEach(n=>n.addEventListener("click",clipboardCopy));
-  $$('[data-clipboard-clear]', root).forEach(n=>n.addEventListener("click",clipboardClear));
-  $$('[data-capture]', root).forEach(n=>n.addEventListener("click",()=>captureScreen(n.dataset.capture)));
-  $$('[data-capture-folder]', root).forEach(n=>n.addEventListener("click",openCaptureFolder));
-  $$('[data-connect-ssid]', root).forEach(n=>n.addEventListener("click",()=>{
-    const ssid=decodeURIComponent(n.dataset.connectSsid);
-    const network=(app.networkScan?.networks||[]).find(x=>x.ssid===ssid);
-    if(network?.active){ toast("Already connected",ssid); return; }
-    const security=String(network?.security || "").toLowerCase();
-    const needsPassword=Boolean(network && security && security!=="open" && security!=="--");
-    if(needsPassword) requestWifiPassword(ssid);
-    else connectWifi(ssid);
-  }));
-  $$('[data-disconnect]', root).forEach(n=>n.addEventListener("click",async()=>{
-    try { await api("/api/v1/network/disconnect",{method:"POST",body:{device:n.dataset.disconnect}}); toast("Network disconnected",n.dataset.disconnect); }
-    catch(error){ toast("Disconnect failed",error.message,true); }
-  }));
-  $$('[data-power]', root).forEach(n=>n.addEventListener("click",()=>requestConfirmation(n.dataset.power)));
-  $$('[data-ui-lock]', root).forEach(n=>n.addEventListener("click",lockUi));
+function requestProcessTerminate(pid, name) {
+  app.pendingConfirm = () => terminateProcess(pid);
+  $("#confirm-dialog-title").textContent = "CONFIRM SIGTERM";
+  $("#confirm-dialog-body").textContent = `Send SIGTERM to ${name} (pid ${pid})? Only your own processes can be terminated.`;
+  $("#confirm-dialog-accept").textContent = "TERMINATE";
+  window.Digitalvapor?.openDialog("confirm-dialog");
 }
 
+async function vpnAction(action, connectionName) {
+  try {
+    await adapterCommand("vpn", action, {name: connectionName});
+    toast(action === "up" ? "VPN connecting" : "VPN disconnecting", connectionName);
+    renderScene(true);
+  } catch (error) {
+    toast(`VPN ${action} failed`, error.message, true);
+  }
+}
+
+async function vpnRefresh() {
+  try {
+    const result = await adapterCommand("vpn", "refresh", {});
+    if (app.state?.adapters?.vpn) Object.assign(app.state.adapters.vpn, result);
+    toast("VPN list refreshed", `${result.active_count ?? 0} active`);
+    renderScene(true);
+  } catch (error) {
+    toast("VPN refresh failed", error.message, true);
+  }
+}
+
+async function storageAction(action, device) {
+  try {
+    const result = await adapterCommand("storage", action, {device});
+    toast(action === "mount" ? "Volume mounted" : "Volume unmounted", result.mountpoint || device);
+    renderScene(true);
+  } catch (error) {
+    toast(`Storage ${action} failed`, error.message, true);
+  }
+}
+
+async function storageRefresh() {
+  try {
+    const result = await adapterCommand("storage", "refresh", {});
+    if (app.state?.adapters?.storage) Object.assign(app.state.adapters.storage, result);
+    toast("Storage refreshed", `${(result.devices || []).length} volume(s)`);
+    renderScene(true);
+  } catch (error) {
+    toast("Storage refresh failed", error.message, true);
+  }
+}
+
+async function processRefresh() {
+  try {
+    const result = await adapterCommand("processes", "refresh", {});
+    if (app.state?.adapters?.processes) Object.assign(app.state.adapters.processes, result);
+    renderScene(true);
+  } catch (error) {
+    toast("Process refresh failed", error.message, true);
+  }
+}
+
+async function terminateProcess(pid) {
+  try {
+    await adapterCommand("processes", "terminate", {pid: Number(pid)});
+    toast("SIGTERM sent", `pid ${pid}`);
+    renderScene(true);
+  } catch (error) {
+    toast("Terminate failed", error.message, true);
+  }
+}
+
+/** Spawn a peer via the dedicated launch route (not CRUD). */
+async function launchAgentFromEl(el) {
+  try {
+    await api("/api/v1/agents/launch", { method: "POST", body: { name: el.dataset.agent } });
+    toast("Peer spawned", el.dataset.agent);
+  } catch (error) {
+    toast("Peer spawn failed", error.message, true);
+  }
+}
+
+/** POST /api/v1/agents with vapor/plan op names; refresh local roster from response. */
+async function dispatchPeerOp(op, payload) {
+  const result = await api("/api/v1/agents", { method: "POST", body: { op, ...payload } });
+  if (Array.isArray(result.agents)) app.state.agents = result.agents;
+  return result;
+}
+
+/** Read forge-form fields and create a peer (op: forge / create). */
+async function forgePeerFromForm() {
+  try {
+    const payload = {
+      name: $("#peer-forge-name")?.value || "",
+      label: $("#peer-forge-label")?.value || "",
+      command: $("#peer-forge-command")?.value || "",
+      workspace: $("#peer-forge-workspace")?.value || "~/work",
+      description: $("#peer-forge-description")?.value || "",
+      sandbox: Boolean($("#peer-forge-sandbox")?.checked),
+      network: Boolean($("#peer-forge-network")?.checked),
+    };
+    await dispatchPeerOp("forge", payload);
+    toast("Peer forged", payload.name);
+    renderScene(true);
+  } catch (error) {
+    toast("Peer forge failed", error.message, true);
+  }
+}
+
+/** Collect editable fields for one peer card and retune (op: retune / update). */
+async function retunePeerFromCard(name) {
+  try {
+    // Names are safe_name tokens, so a plain attribute selector is sufficient.
+    const root = document.querySelector(`[data-peer-card="${name}"]`);
+    if (!root) throw new Error("peer card missing");
+    const field = (key) => root.querySelector(`[data-peer-field="${key}"]`);
+    const payload = {
+      name,
+      label: field("label")?.value || name,
+      command: field("command")?.value || "",
+      workspace: field("workspace")?.value || "~/work",
+      description: field("description")?.value || "",
+      sandbox: Boolean(field("sandbox")?.checked),
+      network: Boolean(field("network")?.checked),
+    };
+    await dispatchPeerOp("retune", payload);
+    toast("Peer retuned", name);
+    renderScene(true);
+  } catch (error) {
+    toast("Peer retune failed", error.message, true);
+  }
+}
+
+/** Remove a peer from the roster (op: melt / delete); does not wipe HOME. */
+async function meltPeerByName(name) {
+  try {
+    const ok = window.confirm(`Melt peer "${name}" from the roster? Home directory is kept.`);
+    if (!ok) return;
+    await dispatchPeerOp("melt", { name });
+    toast("Peer melted", name);
+    renderScene(true);
+  } catch (error) {
+    toast("Peer melt failed", error.message, true);
+  }
+}
+
+async function mediaFromEl(el) {
+  try {
+    await api("/api/v1/media", { method: "POST", body: { action: el.dataset.media } });
+    toast("Media", el.dataset.media);
+  } catch (error) {
+    toast("Media action failed", error.message, true);
+  }
+}
+
+async function networkScanFromEl(el) {
+  el.disabled = true;
+  el.textContent = "SCANNING…";
+  try {
+    app.networkScan = await api("/api/v1/network/scan");
+    renderScene(true);
+  } catch (error) {
+    toast("Wi-Fi scan failed", error.message, true);
+    el.disabled = false;
+  }
+}
+
+function connectSsidFromEl(el) {
+  const ssid = decodeURIComponent(el.dataset.connectSsid);
+  const network = (app.networkScan?.networks || []).find((x) => x.ssid === ssid);
+  if (network?.active) {
+    toast("Already connected", ssid);
+    return;
+  }
+  const security = String(network?.security || "").toLowerCase();
+  const needsPassword = Boolean(network && security && security !== "open" && security !== "--");
+  if (needsPassword) requestWifiPassword(ssid);
+  else connectWifi(ssid);
+}
+
+async function disconnectFromEl(el) {
+  try {
+    await api("/api/v1/network/disconnect", { method: "POST", body: { device: el.dataset.disconnect } });
+    toast("Network disconnected", el.dataset.disconnect);
+  } catch (error) {
+    toast("Disconnect failed", error.message, true);
+  }
+}
+
+function absorbChordSnapshot(result) {
+  if (app.state?.adapters?.keybinds && result?.chords) {
+    Object.assign(app.state.adapters.keybinds, {
+      chords: result.chords,
+      chord_order: result.chord_order || app.state.adapters.keybinds.chord_order,
+      file: result.file || app.state.adapters.keybinds.file,
+      sourced: result.sourced ?? app.state.adapters.keybinds.sourced,
+      available: true,
+    });
+  }
+}
+
+async function tuneNeonChord(chordId, combo) {
+  try {
+    const result = await adapterCommand("keybinds", "tune", { id: chordId, combo });
+    absorbChordSnapshot(result);
+    toast("Chord tuned", chordId);
+    renderScene(true);
+  } catch (error) {
+    toast("Chord tune failed", error.message, true);
+  }
+}
+
+async function meltNeonChord(chordId) {
+  try {
+    const result = await adapterCommand("keybinds", "melt", { id: chordId });
+    absorbChordSnapshot(result);
+    toast("Chord melted", chordId);
+    renderScene(true);
+  } catch (error) {
+    toast("Chord melt failed", error.message, true);
+  }
+}
+
+async function meltAllNeonChords() {
+  try {
+    const result = await adapterCommand("keybinds", "melt", { id: "*" });
+    absorbChordSnapshot(result);
+    toast("All chords melted", "matrix defaults restored");
+    renderScene(true);
+  } catch (error) {
+    toast("Chord melt failed", error.message, true);
+  }
+}
+
+async function synthNeonChords() {
+  try {
+    const result = await adapterCommand("keybinds", "synth", {});
+    absorbChordSnapshot(result);
+    toast("Chords synth'd", result.pulsed ? "hyprctl reload" : "overlay written");
+    renderScene(true);
+  } catch (error) {
+    toast("Chord synth failed", error.message, true);
+  }
+}
+
+const SCENE_BINDINGS = [
+  { sel: "[data-launch]", run: (el) => runAction("launch", el.dataset.launch) },
+  { sel: "[data-action]", run: (el) => runAction(el.dataset.action) },
+  { sel: "[data-agent]", run: launchAgentFromEl },
+  { sel: "[data-peer-forge]", run: () => forgePeerFromForm() },
+  { sel: "[data-peer-retune]", run: (el) => retunePeerFromCard(el.dataset.peerRetune) },
+  { sel: "[data-peer-melt]", run: (el) => meltPeerByName(el.dataset.peerMelt) },
+  { sel: "[data-media]", run: mediaFromEl },
+  { sel: "[data-settings-tab]", run: (el) => {
+    app.settingsTab = el.dataset.settingsTab;
+    if (el.dataset.sceneJump) setScene(el.dataset.sceneJump);
+    else renderScene(true);
+  } },
+  { sel: "[data-scene-jump]", run: (el) => {
+    app.settingsTab = el.dataset.settingsTab || app.settingsTab;
+    setScene(el.dataset.sceneJump);
+  } },
+  { sel: "[data-setting]", type: "change", run: (el) => {
+    let value = el.type === "checkbox" ? el.checked : el.value;
+    if (el.hasAttribute("data-number")) value = Number(value);
+    saveSetting(el.dataset.setting, value);
+  } },
+  { sel: "[data-audio-volume]", type: "input", run: (el) => queueAudioVolume(el.value) },
+  { sel: "[data-audio-mute]", run: () => toggleAudioMute() },
+  { sel: "[data-display-brightness]", type: "input", run: (el) => queueDisplayBrightness(el.value) },
+  { sel: "[data-session-arm]", run: () => armHyprland() },
+  { sel: "[data-wallpaper-id]", run: (el) => applyWallpaper(el.dataset.wallpaperId) },
+  { sel: "[data-accent]", run: (el) => saveSetting("appearance.accent", el.dataset.accent) },
+  { sel: "[data-window-mode]", run: (el) => saveSetting("appearance.window_mode", el.dataset.windowMode) },
+  { sel: "[data-feature]", type: "change", run: (el) => saveSetting(`features.${el.dataset.feature}`, el.checked) },
+  { sel: "[data-network-scan]", run: networkScanFromEl },
+  { sel: "[data-bt-power]", run: (el) => bluetoothPower(el.dataset.btPower === "on") },
+  { sel: "[data-bt-scan]", run: () => bluetoothScan() },
+  { sel: "[data-bt-device]", run: (el) => bluetoothDevice(el.dataset.btAction, el.dataset.btDevice) },
+  { sel: "[data-notify-dnd]", type: "change", run: (el) => setDoNotDisturb(el.checked) },
+  { sel: "[data-notify-test]", run: () => sendTestNotification() },
+  { sel: "[data-updates-refresh]", run: () => refreshUpdates() },
+  { sel: "[data-updates-open]", run: () => openMintUpdate() },
+  { sel: "[data-clipboard-peek]", run: () => clipboardPeek() },
+  { sel: "[data-clipboard-copy]", run: () => clipboardCopy() },
+  { sel: "[data-clipboard-clear]", run: () => clipboardClear() },
+  { sel: "[data-capture]", run: (el) => captureScreen(el.dataset.capture) },
+  { sel: "[data-capture-folder]", run: () => openCaptureFolder() },
+  { sel: "[data-vpn-refresh]", run: () => vpnRefresh() },
+  { sel: "[data-vpn-name]", run: (el) => vpnAction(el.dataset.vpnAction, el.dataset.vpnName) },
+  { sel: "[data-storage-refresh]", run: () => storageRefresh() },
+  { sel: "[data-storage-device]", run: (el) => storageAction(el.dataset.storageAction, el.dataset.storageDevice) },
+  { sel: "[data-process-refresh]", run: () => processRefresh() },
+  { sel: "[data-process-terminate]", run: (el) => requestProcessTerminate(el.dataset.processTerminate, el.dataset.processName || el.dataset.processTerminate) },
+  { sel: "[data-chord-id]", type: "change", run: (el) => tuneNeonChord(el.dataset.chordId, el.value) },
+  { sel: "[data-chord-melt]", run: (el) => meltNeonChord(el.dataset.chordMelt) },
+  { sel: "[data-chord-melt-all]", run: () => meltAllNeonChords() },
+  { sel: "[data-chord-synth]", run: () => synthNeonChords() },
+  { sel: "[data-vault-install]", run: (el) => requestVaultInstall(el.dataset.vaultInstall, el.dataset.vaultLabel || el.dataset.vaultInstall, el.dataset.vaultPackages || "") },
+  { sel: "[data-idle-apply]", run: () => applyIdleSnippets() },
+  { sel: "[data-printers-refresh]", run: () => printersRefresh() },
+  { sel: "[data-printers-open]", run: () => printersOpen() },
+  { sel: "[data-logs-refresh]", run: () => logsRefresh() },
+  { sel: "[data-live-wallpaper-start]", run: () => startLiveWallpaper() },
+  { sel: "[data-live-wallpaper-stop]", run: () => stopLiveWallpaper() },
+  { sel: "[data-live-wallpaper-toggle]", type: "change", run: (el) => toggleLiveWallpaper(el.checked) },
+  { sel: "[data-connect-ssid]", run: connectSsidFromEl },
+  { sel: "[data-disconnect]", run: disconnectFromEl },
+  { sel: "[data-power]", run: (el) => requestConfirmation(el.dataset.power) },
+  { sel: "[data-ui-lock]", run: () => lockUi() },
+];
+
+function bindSceneEvents() {
+  const root = $("#scene");
+  window.LMDPBindings.bindFromTable(root, SCENE_BINDINGS, $$);
+}
+
+/** @use: medium use — purpose: app-wide unlock/wifi/confirm/hotkey wiring (once) */
 function bindGlobal() {
+  // Lock chrome — click anywhere on the lock surface to unlock.
   $("#unlock-button").addEventListener("click",unlock);
   $("#lock-screen").addEventListener("click",unlock);
   $("#status-audio").addEventListener("click", toggleAudioMute);
 
+  // Wi-Fi credential dialog → NetworkManager connect.
   $("#wifi-form").addEventListener("submit", (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -1297,6 +1838,7 @@ function bindGlobal() {
     if (ssid) connectWifi(ssid, password);
   });
 
+  // Shared confirm dialog accept (vault install, destructive peers, etc.).
   $("#confirm-dialog-accept").addEventListener("click", () => {
     const callback = app.pendingConfirm;
     app.pendingConfirm = null;
@@ -1304,11 +1846,13 @@ function bindGlobal() {
     if (callback) callback();
   });
 
+  // Kit story demos use data-demo-toast only (no live adapters).
   document.addEventListener("click", (event) => {
     const demo = event.target.closest("[data-demo-toast]");
     if (demo) toast(demo.dataset.demoToast, "Digitalvapor component event");
   });
 
+  // Digit/letter hotkeys map to scenes; Escape locks the UI.
   document.addEventListener("keydown",event=>{
     if(app.locked){ unlock(); return; }
     if (document.querySelector(".dv-dialog-backdrop.is-open")) return;
@@ -1321,7 +1865,30 @@ function bindGlobal() {
   $(".topbar [data-action=\"lock\"]").addEventListener("click",()=>runAction("lock"));
 }
 
+/** Register hot UI→operation callables into the memory hashmap for O(1) resolve. */
+function warmUiFnCache() {
+  const cache = window.LMDPFnCache;
+  if (!cache?.register) return;
+  cache.register("ui.adapterCommand", "high use", "POST /api/v1/adapter/<id> from any control", adapterCommand);
+  cache.register("ui.api", "high use", "Tokenized loopback fetch helper", api);
+  cache.register("ui.renderScene", "high use", "Rebuild or patch the active scene", renderScene);
+  cache.register("ui.patchAudioBindings", "high use", "Desktop volume/mute chrome patch", patchAudioBindings);
+  cache.register("ui.patchDisplayBindings", "high use", "Desktop brightness chrome patch", patchDisplayBindings);
+  cache.register("ui.patchDesktopBindings", "high use", "Desktop metrics/media cheap patch", patchDesktopBindings);
+  cache.register("ui.patchMonitorBindings", "high use", "Monitor metrics cheap patch", patchMonitorBindings);
+  cache.register("ui.queueAudioVolume", "high use", "Debounced audio.set_volume from slider", queueAudioVolume);
+  cache.register("ui.queueDisplayBrightness", "high use", "Debounced display.set_brightness from slider", queueDisplayBrightness);
+  cache.register("ui.toggleAudioMute", "high use", "Optimistic mute toggle", toggleAudioMute);
+  cache.register("ui.mapVaultFeatureCards", "high use", "Apps vault cards from FEATURE_PACKAGES", mapVaultFeatureCards);
+  cache.register("ui.forgePeerFromForm", "medium use", "Settings → Agents forge peer", forgePeerFromForm);
+  cache.register("ui.tuneNeonChord", "medium use", "Settings → Keybinds tune combo", tuneNeonChord);
+  cache.register("ui.bindGlobal", "medium use", "One-time app-wide event wiring", bindGlobal);
+  cache.register("ui.forgeVaultPack", "low use", "Confirmed pkexec apt install for vault feature", forgeVaultPack);
+  cache.register("ui.requestVaultInstall", "low use", "Confirm dialog before vault install", requestVaultInstall);
+}
+
 setClock();
 setInterval(setClock,1000);
+warmUiFnCache();
 bindGlobal();
 poll();

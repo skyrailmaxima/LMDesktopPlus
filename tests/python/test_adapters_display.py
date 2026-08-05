@@ -14,7 +14,7 @@ def completed(stdout: str = "", stderr: str = "", returncode: int = 0):
 
 
 class DisplayAdapterTests(unittest.TestCase):
-    @patch("lmdesktopplus.adapters.display.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_snapshot_uses_brightnessctl_and_caches_result(self, run_capture):
         run_capture.side_effect = [completed("240\n"), completed("400\n")]
         adapter = DisplayAdapter(
@@ -40,7 +40,7 @@ class DisplayAdapterTests(unittest.TestCase):
             ],
         )
 
-    @patch("lmdesktopplus.adapters.display.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_set_brightness_clamps_to_one_through_one_hundred(self, run_capture):
         adapter = DisplayAdapter(
             brightnessctl="/usr/bin/brightnessctl",
@@ -85,7 +85,7 @@ class DisplayAdapterTests(unittest.TestCase):
             },
         )
 
-    @patch("lmdesktopplus.adapters.display.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_sysfs_fallback_after_brightnessctl_read_failure_rejects_writes(
         self, run_capture
     ):
@@ -114,7 +114,7 @@ class DisplayAdapterTests(unittest.TestCase):
         self.assertEqual(run_capture.call_count, 2)
 
     @patch(
-        "lmdesktopplus.adapters.display.run_capture",
+        "lmdesktopplus.preopt.run_capture",
         side_effect=subprocess.TimeoutExpired(["brightnessctl"], 3),
     )
     def test_snapshot_fails_soft_when_brightnessctl_times_out(self, _run_capture):

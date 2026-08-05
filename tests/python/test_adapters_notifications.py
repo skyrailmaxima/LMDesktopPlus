@@ -49,7 +49,7 @@ class NotificationsAdapterTests(unittest.TestCase):
             },
         )
 
-    @patch("lmdesktopplus.adapters.notifications.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_snapshot_reads_cinnamon_dnd(self, run_capture):
         run_capture.return_value = completed("false\n")
         self.settings["behavior"]["do_not_disturb"] = False
@@ -73,7 +73,7 @@ class NotificationsAdapterTests(unittest.TestCase):
             timeout=3,
         )
 
-    @patch("lmdesktopplus.adapters.notifications.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_send_test_skips_when_dnd(self, run_capture):
         self.settings["behavior"]["do_not_disturb"] = True
         adapter = NotificationsAdapter(
@@ -86,7 +86,7 @@ class NotificationsAdapterTests(unittest.TestCase):
         self.assertEqual(result, {"ok": True, "skipped": True, "reason": "do_not_disturb"})
         run_capture.assert_not_called()
 
-    @patch("lmdesktopplus.adapters.notifications.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_send_test_uses_notify_send(self, run_capture):
         adapter = NotificationsAdapter(
             settings_get=self.get_settings,
@@ -110,7 +110,7 @@ class NotificationsAdapterTests(unittest.TestCase):
             ],
         )
 
-    @patch("lmdesktopplus.adapters.notifications.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_set_dnd_updates_settings_and_gsettings(self, run_capture):
         adapter = NotificationsAdapter(
             settings_get=self.get_settings,

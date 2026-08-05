@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import subprocess
 import unittest
+from unittest.mock import patch
 
-from lmdesktopplus.network import _split_nmcli, connect_wifi
+from lmdesktopplus.network import _split_nmcli, connect_wifi, current
+
+
+def completed(stdout: str = "", stderr: str = "", returncode: int = 0):
+    return subprocess.CompletedProcess([], returncode, stdout, stderr)
 
 
 class NetworkParsingTests(unittest.TestCase):
@@ -22,6 +28,26 @@ class NetworkParsingTests(unittest.TestCase):
         result = connect_wifi("home", "x" * 257)
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "invalid password")
+
+
+class NetworkCurrentTests(unittest.TestCase):
+    @patch("lmdesktopplus.network.available", return_value=True)
+    @patch("lmdesktopplus.preopt.run_capture")
+    def test_current_parses_active_rows(self, run_capture, _avail):
+        run_capture.return_value = completed("Home:vpn:tun0:activated\n")
+        snap = current()
+        self.assertTrue(snap["available"])
+        self.assertEqual(snap["connections"][0]["name"], "Home")
+
+    @patch("lmdesktopplus.network.available", return_value=True)
+    @patch(
+        "lmdesktopplus.preopt.run_capture",
+        side_effect=subprocess.TimeoutExpired(["nmcli"], 4),
+    )
+    def test_current_timeout_fails_soft(self, _run, _avail):
+        snap = current()
+        self.assertFalse(snap["available"])
+        self.assertIn("timed out", snap.get("last_error", ""))
 
 
 if __name__ == "__main__":

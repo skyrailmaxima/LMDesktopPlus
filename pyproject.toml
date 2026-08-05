@@ -4,17 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lmdesktopplus"
-version = "0.4.2"
-description = "Vapor//matrix machine UI and desktop integration for Linux Mint"
+version = "0.6.8"
+description = "Vapor//matrix machine UI and desktop integration for Linux Mint (FreeBSD UI package supported)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "LMDesktopPlus contributors" }]
-keywords = ["linux-mint", "cinnamon", "hyprland", "desktop", "agents"]
+keywords = ["linux-mint", "freebsd", "cinnamon", "hyprland", "desktop", "agents"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: X11 Applications :: GTK",
   "Environment :: Wayland",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: POSIX :: BSD :: FreeBSD",
   "Programming Language :: Python :: 3",
   "Topic :: Desktop Environment",
 ]

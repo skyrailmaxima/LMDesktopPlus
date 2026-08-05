@@ -1,0 +1,18 @@
+[
+{ type: install
+  message: <<EOM
+LMDesktopPlus FreeBSD UI package is installed.
+
+  lmdesktopplus             # GTK/WebKit when GI + WebKit2 are present
+  lmdesktopplus --browser   # browser fallback (recommended if WebKit missing)
+
+Metrics use sysctl/netstat. Linux-only adapters (NetworkManager, apt vault,
+Hyprland rice, bubblewrap agents) fail soft when tools are absent.
+
+User-local install without pkg:
+  ./scripts/install-ui.sh
+
+Docs: ${PREFIX}/share/doc/lmdesktopplus/freebsd-ui.md
+EOM
+}
+]

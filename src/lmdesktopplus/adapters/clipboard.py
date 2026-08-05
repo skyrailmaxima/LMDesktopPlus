@@ -1,12 +1,19 @@
+"""Session clipboard peek/copy with RAM-only history (Stage B).
+
+@use levels: snapshot/peek are medium; copy/clear are low use.
+Never writes clipboard contents to disk.
+"""
+
 from __future__ import annotations
 
 import os
-import subprocess
 import time
 from collections import deque
 from typing import Any
 
-from ..util import executable, run_capture
+from ..preopt import map_get, try_run
+from ..util import executable
+from .base import dispatch_command
 
 MAX_COPY_BYTES = 64 * 1024
 PREVIEW_LIMIT = 500
@@ -14,6 +21,8 @@ HISTORY_LIMIT = 20
 
 
 class ClipboardAdapter:
+    """Wayland wl-clipboard or X11 xclip — session-matched fail-soft."""
+
     id = "clipboard"
 
     def __init__(
@@ -34,67 +43,79 @@ class ClipboardAdapter:
         self._history: deque[str] = deque(maxlen=HISTORY_LIMIT)
 
     def _backend(self) -> str | None:
-        if self.session_type == "wayland":
-            if self.wl_paste and self.wl_copy:
-                return "wl-clipboard"
-            if self.xclip:
-                return "xclip"
-            return None
-        if self.session_type == "x11":
-            if self.xclip:
-                return "xclip"
-            if self.wl_paste and self.wl_copy:
-                return "wl-clipboard"
-            return None
-        if self.wl_paste and self.wl_copy:
-            return "wl-clipboard"
-        if self.xclip:
-            return "xclip"
+        # @use: medium use — purpose: session-routed clipboard tool selection
+        order_by_session = {
+            "wayland": ("wl-clipboard", "xclip"),
+            "x11": ("xclip", "wl-clipboard"),
+        }
+        order = order_by_session.get(self.session_type, ("wl-clipboard", "xclip"))
+        present = {
+            "wl-clipboard": bool(self.wl_paste and self.wl_copy),
+            "xclip": bool(self.xclip),
+        }
+        for name in order:
+            if present.get(name):
+                return name
         return None
 
     def available(self) -> bool:
         return self._backend() is not None
 
     def snapshot(self) -> dict[str, Any]:
+        # @use: medium use — purpose: Desktop clipboard preview poll
         backend = self._backend()
         if not backend:
             return {"available": False}
         now = time.monotonic()
-        if self._cached_snapshot is not None and now - self._cached_at < self.cache_ttl:
-            return self._cached_snapshot.copy()
-        try:
-            text = self._peek_raw(backend)
-            preview = text[:PREVIEW_LIMIT]
-            snapshot = {
-                "available": True,
-                "backend": backend,
-                "preview": preview,
-                "truncated": len(text) > PREVIEW_LIMIT,
-                "length": len(text),
-            }
-        except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
-            snapshot = {
+        cached = self._cached_snapshot
+        if cached is not None and now - self._cached_at < self.cache_ttl:
+            return cached.copy()
+        peeked = self._peek_raw(backend)
+        snapshot = (
+            {
                 "available": False,
                 "backend": backend,
-                "last_error": str(exc),
+                "last_error": peeked[1],
             }
+            if peeked[0] is None
+            else {
+                "available": True,
+                "backend": backend,
+                "preview": peeked[0][:PREVIEW_LIMIT],
+                "truncated": len(peeked[0]) > PREVIEW_LIMIT,
+                "length": len(peeked[0]),
+            }
+        )
         self._cached_at = now
         self._cached_snapshot = snapshot
         return snapshot.copy()
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]:
-        if name not in {"peek", "copy", "clear", "history"}:
-            return {"ok": False, "error": f"unknown clipboard command: {name}"}
-        if name == "history":
-            return {"ok": True, "items": list(self._history)}
-        if name == "peek":
-            self._cached_snapshot = None
-            snap = self.snapshot()
-            if not snap.get("available"):
-                return {"ok": False, "error": snap.get("last_error") or "clipboard unavailable"}
-            return {"ok": True, **snap}
-        if name == "clear":
-            return self._copy_text("")
+        # @use: medium use — purpose: peek/copy/clear/history via command hashmap
+        return dispatch_command(self._commands(), name, payload, adapter_id=self.id)
+
+    def _commands(self) -> dict[str, Any]:
+        return {
+            "history": self._cmd_history,
+            "peek": self._cmd_peek,
+            "clear": self._cmd_clear,
+            "copy": self._cmd_copy,
+        }
+
+    def _cmd_history(self, _payload: dict[str, Any]) -> dict[str, Any]:
+        return {"ok": True, "items": list(self._history)}
+
+    def _cmd_peek(self, _payload: dict[str, Any]) -> dict[str, Any]:
+        self._cached_snapshot = None
+        snap = self.snapshot()
+        if not snap.get("available"):
+            return {"ok": False, "error": snap.get("last_error") or "clipboard unavailable"}
+        return {"ok": True, **snap}
+
+    def _cmd_clear(self, _payload: dict[str, Any]) -> dict[str, Any]:
+        return self._copy_text("")
+
+    def _cmd_copy(self, payload: dict[str, Any]) -> dict[str, Any]:
         text = payload.get("text")
         if not isinstance(text, str):
             return {"ok": False, "error": "text must be a string"}
@@ -102,41 +123,45 @@ class ClipboardAdapter:
             return {"ok": False, "error": f"text exceeds {MAX_COPY_BYTES} bytes"}
         return self._copy_text(text)
 
-    def _peek_raw(self, backend: str) -> str:
-        if backend == "wl-clipboard":
-            result = run_capture([self.wl_paste, "-n"], timeout=3)
-        else:
-            result = run_capture(
-                [self.xclip, "-selection", "clipboard", "-o"],
-                timeout=3,
-            )
-        if result.returncode != 0:
-            # Empty clipboard is common; treat as empty text when tool exists
-            err = (result.stderr or "").lower()
-            if "not available" in err or "no target" in err or result.returncode == 1:
-                return ""
-            raise RuntimeError(result.stderr.strip() or "clipboard peek failed")
-        return result.stdout
+    def _peek_raw(self, backend: str) -> tuple[str | None, str]:
+        # @use: medium use — purpose: read clipboard text; (text, error) never raises
+        argv_table = {
+            "wl-clipboard": [self.wl_paste, "-n"],
+            "xclip": [self.xclip, "-selection", "clipboard", "-o"],
+        }
+        argv = map_get(argv_table, backend)
+        if argv is None:
+            return None, "unknown clipboard backend"
+        run = try_run(argv, timeout=3)
+        if not run.launched:
+            return None, run.error
+        if run.ok:
+            return run.stdout, ""
+        # Empty clipboard is common; treat as empty text when tool exists.
+        err = run.stderr.lower()
+        empty = "not available" in err or "no target" in err or (
+            run.completed is not None and run.completed.returncode == 1
+        )
+        return ("", "") if empty else (None, run.stderr.strip() or "clipboard peek failed")
 
     def _copy_text(self, text: str) -> dict[str, Any]:
+        # @use: low use — purpose: write clipboard + optional RAM history entry
         backend = self._backend()
         if not backend:
             return {"ok": False, "error": "no clipboard tool for this session"}
-        try:
-            if backend == "wl-clipboard":
-                result = run_capture([self.wl_copy], timeout=3, input_text=text)
-            else:
-                result = run_capture(
-                    [self.xclip, "-selection", "clipboard"],
-                    timeout=3,
-                    input_text=text,
-                )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            return {"ok": False, "error": str(exc)}
-        if result.returncode != 0:
-            return {"ok": False, "error": result.stderr.strip() or "clipboard copy failed"}
+        argv_table = {
+            "wl-clipboard": [self.wl_copy],
+            "xclip": [self.xclip, "-selection", "clipboard"],
+        }
+        argv = map_get(argv_table, backend)
+        if argv is None:
+            return {"ok": False, "error": "unknown clipboard backend"}
+        run = try_run(argv, timeout=3, input_text=text)
+        if not run.launched:
+            return {"ok": False, "error": run.error}
+        if not run.ok:
+            return {"ok": False, "error": run.stderr.strip() or "clipboard copy failed"}
         preview = text[:PREVIEW_LIMIT]
-        if text:
-            self._history.appendleft(preview)
+        text and self._history.appendleft(preview)
         self._cached_snapshot = None
         return {"ok": True, "length": len(text), "preview": preview}

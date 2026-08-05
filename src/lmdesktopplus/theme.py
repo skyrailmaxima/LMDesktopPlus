@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from .config import ACCENTS
-from .util import app_config_dir, executable, run_capture, xdg_config_home
+from .preopt import try_run
+from .util import app_config_dir, executable, xdg_config_home
 
 
 def apply(settings: dict[str, Any]) -> dict[str, Any]:
@@ -16,9 +17,18 @@ def apply(settings: dict[str, Any]) -> dict[str, Any]:
     results.append(_write_gtk_overlay(accent, appearance))
     results.append(_write_hypr_overlay(accent, appearance))
     if executable("hyprctl") and os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
-        cp = run_capture(["hyprctl", "reload"], timeout=4)
-        results.append({"target": "hyprland-reload", "ok": cp.returncode == 0, "error": cp.stderr.strip() if cp.returncode else None})
+        results.append(_reload_hyprland())
     return {"ok": all(row.get("ok", False) for row in results), "results": results}
+
+
+def _reload_hyprland() -> dict[str, Any]:
+    # @use: low use — purpose: best-effort hyprctl reload after theme etch
+    run = try_run(["hyprctl", "reload"], timeout=4)
+    return {
+        "target": "hyprland-reload",
+        "ok": run.ok,
+        "error": None if run.ok else (run.error or run.stderr.strip() or "hyprctl reload failed"),
+    }
 
 
 def _write_gtk_overlay(accent: str, appearance: dict[str, Any]) -> dict[str, Any]:

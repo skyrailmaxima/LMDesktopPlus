@@ -1,5 +1,152 @@
 # Changelog
 
+## 0.6.8 — FreeBSD UI package
+
+- OS family gate (`platform_os`) plus FreeBSD metrics backends (`sysctl` /
+  `netstat`) for CPU, memory, network, temperature, battery, uptime, and
+  identity — Linux keeps `/proc` + `/sys`.
+- Lock/power actions accept FreeBSD peers (`zzz`/`acpiconf`, `shutdown -r/-p`,
+  xscreensaver/xlock/swaylock); terminal candidates include alacritty/xterm.
+- `run_capture` prefers `C.UTF-8` on FreeBSD; power tools resolve via `/sbin`.
+- Packaging: `packaging/build-freebsd-ui.sh` stages a `/usr/local` UI tarball
+  (plist under `share/doc`, never `/plist`); `packaging/freebsd/` ports skeleton
+  + [`docs/freebsd-ui.md`](docs/freebsd-ui.md). Mint rice (`install.sh`) remains
+  Linux-only; Linux-only adapters stay fail-soft.
+- Review follow-ups: xterm `-e` spreads argv; Mint terminal order restored
+  (alacritty after DE terminals); ACPI battery status mapped to Charging/…
+
+## 0.6.7 — AMD GPU metrics + cloud smoke guest
+
+- GPU sampling priority: `nvidia-smi` → `rocm-smi` CSV → `amdgpu` sysfs
+  (`gpu_busy_percent`, VRAM, hwmon temp, product name).
+- Shared snapshot shape for AMD and NVIDIA: percent, VRAM used/total MiB,
+  temperature °C, source tag (`rocm-smi` / `amdgpu-sysfs`).
+- Monitor scene shows a VRAM row when memory fields are present.
+- Added `scripts/vm/smoke-cloud-guest.sh` for headless Ubuntu cloud tests when
+  `/dev/kvm` is unavailable; `stow.sh` tolerates missing `HOME`.
+- Storage adapter tests pass `udisksctl=""` (not `None`) so PATH fallback does
+  not hide the “missing tool” case on guests that ship udisks2.
+
+## 0.6.6 — Preopt keybinds / actions / agents + poll hosts + file I/O
+
+- Poll hosts outside the adapter fence now use `try_run`: `network.current`,
+  `media.status`/`control`, and `system_info` nvidia-smi (`_nvidia_gpu`).
+- Command hosts: `keybinds._pulse_hyprland`, `actions.lock` (`first_ok_scan`),
+  `theme` hyprctl reload, and `actions.open_path` mkdir are exception-free.
+- File I/O: `preopt.try_mkdir` / `try_atomic_write` / `try_atomic_write_json`;
+  chord synth, idle/live wallpaper etch, and agents roster save fail soft to
+  `command_error` / structured errors.
+- Density: shared `wrap_in_terminal(..., directory=)` for agent spawn; keybinds
+  `dispatch_allowed`; bwrap `append_existing_binds` (one loop per bind set).
+
+## 0.6.5 — Preopt remaining Stage B–D adapters
+
+- Moved updates, printers, logs, idle, vault, session, and live_wallpaper onto
+  `try_run` / `parse_int` / `clamp_int` and ternary fail-soft snapshots so poll
+  ticks no longer catch `TimeoutExpired` / `RuntimeError` from host probes.
+- Apt upgradable probe treats exit codes `{0, 100}` as success without raising.
+- Session lifecycle chip uses an ordered gate table; live wallpaper intensity /
+  pid checks use parse helpers. True file I/O (`mkdir`/`touch`/`chmod`) stays
+  local `OSError` → `command_error`.
+
+## 0.6.4 — Branchless preoptimized hot paths
+
+- Added `preopt` outcomes (`Outcome`, `RunOutcome`, `try_run`, `first_ok_scan`,
+  `parse_int`/`parse_float`/`clamp_int`) so hot adapter paths avoid raising into
+  the poll tick.
+- Refactored audio, display, processes, vpn, storage, clipboard, capture,
+  bluetooth, notifications, wallpaper, and `adapters.envelope` toward ternary
+  control flow, preoptimized argv/status tables, and at most one loop per
+  subfunction (priority-measured helpers).
+- Adapter unit tests mock `lmdesktopplus.preopt.run_capture`.
+
+## 0.6.3 — Comment + unpack pass (dispatch / @use parity)
+
+- Converted remaining if-chain adapters (`audio`, `display`, `wallpaper`,
+  `notifications`, `updates`, `session`) to `dispatch_command` hash maps.
+- Unpacked dense probe/apply paths (audio backends, brightness probes,
+  wallpaper apply steps, capture argv etchers, process sampling, clipboard
+  peek/copy maps, peer retune patch map).
+- Added `@use` / `register_fn` annotations across Stage A–C adapters, agents
+  roster helpers, `adapters.envelope`, and hot JS chrome (`queueAudioVolume`,
+  patch bindings, `warmUiFnCache` entries).
+- Behavior preserved; fail-soft shapes now prefer `command_error` where
+  adapters previously returned bare `{ok:false,error}`.
+
+## 0.6.2 — Stage D Task 23 + live wallpaper default on
+
+- `features.live_wallpaper` default **on** (START from Appearance remains
+  explicit; stop still clears the flag).
+- Added `docs/suggests.md` mapping Debian Suggests → adapters / vault.
+- Added optional `./stow.sh` GNU stow frontend (`--materialize-only` for CI);
+  `./install.sh` remains the primary installer.
+- Digitalvapor kit Stage C/D stories for idle, printers, logs, live wallpaper,
+  vault, chords, peers, and vpn/storage/process chrome.
+- Stage D Tasks 19–23 complete.
+
+## 0.6.1 — Live matrix wallpaper (Stage D Task 22)
+
+- Added feature-flagged `LiveWallpaperAdapter` (`features.live_wallpaper`,
+  default **off** in 0.6.1; flipped default **on** in 0.6.2): HTML/WebKit
+  `DV.rain` window via `--live-wallpaper`, with optional `mpvpaper` when
+  `live-matrix.mp4` is present.
+- Owned `hypr-live-wallpaper.conf` window rules + launcher script; source line
+  appended only into LMDesktopPlus-owned `hyprland.conf`.
+- Settings → Appearance live wallpaper panel; Apps vault catalog entry.
+
+## 0.6.0 — Stage D polish (idle, printers, logs)
+
+- Added `IdleAdapter`: owned `swayidle-generated.sh` + `idle-generated.conf`,
+  Display timers for lock/sleep, best-effort Cinnamon gsettings idle-delay.
+- Added `PrintersAdapter`: read-only `lpstat` status + open printer settings UI.
+- Added `LogsAdapter`: capped `journalctl --user` panel on Monitor (HTML-escaped).
+- Stage D plan: `docs/superpowers/plans/2026-07-24-stage-d-polish.md`.
+
+## 0.5.0 — Stage C power user complete
+
+- Added `VaultAdapter` with `FEATURE_PACKAGES` hashmap driving the Apps vault;
+  install via explicit confirm + `pkexec apt-get install` (never silent root).
+- Unified Apps cards with vault detect/installable/apt fields; Debian Suggests
+  list optional host tools the vault can request.
+- Added `fncache` memory hashmap (`FUNCTION_CACHE` / `LMDPFnCache`) with
+  **high use / medium use / low use** function annotations for O(1) UI→operation
+  resolve on hot paths (`dispatch_command`, bindings, adapterCommand).
+- Stage C complete: VPN, storage, processes, keybind chords, agent peer CRUD,
+  and app-vault installs.
+
+## 0.4.6 — Agent peer CRUD (vapor roster)
+
+- Added `POST /api/v1/agents` with ops `create|update|delete` (vapor aliases
+  `forge|retune|melt`) for allowlisted peer definitions in `agents.json`.
+- Settings → Agents forge form and per-peer retune/melt controls; spawn stays on
+  `/api/v1/agents/launch`.
+- Command argv tuner rejects shells, paths, and metacharacters; Bubblewrap etch
+  rules unchanged.
+- Began de-complication renaming + full-line commenting on the peer roster and
+  shared `dispatch_command` helper.
+
+## 0.4.5 — Vapor//matrix Hyprland chord editor
+
+- Added `ChordAdapter` (`keybinds`) with synthwave typology commands
+  (`scan` / `tune` / `melt` / `synth`) writing only the owned overlay
+  `~/.config/lmdesktopplus/hypr-binds.conf` plus vapor overrides in
+  `keybinds.json`.
+- Settings → Keybinds edits neon combos through Digitalvapor UI rails;
+  packaged `hyprland.conf` sources the chord overlay; `install.sh` seeds
+  matrix defaults for TTY sessions.
+- Best-effort `hyprctl reload` pulse after synth when Hyprland is active.
+
+## 0.4.4 — Stage C adapters (VPN, storage, processes)
+
+- Added VpnAdapter (`nmcli`) for VPN/WireGuard profile list, connect, and
+  disconnect without storing credentials.
+- Added RemovableStorageAdapter (`lsblk` + `udisksctl`) with device-path
+  allowlisting for mount/unmount of removable volumes.
+- Added ProcessAdapter (`/proc`) top-N process list and UID-scoped SIGTERM with
+  a confirmation dialog in Monitor.
+- Documented the Stage C adapter matrix; agent CRUD, keybind editor, and app
+  vault installs remain planned for 0.5.0.
+
 ## 0.4.3 — Adapter contract hardening
 
 - Normalized adapter snapshots into a typed envelope (`id`, `status`,

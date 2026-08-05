@@ -37,6 +37,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "poll_interval_ms": 1000,
         "allow_power_actions": False,
         "do_not_disturb": False,
+        "idle_lock_minutes": 0,
+        "idle_sleep_minutes": 0,
     },
     "features": {
         "claude": True,
@@ -52,6 +54,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "waybar": True,
         "rofi": True,
         "starship": True,
+        "hyprland": False,
+        "bluetooth": True,
+        "live_wallpaper": True,
     },
 }
 
@@ -109,5 +114,17 @@ class SettingsStore:
         behavior["allow_power_actions"] = bool(behavior.get("allow_power_actions", False))
         behavior["do_not_disturb"] = bool(behavior.get("do_not_disturb", False))
         behavior["poll_interval_ms"] = max(500, min(10000, int(behavior.get("poll_interval_ms", 1000))))
+        try:
+            behavior["idle_lock_minutes"] = max(
+                0, min(120, int(behavior.get("idle_lock_minutes", 0)))
+            )
+        except (TypeError, ValueError):
+            behavior["idle_lock_minutes"] = 0
+        try:
+            behavior["idle_sleep_minutes"] = max(
+                0, min(240, int(behavior.get("idle_sleep_minutes", 0)))
+            )
+        except (TypeError, ValueError):
+            behavior["idle_sleep_minutes"] = 0
         result["features"] = {str(k): bool(v) for k, v in result.get("features", {}).items()}
         return result

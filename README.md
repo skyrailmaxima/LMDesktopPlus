@@ -6,20 +6,28 @@ Hyprland session, and supplies a local control center for system telemetry,
 application launchers, agent workspaces, NetworkManager, media, settings, and
 desktop integration.
 
-Version **0.4.2** adds Stage B control-center adapters (Bluetooth, notifications,
-updates, clipboard, screenshots) on top of Stage A audio/brightness/session/
-wallpaper controls. The control center retains the shared Digitalvapor component
-and semantic-token layer introduced in 0.3.0.
+Version **0.6.8** adds a FreeBSD UI package path (sysctl metrics + ports/tarball
+packaging) on top of 0.6.7 AMD GPU metrics. Live matrix wallpaper defaults **on**
+(START still explicit). Mint rice via `install.sh` remains Linux-only.
 
 ## Install the machine UI
 
-The Debian package is the cleanest system-wide installation:
+The Debian package is the cleanest system-wide installation on Mint/Ubuntu:
 
 ```bash
-sudo apt install ./lmdesktopplus_0.4.2_all.deb
+sudo apt install ./lmdesktopplus_0.6.8_all.deb
 lmdesktopplus
 ```
 
+On FreeBSD, stage the UI package (or use the ports skeleton):
+
+```bash
+./packaging/build-freebsd-ui.sh
+sudo tar -xJf dist/lmdesktopplus-0.6.8-freebsd.txz -C /
+lmdesktopplus --browser   # if WebKit/GI is not installed
+```
+
+See [`docs/freebsd-ui.md`](docs/freebsd-ui.md).
 Launch modes:
 
 ```bash
@@ -38,12 +46,16 @@ For a user-local installation from source:
 ## Install the complete Mint rice
 
 ```bash
-./install.sh                  # Cinnamon theme + machine UI
+./install.sh                  # Cinnamon theme + machine UI (primary)
 ./install.sh --with-hyprland  # distro Hyprland packages only, then link configs
 ./install.sh --with-hyprland --allow-community-ppa  # opt-in community PPA fallback
 ./install.sh --no-ui          # rice/configuration only
 ./install.sh --dry-run        # print the complete plan without changing files
+./stow.sh --dry-run           # optional GNU stow frontend (install.sh remains primary)
 ```
+
+Optional Debian Suggests (Bluetooth, CUPS, swayidle, mpvpaper, …) are mapped in
+[`docs/suggests.md`](docs/suggests.md).
 
 On Mint, LightDM often hides Wayland sessions — start Hyprland from a TTY
 (`Ctrl+Alt+F3` → `./scripts/start-hyprland-tty.sh`). See
@@ -80,6 +92,8 @@ The local control center includes:
 - NetworkManager Wi-Fi scanning, connection, and disconnection.
 - MPRIS media status and controls through `playerctl`.
 - Persistent appearance, behavior, feature, and agent configuration.
+- App vault (`FEATURE_PACKAGES`) with optional confirmed `pkexec` apt installs.
+- Generated Hyprland chord overlay editor and agent peer roster CRUD.
 - Generated GTK 3, GTK 4, and Hyprland appearance overlays.
 - A live Digitalvapor component laboratory for checking new panel features
   before they are wired into production screens.

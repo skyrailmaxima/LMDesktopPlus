@@ -31,7 +31,7 @@ class AudioParserTests(unittest.TestCase):
 
 
 class AudioAdapterTests(unittest.TestCase):
-    @patch("lmdesktopplus.adapters.audio.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_snapshot_falls_back_to_pactl_when_wpctl_fails(self, run_capture):
         run_capture.side_effect = [
             completed(stderr="wpctl unavailable at runtime", returncode=1),
@@ -47,7 +47,7 @@ class AudioAdapterTests(unittest.TestCase):
             {"available": True, "backend": "pactl", "volume": 60, "muted": False},
         )
 
-    @patch("lmdesktopplus.adapters.audio.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_set_volume_falls_back_to_pactl_when_wpctl_fails(self, run_capture):
         run_capture.side_effect = [
             completed(stderr="wpctl control failed", returncode=1),
@@ -66,7 +66,7 @@ class AudioAdapterTests(unittest.TestCase):
             ["/usr/bin/pactl", "set-sink-volume", "@DEFAULT_SINK@", "42%"],
         )
 
-    @patch("lmdesktopplus.adapters.audio.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_snapshot_uses_wpctl_and_caches_result(self, run_capture):
         run_capture.return_value = completed("Volume: 0.63 [MUTED]\n")
         adapter = AudioAdapter(binaries={"wpctl": "/usr/bin/wpctl"})
@@ -79,7 +79,7 @@ class AudioAdapterTests(unittest.TestCase):
             timeout=3,
         )
 
-    @patch("lmdesktopplus.adapters.audio.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_snapshot_falls_back_to_pactl(self, run_capture):
         run_capture.side_effect = [
             completed("Volume: front-left: 49152 / 75% / -7.50 dB\n"),
@@ -94,7 +94,7 @@ class AudioAdapterTests(unittest.TestCase):
         self.assertEqual(AudioAdapter(binaries={}).snapshot(), {"available": False})
 
     @patch(
-        "lmdesktopplus.adapters.audio.run_capture",
+        "lmdesktopplus.preopt.run_capture",
         side_effect=subprocess.TimeoutExpired(["wpctl"], 3),
     )
     def test_snapshot_fails_soft_when_audio_query_times_out(self, _run_capture):
@@ -103,7 +103,7 @@ class AudioAdapterTests(unittest.TestCase):
         self.assertFalse(snapshot["available"])
         self.assertIn("timed out", snapshot["last_error"])
 
-    @patch("lmdesktopplus.adapters.audio.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_set_volume_clamps_integer_values(self, run_capture):
         adapter = AudioAdapter(binaries={"wpctl": "/usr/bin/wpctl"})
 
@@ -118,7 +118,7 @@ class AudioAdapterTests(unittest.TestCase):
             ["/usr/bin/wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0%"],
         )
 
-    @patch("lmdesktopplus.adapters.audio.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_toggle_mute_uses_pactl_default_sink(self, run_capture):
         result = AudioAdapter(binaries={"pactl": "/usr/bin/pactl"}).command("toggle_mute", {})
 

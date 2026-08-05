@@ -39,7 +39,7 @@ class CaptureAdapterTests(unittest.TestCase):
             self.assertEqual(snap["backend"], "grim")
             self.assertTrue(snap["region_available"])
 
-    @patch("lmdesktopplus.adapters.capture.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_full_grim_writes_under_save_dir(self, run_capture):
         with tempfile.TemporaryDirectory() as tmp:
             save_dir = Path(tmp)
@@ -63,7 +63,7 @@ class CaptureAdapterTests(unittest.TestCase):
             self.assertTrue(path.exists())
             self.assertEqual(run_capture.call_args.args[0][0], "/usr/bin/grim")
 
-    @patch("lmdesktopplus.adapters.capture.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_region_rejects_bad_geometry(self, run_capture):
         run_capture.side_effect = [completed("bad-geom\n")]
         with tempfile.TemporaryDirectory() as tmp:
@@ -78,7 +78,7 @@ class CaptureAdapterTests(unittest.TestCase):
             self.assertFalse(result["ok"])
             self.assertIn("geometry", result["error"])
 
-    @patch("lmdesktopplus.adapters.capture.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_region_grim_with_valid_slurp(self, run_capture):
         def fake_run(argv, timeout=4.0):
             if argv[0] == "/usr/bin/slurp":
@@ -101,7 +101,7 @@ class CaptureAdapterTests(unittest.TestCase):
             self.assertEqual(grim_argv[:3], ["/usr/bin/grim", "-g", "10,20 300x200"])
             self.assertTrue(grim_argv[3].endswith(".png"))
 
-    @patch("lmdesktopplus.adapters.capture.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_cinnamon_full_uses_gnome_screenshot(self, run_capture):
         def fake_run(argv, timeout=4.0):
             Path(argv[argv.index("-f") + 1]).write_bytes(b"png")

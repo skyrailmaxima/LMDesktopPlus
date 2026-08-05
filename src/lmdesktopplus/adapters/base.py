@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable, Mapping
 from typing import Any, Protocol
+
+from ..fncache import UseLevel, register_fn
 
 
 class Adapter(Protocol):
@@ -12,6 +15,41 @@ class Adapter(Protocol):
     def snapshot(self) -> dict[str, Any]: ...
 
     def command(self, name: str, payload: dict[str, Any]) -> dict[str, Any]: ...
+
+
+CommandHandler = Callable[[dict[str, Any]], dict[str, Any]]
+
+
+@register_fn(
+    "adapters.dispatch_command",
+    UseLevel.HIGH,
+    "O(1) adapter command hashmap dispatch for UI→host operations",
+)
+def dispatch_command(
+    commands: Mapping[str, CommandHandler],
+    name: str,
+    payload: dict[str, Any],
+    *,
+    adapter_id: str | None = None,
+) -> dict[str, Any]:
+    """Resolve adapter commands through a name → handler map (no if/elif chains).
+
+    @use: high use — purpose: every Settings/Monitor adapter click lands here.
+    Looks up `name` in `commands`, runs the handler with `payload`, and returns a
+    stable `command_error` when the name is unknown.
+    """
+    # Hash-map lookup — never KeyErrors; unknown → fail-soft ternary.
+    handler = commands.get(name)
+    label = (
+        f"unknown {adapter_id} command: {name}"
+        if adapter_id
+        else f"unknown command: {name}"
+    )
+    return (
+        command_error("unavailable", label)
+        if handler is None
+        else handler(payload)
+    )
 
 
 class NullAdapter:
@@ -31,6 +69,46 @@ class NullAdapter:
         )
 
 
+# Envelope keys stripped from nested `state` — preoptimized frozenset for O(1).
+_ENVELOPE_KEYS = frozenset(
+    {
+        "id",
+        "available",
+        "status",
+        "backend",
+        "updated_at",
+        "stale",
+        "capabilities",
+        "state",
+        "error",
+        "last_error",
+    }
+)
+
+
+def _derive_status(available: bool, snapshot: dict[str, Any]) -> str:
+    # @use: high use — purpose: ternary status ladder without nested if trees
+    explicit = snapshot.get("status")
+    return (
+        explicit
+        if isinstance(explicit, str) and explicit
+        else (
+            "unavailable"
+            if not available
+            else (
+                "degraded"
+                if (snapshot.get("last_error") or snapshot.get("error"))
+                else "ready"
+            )
+        )
+    )
+
+
+@register_fn(
+    "adapters.envelope",
+    UseLevel.HIGH,
+    "Shape adapter snapshots for /api/v1/state with nested state + status",
+)
 def envelope(
     adapter_id: str,
     snapshot: dict[str, Any],
@@ -39,20 +117,17 @@ def envelope(
     stale: bool = False,
     updated_at: float | None = None,
 ) -> dict[str, Any]:
-    """Typed adapter snapshot envelope with backward-compatible flat fields."""
+    """Typed adapter snapshot envelope with backward-compatible flat fields.
+
+    @use: high use — purpose: every adapter poll lands in this shaper.
+    """
     available = bool(snapshot.get("available"))
-    status = snapshot.get("status")
-    if not isinstance(status, str) or not status:
-        if not available:
-            status = "unavailable"
-        elif snapshot.get("last_error") or snapshot.get("error"):
-            status = "degraded"
-        else:
-            status = "ready"
+    status = _derive_status(available, snapshot)
+    # Prefer explicit error; fall back to last_error from probes.
     error = snapshot.get("error")
-    if error is None:
-        error = snapshot.get("last_error")
-    out = {
+    error = snapshot.get("last_error") if error is None else error
+    # Nested `state` drops envelope keys so clients can read either shape.
+    return {
         **snapshot,
         "id": adapter_id,
         "available": available,
@@ -64,26 +139,14 @@ def envelope(
         "state": {
             key: value
             for key, value in snapshot.items()
-            if key
-            not in {
-                "id",
-                "available",
-                "status",
-                "backend",
-                "updated_at",
-                "stale",
-                "capabilities",
-                "state",
-                "error",
-                "last_error",
-            }
+            if key not in _ENVELOPE_KEYS
         },
         "error": error,
     }
-    return out
 
 
 def command_error(error_code: str, message: str, **extra: Any) -> dict[str, Any]:
+    # @use: high use — purpose: stable fail-soft command error payload
     payload = {"ok": False, "error_code": error_code, "error": message}
     payload.update(extra)
     return payload

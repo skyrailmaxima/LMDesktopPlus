@@ -16,6 +16,15 @@ ADAPTER_CAPABILITIES: dict[str, tuple[str, ...]] = {
     "updates": ("refresh", "open"),
     "clipboard": ("peek", "copy", "clear", "history"),
     "capture": ("full", "region", "open_folder"),
+    "vpn": ("up", "down", "refresh"),
+    "storage": ("mount", "unmount", "refresh"),
+    "processes": ("refresh", "terminate"),
+    "keybinds": ("scan", "tune", "melt", "synth"),
+    "vault": ("scan", "probe", "install", "forge_pack"),
+    "idle": ("status", "apply"),
+    "printers": ("refresh", "open"),
+    "logs": ("refresh",),
+    "live_wallpaper": ("status", "start", "stop", "pulse_on", "pulse_off"),
 }
 
 

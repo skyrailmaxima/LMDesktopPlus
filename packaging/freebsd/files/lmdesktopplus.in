@@ -1,0 +1,2 @@
+#!/bin/sh
+PYTHONPATH=%%PREFIX%%/lib/lmdesktopplus exec %%PYTHON_CMD%% -m lmdesktopplus "$@"

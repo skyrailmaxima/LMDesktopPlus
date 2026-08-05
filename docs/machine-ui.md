@@ -1,8 +1,9 @@
 # LMDesktopPlus machine UI
 
-The machine UI is a local Linux application that complements Cinnamon or
-Hyprland. It does not replace the desktop environment or expose a remote
-management service.
+The machine UI is a local application that complements Cinnamon or Hyprland on
+Linux Mint, and can also run as a FreeBSD UI package (metrics via sysctl;
+rice/`install.sh` stays Linux-only). It does not replace the desktop
+environment or expose a remote management service.
 
 ## Launch
 
@@ -22,9 +23,10 @@ GTK3 + WebKit2, or browser fallback
              ▼
 Python ThreadingHTTPServer
   ├── settings and agent registry
-  ├── /proc and sysfs sampler
+  ├── Linux: /proc + sysfs sampler
+  ├── FreeBSD: sysctl + netstat sampler
   ├── allowlisted application/system actions
-  ├── NetworkManager adapter
+  ├── NetworkManager adapter (Linux; fail-soft elsewhere)
   ├── playerctl adapter
   ├── GTK/Hyprland overlay generator
   └── scoped agent launcher
@@ -100,11 +102,21 @@ Changes update Digitalvapor runtime tokens and generate:
 
 ```bash
 ./packaging/build-deb.sh
-sudo apt install ./dist/lmdesktopplus_0.4.2_all.deb
+sudo apt install ./dist/lmdesktopplus_*_all.deb
 ```
 
 The Debian package contains the machine UI. Run `install.sh` from the source
 repository for the complete Cinnamon/Hyprland rice.
+
+## FreeBSD UI package
+
+```bash
+./packaging/build-freebsd-ui.sh
+sudo tar -xJf dist/lmdesktopplus-*-freebsd.txz -C /
+```
+
+Ports skeleton: [`packaging/freebsd/`](../packaging/freebsd/). Details:
+[`freebsd-ui.md`](freebsd-ui.md).
 
 ## Development
 

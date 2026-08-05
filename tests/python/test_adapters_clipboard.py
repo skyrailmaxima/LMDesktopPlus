@@ -23,7 +23,7 @@ class ClipboardAdapterTests(unittest.TestCase):
             {"available": False},
         )
 
-    @patch("lmdesktopplus.adapters.clipboard.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_wayland_peek_truncates_and_caches(self, run_capture):
         run_capture.return_value = completed("hello " + ("x" * 600))
         adapter = ClipboardAdapter(
@@ -44,7 +44,7 @@ class ClipboardAdapterTests(unittest.TestCase):
             timeout=3,
         )
 
-    @patch("lmdesktopplus.adapters.clipboard.run_capture")
+    @patch("lmdesktopplus.preopt.run_capture")
     def test_x11_peek_uses_xclip(self, run_capture):
         run_capture.return_value = completed("clip text")
         adapter = ClipboardAdapter(
@@ -61,7 +61,7 @@ class ClipboardAdapterTests(unittest.TestCase):
             timeout=3,
         )
 
-    @patch("lmdesktopplus.adapters.clipboard.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_copy_rejects_oversized_payload(self, run_capture):
         adapter = ClipboardAdapter(
             session_type="wayland",
@@ -73,7 +73,7 @@ class ClipboardAdapterTests(unittest.TestCase):
         self.assertFalse(adapter.command("copy", {"text": huge})["ok"])
         run_capture.assert_not_called()
 
-    @patch("lmdesktopplus.adapters.clipboard.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_copy_wayland_uses_stdin(self, run_capture):
         adapter = ClipboardAdapter(
             session_type="wayland",
@@ -86,7 +86,7 @@ class ClipboardAdapterTests(unittest.TestCase):
         self.assertEqual(run_capture.call_args.args[0], ["/usr/bin/wl-copy"])
         self.assertEqual(run_capture.call_args.kwargs.get("input_text"), "paste me")
 
-    @patch("lmdesktopplus.adapters.clipboard.run_capture", return_value=completed())
+    @patch("lmdesktopplus.preopt.run_capture", return_value=completed())
     def test_clear_copies_empty_string(self, run_capture):
         adapter = ClipboardAdapter(
             session_type="x11",
@@ -108,7 +108,7 @@ class ClipboardAdapterTests(unittest.TestCase):
             wl_copy="/usr/bin/wl-copy",
             xclip=None,
         )
-        with patch("lmdesktopplus.adapters.clipboard.run_capture", return_value=completed()):
+        with patch("lmdesktopplus.preopt.run_capture", return_value=completed()):
             for i in range(25):
                 adapter.command("copy", {"text": f"item-{i}"})
         history = adapter.command("history", {})
