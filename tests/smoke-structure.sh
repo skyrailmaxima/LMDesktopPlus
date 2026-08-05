@@ -19,6 +19,8 @@ need "docs/vm-lab.md"
 need "docs/collapse-trunk.md"
 need ".github/workflows/ci.yml"
 need "scripts/collapse-stack.sh"
+need "scripts/vm/smoke-cloud-guest.sh"
+need "scripts/vm/guest-apply-build.sh"
 need "packaging/build-freebsd-ui.sh"
 if [[ "$fail" -ne 0 ]]; then exit 1; fi
 echo "structure OK"
