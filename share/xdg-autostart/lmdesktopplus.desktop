@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=LMDesktopPlus Machine UI
+Comment=Launch the vapor//matrix control center at login
+Exec=lmdesktopplus
+TryExec=lmdesktopplus
+Icon=lmdesktopplus
+Terminal=false
+StartupWMClass=lmdesktopplus
+StartupNotify=true
+X-GNOME-Autostart-enabled=true
+Categories=System;Settings;Utility;

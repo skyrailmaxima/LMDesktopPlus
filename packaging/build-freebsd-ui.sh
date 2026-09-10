@@ -44,6 +44,11 @@ else
     "$STAGE${PREFIX}/share/applications/lmdesktopplus.desktop"
 fi
 
+# Autostart template (login autostart is enabled by the distro image, not here).
+mkdir -p "$STAGE${PREFIX}/share/lmdesktopplus/autostart"
+cp -a "$ROOT/share/xdg-autostart/lmdesktopplus.desktop" \
+  "$STAGE${PREFIX}/share/lmdesktopplus/autostart/lmdesktopplus.desktop"
+
 cp -a "$ROOT/share/icons/hicolor/scalable/apps/lmdesktopplus.svg" \
   "$STAGE${PREFIX}/share/icons/hicolor/scalable/apps/lmdesktopplus.svg"
 cp -a "$ROOT/README.md" "$STAGE${PREFIX}/share/doc/lmdesktopplus/README.md"

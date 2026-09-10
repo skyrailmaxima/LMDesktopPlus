@@ -17,6 +17,10 @@ cp -a "$ROOT/assets/wallpapers" "$BUILD/usr/lib/lmdesktopplus/assets/wallpapers"
 find "$BUILD/usr/lib/lmdesktopplus/lmdesktopplus" -type d -name __pycache__ -prune -exec rm -rf {} +
 find "$BUILD/usr/lib/lmdesktopplus/lmdesktopplus" -type f -name '*.py[co]' -delete
 cp -a "$ROOT/share/applications/lmdesktopplus.desktop" "$BUILD/usr/share/applications/lmdesktopplus.desktop"
+# Autostart template: shipped disabled by default; the distro respin (or a user)
+# enables login autostart by linking it into /etc/xdg/autostart or ~/.config/autostart.
+mkdir -p "$BUILD/usr/share/lmdesktopplus/autostart"
+cp -a "$ROOT/share/xdg-autostart/lmdesktopplus.desktop" "$BUILD/usr/share/lmdesktopplus/autostart/lmdesktopplus.desktop"
 cp -a "$ROOT/share/icons/hicolor/scalable/apps/lmdesktopplus.svg" "$BUILD/usr/share/icons/hicolor/scalable/apps/lmdesktopplus.svg"
 cp -a "$ROOT/README.md" "$BUILD/usr/share/doc/lmdesktopplus/README.md"
 cp -a "$ROOT/docs/machine-ui.md" "$BUILD/usr/share/doc/lmdesktopplus/machine-ui.md"
