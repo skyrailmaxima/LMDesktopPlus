@@ -74,3 +74,21 @@ cd ${mnt}
 # mkdir -p ~/src && git clone https://github.com/skyrailmaxima/LMDesktopPlus.git ~/src/LMDesktopPlus
 EOF
 }
+
+# Guest-side recipe for iterating the native "true UI": install the control
+# center for the current user and enable login autostart so the themed desktop
+# comes up running LMDesktopPlus on the next login.
+print_true_ui_help() {
+  local mnt="${1:-$GUEST_MOUNT}"
+  cat <<EOF
+# Iterating the true UI (inside the Mint guest):
+
+cd ${mnt}
+./scripts/install-ui.sh --autostart-ui   # install + enable login autostart
+~/.local/bin/lmdesktopplus                # launch the native window now
+# Log out and back in to autostart the control center on login.
+
+# Hotswap: edit on the host -> files appear under ${mnt} ->
+#   re-run ./scripts/install-ui.sh (WebKit reloads the local UI).
+EOF
+}

@@ -17,6 +17,9 @@ step "frontend assets"
 step "stow mode"
 ./tests/stow-mode.sh
 
+step "vm lab scripts (dry-run gates)"
+./tests/test-vm-scripts.sh
+
 step "python compile + unit tests"
 python3 -m compileall -q src/lmdesktopplus
 PYTHONPATH=src python3 -m unittest discover -s tests/python -v

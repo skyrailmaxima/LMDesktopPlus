@@ -29,6 +29,21 @@ else
   pass "create refuses non-lab name"
 fi
 
+# create: --autostart-ui prints the true-UI recipe
+if out="$("$CREATE" --iso "$FAKE_ISO" --autostart-ui --dry-run 2>&1)"; then
+  echo "$out" | grep -q 'install-ui.sh --autostart-ui' && pass "create --autostart-ui prints true-UI recipe" || bad "create --autostart-ui missing true-UI recipe"
+else
+  bad "create --autostart-ui dry-run exited non-zero"
+fi
+
+# install-ui: --autostart-ui dry-run mentions login autostart
+INSTALL_UI="$ROOT/scripts/install-ui.sh"
+if out="$("$INSTALL_UI" --autostart-ui --dry-run 2>&1)"; then
+  echo "$out" | grep -qi 'autostart' && pass "install-ui --autostart-ui dry-run mentions autostart" || bad "install-ui --autostart-ui missing autostart note"
+else
+  bad "install-ui --autostart-ui dry-run exited non-zero"
+fi
+
 # create: missing iso
 if "$CREATE" --dry-run >/dev/null 2>&1; then
   bad "create should require iso"

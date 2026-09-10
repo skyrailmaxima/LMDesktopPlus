@@ -14,6 +14,7 @@ VCPUS="$DEFAULT_VCPUS"
 DISK_GB="$DEFAULT_DISK_GB"
 REPO_PATH="$(vm_repo_root)"
 DRY_RUN="${DRY_RUN:-0}"
+AUTOSTART_UI="${AUTOSTART_UI:-0}"
 DISK_DIR="${LMDESKTOPPLUS_VM_DISK_DIR:-$HOME/VirtualMachines}"
 
 usage() {
@@ -30,6 +31,7 @@ Options:
   --disk-gb N         Disk size in GiB (default: ${DEFAULT_DISK_GB})
   --repo-path PATH    Host path shared via virtiofs (default: repo root)
   --disk-dir PATH     Directory for qcow2 (default: ~/VirtualMachines)
+  --autostart-ui      Also print the true-UI install + login-autostart recipe
   --dry-run           Print virt-install plan; change nothing
   -h, --help          Show this help
 
@@ -46,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     --disk-gb) DISK_GB="$2"; shift 2 ;;
     --repo-path) REPO_PATH="$2"; shift 2 ;;
     --disk-dir) DISK_DIR="$2"; shift 2 ;;
+    --autostart-ui) AUTOSTART_UI=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *)
@@ -106,6 +109,10 @@ if [[ "$DRY_RUN" == "1" ]]; then
   printf '\n'
   vm_log_info "after create: open Virt-Manager, finish Mint install, then mount share:"
   print_guest_mount_help
+  if [[ "$AUTOSTART_UI" == "1" ]]; then
+    vm_log_info "then iterate the true UI:"
+    print_true_ui_help
+  fi
   exit 0
 fi
 
@@ -122,3 +129,7 @@ vm_log_info "running virt-install (console: Virt-Manager)…"
 "${CMD[@]}"
 vm_log_info "domain created. Complete Linux Mint install in Virt-Manager, then:"
 print_guest_mount_help
+if [[ "$AUTOSTART_UI" == "1" ]]; then
+  vm_log_info "then iterate the true UI:"
+  print_true_ui_help
+fi
