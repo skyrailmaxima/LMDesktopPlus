@@ -17,6 +17,9 @@ step "frontend assets"
 step "stow mode"
 ./tests/stow-mode.sh
 
+step "vm lab scripts (dry-run gates)"
+./tests/test-vm-scripts.sh
+
 step "python compile + unit tests"
 python3 -m compileall -q src/lmdesktopplus
 PYTHONPATH=src python3 -m unittest discover -s tests/python -v
@@ -28,6 +31,14 @@ if command -v node >/dev/null 2>&1; then
   node --check src/lmdesktopplus/static/app.js
 else
   printf 'note: node not found; skipping JS syntax checks\n' >&2
+fi
+
+step "ui screenshot smoke (optional)"
+if command -v Xvfb >/dev/null 2>&1 && command -v xdotool >/dev/null 2>&1 \
+   && PYTHONPATH=src python3 -c 'import sys; from lmdesktopplus.toolkit import select_toolkit; sys.exit(0 if select_toolkit() else 1)' >/dev/null 2>&1; then
+  ./tests/ui-screenshot.sh --out /tmp/lmdesktopplus-ui-screenshots
+else
+  printf 'note: Xvfb/xdotool/GTK+WebKit not all present; skipping UI screenshot smoke\n' >&2
 fi
 
 step "installer dry-run (cinnamon-only)"

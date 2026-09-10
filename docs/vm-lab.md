@@ -129,11 +129,46 @@ virsh snapshot-revert lmdesktopplus-mint clean-rice
 
 Destroy refuses names outside `lmdesktopplus-*` and requires `--force`.
 
+## Iterating the true UI
+
+The native "true UI" is the embedded GTK/WebKit control-center window
+(`lmdesktopplus`). To bring it up automatically inside the Mint guest and
+iterate on it:
+
+```bash
+# Print the guest recipe alongside the create plan:
+./scripts/vm/create-mint-guest.sh --iso /path/to/linuxmint.iso --autostart-ui --dry-run
+```
+
+Then, **inside the guest** (repo mounted at `/mnt/lmdesktopplus`):
+
+```bash
+cd /mnt/lmdesktopplus
+./scripts/install-ui.sh --autostart-ui   # install into ~/.local + enable login autostart
+~/.local/bin/lmdesktopplus               # launch the native window now
+```
+
+`--autostart-ui` drops an XDG autostart entry at
+`~/.config/autostart/lmdesktopplus.desktop` (Exec pointed at the per-user
+launcher), so after a log out / log back in the control center comes up
+automatically on the themed desktop.
+
+**Hotswap loop:** edit on the host → files appear under `/mnt/lmdesktopplus` →
+re-run `./scripts/install-ui.sh` in the guest; the WebKit window reloads the
+local UI. Most changes need no guest reboot.
+
+**Headless preview without a Mint desktop:** on any Linux host with Xvfb +
+`python3-gi` + GTK3 + WebKit2, `./tests/ui-screenshot.sh` boots the window
+off-screen and captures one PNG per scene under `build/ui-screenshots/` — handy
+for a quick visual check or CI regression without booting a full guest.
+
 ## Flags cheat sheet
 
 | Script | Useful flags |
 |--------|----------------|
-| `create-mint-guest.sh` | `--iso`, `--name`, `--ram`, `--vcpus`, `--disk-gb`, `--repo-path`, `--dry-run` |
+| `create-mint-guest.sh` | `--iso`, `--name`, `--ram`, `--vcpus`, `--disk-gb`, `--repo-path`, `--autostart-ui`, `--dry-run` |
+| `install-ui.sh` | `--autostart-ui`, `--dry-run` |
+| `ui-screenshot.sh` | `--out`, `--scenes`, `--display`, `--keep` |
 | `attach-share.sh` | `--name`, `--repo-path`, `--dry-run` |
 | `destroy-mint-guest.sh` | `--name`, `--force`, `--dry-run` |
 
