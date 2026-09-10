@@ -11,6 +11,7 @@ from . import __version__
 from .agents import AgentRegistry
 from .server import start_server
 from .single_instance import SingleInstance, focus_existing_window
+from .toolkit import select_toolkit
 from .util import APP_ID
 
 
@@ -88,22 +89,41 @@ def run_live_wallpaper(intensity: int) -> int:
     return 0
 
 
+def _restore_geometry(ui_state) -> dict:
+    saved = ui_state.get() if ui_state is not None else None
+    return saved["window"] if saved else {"width": 1320, "height": 840, "maximized": False}
+
+
 def run_gtk(url: str, kiosk: bool, start_fullscreen: bool, ui_state=None) -> int:
+    """Open the embedded UI on the best available toolkit, else the browser.
+
+    Prefers GTK4 + WebKitGTK 6.0, falling back to GTK3 + WebKit2 (4.1/4.0), and
+    finally to the system browser when no GObject-introspection stack is present.
+    """
+    toolkit = select_toolkit()
+    if toolkit is None:
+        print("Embedded WebKit UI unavailable (no GTK/WebKit typelibs); opening the browser fallback.", file=sys.stderr)
+        return run_browser(url)
     try:
         import gi
-        gi.require_version("Gtk", "3.0")
-        try:
-            gi.require_version("WebKit2", "4.1")
-        except ValueError:
-            gi.require_version("WebKit2", "4.0")
-        from gi.repository import Gdk, GLib, Gtk, WebKit2
+        gi.require_version("Gtk", toolkit.gtk_version)
+        gi.require_version(toolkit.webkit_namespace, toolkit.webkit_version)
     except (ImportError, ValueError) as exc:
         print(f"Embedded WebKit UI unavailable ({exc}); opening the browser fallback.", file=sys.stderr)
         return run_browser(url)
+    try:
+        if toolkit.is_gtk4:
+            return _run_gtk4(url, kiosk, start_fullscreen, ui_state)
+        return _run_gtk3(url, kiosk, start_fullscreen, ui_state)
+    except Exception as exc:  # noqa: BLE001 — last-resort so a UI crash still shows something
+        print(f"Embedded UI (GTK{toolkit.gtk_version}) failed to start ({exc}); opening the browser fallback.", file=sys.stderr)
+        return run_browser(url)
 
-    saved = ui_state.get() if ui_state is not None else None
-    geom = saved["window"] if saved else {"width": 1320, "height": 840, "maximized": False}
 
+def _run_gtk3(url: str, kiosk: bool, start_fullscreen: bool, ui_state) -> int:
+    from gi.repository import Gdk, GLib, Gtk, WebKit2
+
+    geom = _restore_geometry(ui_state)
     window = Gtk.Window(title="LMDesktopPlus Machine UI")
     window.set_default_size(int(geom["width"]), int(geom["height"]))
     window.set_icon_name("lmdesktopplus")
@@ -177,6 +197,90 @@ def run_gtk(url: str, kiosk: bool, start_fullscreen: bool, ui_state=None) -> int
             pass
 
     Gtk.main()
+    return 0
+
+
+def _run_gtk4(url: str, kiosk: bool, start_fullscreen: bool, ui_state) -> int:
+    # Forward-compatible path for the GTK4 + WebKitGTK 6.0 stack. GTK4 dropped
+    # Gtk.main()/set_wmclass, so the loop is a GLib.MainLoop and WM_CLASS comes
+    # from the program name. Validated by fallback on GTK3-only hosts.
+    from gi.repository import Gdk, GLib, Gtk, WebKit
+
+    try:
+        GLib.set_prgname(APP_ID)  # X11 WM_CLASS source under GTK4
+    except Exception:  # noqa: BLE001
+        pass
+
+    geom = _restore_geometry(ui_state)
+    loop = GLib.MainLoop()
+    window = Gtk.Window()
+    window.set_title("LMDesktopPlus Machine UI")
+    window.set_default_size(int(geom["width"]), int(geom["height"]))
+    try:
+        window.set_icon_name("lmdesktopplus")
+    except Exception:  # noqa: BLE001 — not all GTK4 builds expose this
+        pass
+    view = WebKit.WebView()
+    try:
+        view.get_settings().set_property("enable-smooth-scrolling", True)
+    except Exception:  # noqa: BLE001
+        pass
+    view.load_uri(url)
+    window.set_child(view)
+
+    live = {"width": int(geom["width"]), "height": int(geom["height"]), "maximized": bool(geom["maximized"])}
+
+    def save_geometry():
+        try:
+            if not window.is_maximized():
+                live["width"], live["height"] = int(window.get_width()), int(window.get_height())
+            live["maximized"] = bool(window.is_maximized())
+        except Exception:  # noqa: BLE001
+            pass
+        if ui_state is not None:
+            ui_state.set_window(live["width"], live["height"], live["maximized"])
+
+    def on_close_request(_window):
+        save_geometry()
+        loop.quit()
+        return False
+
+    window.connect("close-request", on_close_request)
+
+    fullscreen_state = {"active": bool(kiosk or start_fullscreen)}
+
+    def on_key(_controller, keyval, _keycode, _state):
+        if keyval == Gdk.KEY_F11:
+            if fullscreen_state["active"]:
+                window.unfullscreen()
+            else:
+                window.fullscreen()
+            fullscreen_state["active"] = not fullscreen_state["active"]
+            return True
+        return False
+
+    controller = Gtk.EventControllerKey()
+    controller.connect("key-pressed", on_key)
+    window.add_controller(controller)
+
+    window.present()
+    if geom["maximized"] and not (kiosk or start_fullscreen):
+        window.maximize()
+    if kiosk or start_fullscreen:
+        window.fullscreen()
+
+    def on_signal():
+        save_geometry()
+        loop.quit()
+        return GLib.SOURCE_REMOVE
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, on_signal)
+        except (AttributeError, ValueError, OSError):
+            pass
+
+    loop.run()
     return 0
 
 
