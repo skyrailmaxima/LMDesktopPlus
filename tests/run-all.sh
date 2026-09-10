@@ -52,6 +52,7 @@ grep -q 'digitalvapor.js' "$DEB_CONTENTS"
 grep -q 'bindings.js' "$DEB_CONTENTS"
 grep -q 'usr/lib/lmdesktopplus/assets/wallpapers/vapor-matrix.svg' "$DEB_CONTENTS"
 grep -q 'usr/lib/lmdesktopplus/assets/wallpapers/vapor-matrix.png' "$DEB_CONTENTS"
+grep -q 'usr/share/lmdesktopplus/autostart/lmdesktopplus.desktop' "$DEB_CONTENTS"
 
 step "FreeBSD UI package stage"
 ./packaging/build-freebsd-ui.sh >/tmp/lmdesktopplus-freebsd-path.txt
@@ -66,6 +67,7 @@ grep -q 'usr/local/bin/lmdesktopplus' "$FREEBSD_LIST"
 grep -q 'usr/local/lib/lmdesktopplus/lmdesktopplus/' "$FREEBSD_LIST"
 grep -q 'usr/local/share/doc/lmdesktopplus/freebsd-ui.md' "$FREEBSD_LIST"
 grep -q 'usr/local/share/doc/lmdesktopplus/plist' "$FREEBSD_LIST"
+grep -q 'usr/local/share/lmdesktopplus/autostart/lmdesktopplus.desktop' "$FREEBSD_LIST"
 
 step "collapse-stack dry-run"
 ./scripts/collapse-stack.sh >/tmp/lmdesktopplus-collapse-plan.txt

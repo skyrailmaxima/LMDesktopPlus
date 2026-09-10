@@ -233,6 +233,26 @@ class ServerTests(unittest.TestCase):
             self.request("/icons/../app.js")
         self.assertEqual(ctx.exception.code, 404)
 
+    def test_ui_state_scene_persists_and_injects(self):
+        import tempfile
+        from pathlib import Path
+
+        from lmdesktopplus.ui_state import UiStateStore
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.server.state.ui_state = UiStateStore(Path(tmp) / "ui-state.json")
+            with self.request("/api/v1/ui-state", self.server.token, {"scene": "monitor"}) as response:
+                payload = json.load(response)
+            self.assertEqual(payload["scene"], "monitor")
+            with self.request("/") as response:
+                text = response.read().decode()
+            self.assertIn('content="monitor"', text)
+            self.assertNotIn("__LMDP_SCENE__", text)
+            # An invalid scene id is rejected and the previous value is kept.
+            with self.request("/api/v1/ui-state", self.server.token, {"scene": "../etc"}) as response:
+                payload = json.load(response)
+            self.assertEqual(payload["scene"], "monitor")
+
     def test_wallpaper_thumbnail_is_served_from_catalog(self):
         with self.request(
             "/wallpaper-thumbs/package.vapor-matrix-svg.png"

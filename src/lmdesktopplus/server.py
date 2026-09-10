@@ -39,6 +39,7 @@ from .assets import AssetCatalog
 from .config import ACCENTS, SettingsStore
 from . import media, network, theme
 from .system_info import SystemSampler
+from .ui_state import UiStateStore
 
 MAX_BODY = 1024 * 1024
 
@@ -46,6 +47,7 @@ MAX_BODY = 1024 * 1024
 class ApplicationState:
     def __init__(self) -> None:
         self.settings = SettingsStore()
+        self.ui_state = UiStateStore()
         self.agents = AgentRegistry()
         self.adapters = AdapterRegistry()
         self.adapters.register(AudioAdapter())
@@ -197,6 +199,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         "/api/v1/media": "_post_media",
         "/api/v1/network/connect": "_post_network_connect",
         "/api/v1/network/disconnect": "_post_network_disconnect",
+        "/api/v1/ui-state": "_post_ui_state",
     }
     POST_PREFIX_ROUTES: tuple[tuple[str, str], ...] = (
         ("/api/v1/adapter/", "_post_adapter"),
@@ -329,6 +332,11 @@ class RequestHandler(BaseHTTPRequestHandler):
         with self.server.state._cache_lock:
             self.server.state._cache.pop("network-current", None)
         self._json(HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST, result)
+
+    def _post_ui_state(self, body: dict[str, Any]) -> None:
+        """Persist native-shell state (currently the last active scene)."""
+        scene = self.server.state.ui_state.set_scene(str(body.get("scene", "")))
+        self._json(HTTPStatus.OK, {"ok": True, "scene": scene})
 
     def _post_adapter(self, path: str, body: dict[str, Any]) -> None:
         # @use: high use — purpose: UI→adapter POST edge; validate then dispatch
@@ -468,6 +476,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             return
         if rel == "index.html":
             data = data.replace(b"__LMDP_TOKEN__", self.server.token.encode("ascii"))
+            data = data.replace(
+                b"__LMDP_SCENE__", self.server.state.ui_state.scene().encode("ascii")
+            )
         ctype = mimetypes.guess_type(rel)[0] or "application/octet-stream"
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", ctype + ("; charset=utf-8" if ctype.startswith("text/") or ctype.endswith("javascript") else ""))

@@ -17,6 +17,13 @@ const scenes = [
 
 const DEV_MODE = document.documentElement.dataset.dev === "true";
 
+// Restore the last active scene persisted by the native shell (server injects
+// the value into the meta tag). Falls back to the desktop scene.
+function initialScene() {
+  const saved = document.querySelector('meta[name="lmdp-scene"]')?.content || "";
+  return scenes.some(x => x.id === saved) ? saved : "desktop";
+}
+
 class AssetMap {
   constructor() {
     this.icons = new Map();
@@ -93,7 +100,7 @@ class DiffRenderer {
 
 const app = {
   locked: true,
-  scene: "desktop",
+  scene: initialScene(),
   settingsTab: "appearance",
   state: null,
   assets: new AssetMap(),
@@ -201,9 +208,15 @@ function lockUi() {
   $("#lock-screen").focus();
 }
 
+function persistScene(id) {
+  // Fire-and-forget: scene memory is a convenience, never block the UI on it.
+  api("/api/v1/ui-state", {method:"POST", body:{scene:id}}).catch(() => {});
+}
+
 function setScene(id) {
   if (!scenes.some(x => x.id === id)) return;
   app.scene = id;
+  persistScene(id);
   renderChrome();
   renderScene(true);
 }
