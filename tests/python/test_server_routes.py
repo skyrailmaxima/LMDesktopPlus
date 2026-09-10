@@ -15,6 +15,7 @@ class ServerRouteTableTests(unittest.TestCase):
             "/api/v1/media",
             "/api/v1/network/connect",
             "/api/v1/network/disconnect",
+            "/api/v1/ui-state",
         }
         self.assertEqual(set(RequestHandler.POST_ROUTES), expected)
         for name in RequestHandler.POST_ROUTES.values():
