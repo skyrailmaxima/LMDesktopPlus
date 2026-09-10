@@ -10,6 +10,8 @@ from importlib.resources import as_file, files
 from . import __version__
 from .agents import AgentRegistry
 from .server import start_server
+from .single_instance import SingleInstance, focus_existing_window
+from .util import APP_ID
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -102,6 +104,12 @@ def run_gtk(url: str, kiosk: bool, start_fullscreen: bool) -> int:
     window = Gtk.Window(title="LMDesktopPlus Machine UI")
     window.set_default_size(1320, 840)
     window.set_icon_name("lmdesktopplus")
+    try:
+        # X11 / XWayland WM_CLASS so the window matches the .desktop
+        # StartupWMClass and window-manager rules can target it.
+        window.set_wmclass(APP_ID, APP_ID)
+    except Exception:  # noqa: BLE001 — optional on pure Wayland
+        pass
     view = WebKit2.WebView()
     settings = view.get_settings()
     settings.set_property("enable-developer-extras", True)
@@ -137,6 +145,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.live_wallpaper:
         return run_live_wallpaper(args.rain_intensity)
 
+    # A single control-center instance owns the loopback server. A second
+    # launch focuses the running window (best effort) instead of starting a
+    # rival server.
+    guard = SingleInstance()
+    if not guard.acquire():
+        focus_existing_window(APP_ID)
+        print("LMDesktopPlus is already running; focusing the existing window.", file=sys.stderr)
+        return 0
+
     server, thread, url = start_server()
     if args.print_url:
         print(url)
@@ -149,6 +166,7 @@ def main(argv: list[str] | None = None) -> int:
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+        guard.release()
 
 
 if __name__ == "__main__":
