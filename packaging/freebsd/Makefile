@@ -1,5 +1,5 @@
 PORTNAME=		lmdesktopplus
-DISTVERSION=		0.6.8
+DISTVERSION=		0.6.9
 CATEGORIES=		x11-wm
 
 MAINTAINER=		lmdesktopplus@localhost

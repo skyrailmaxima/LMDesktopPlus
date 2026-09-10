@@ -6,16 +6,17 @@ Hyprland session, and supplies a local control center for system telemetry,
 application launchers, agent workspaces, NetworkManager, media, settings, and
 desktop integration.
 
-Version **0.6.8** adds a FreeBSD UI package path (sysctl metrics + ports/tarball
-packaging) on top of 0.6.7 AMD GPU metrics. Live matrix wallpaper defaults **on**
-(START still explicit). Mint rice via `install.sh` remains Linux-only.
+Version **0.6.9** adds GitHub Actions CI for `./tests/run-all.sh` and a
+post-review trunk collapse checklist. FreeBSD UI packaging landed in 0.6.8;
+live matrix wallpaper defaults **on** (START still explicit). Mint rice via
+`install.sh` remains Linux-only.
 
 ## Install the machine UI
 
 The Debian package is the cleanest system-wide installation on Mint/Ubuntu:
 
 ```bash
-sudo apt install ./lmdesktopplus_0.6.8_all.deb
+sudo apt install ./lmdesktopplus_0.6.9_all.deb
 lmdesktopplus
 ```
 
@@ -23,7 +24,7 @@ On FreeBSD, stage the UI package (or use the ports skeleton):
 
 ```bash
 ./packaging/build-freebsd-ui.sh
-sudo tar -xJf dist/lmdesktopplus-0.6.8-freebsd.txz -C /
+sudo tar -xJf dist/lmdesktopplus-0.6.9-freebsd.txz -C /
 lmdesktopplus --browser   # if WebKit/GI is not installed
 ```
 
@@ -197,10 +198,13 @@ The resulting artifacts are placed under `dist/`.
 ./tests/run-all.sh
 ```
 
-The suite validates repository structure, shell behavior, Python compilation,
-API authorization, static asset delivery, settings, NetworkManager parsing,
-JavaScript syntax, installer dry-run behavior, Debian contents, and the absence
-of cached bytecode or bundled font files.
+GitHub Actions runs the same entrypoint (`.github/workflows/ci.yml`) on `main`
+and `feature/lmdesktopplus`. The suite covers repository structure, shell
+helpers, Python unit tests, JS syntax, installer dry-run, Debian + FreeBSD UI
+package staging, and a dry-run of the post-review stack collapse helper.
+
+After you finish reviewing trunk, see [`docs/collapse-trunk.md`](docs/collapse-trunk.md)
+before deleting old stack branches.
 
 ## Uninstall
 
