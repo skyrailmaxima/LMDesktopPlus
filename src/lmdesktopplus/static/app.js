@@ -155,11 +155,13 @@ function renderChrome() {
   $("#window-title").textContent = current.title;
   $("#workspace-strip").innerHTML = scenes.map(scene => {
     const active = scene.id === app.scene;
-    return `<button class="workspace-chip dv-bar__ws ${active ? "active is-active" : ""}" data-scene="${scene.id}" title="${esc(scene.label)}">${scene.num}<span class="jp dv-jp">${scene.jp}</span></button>`;
+    const current = active ? ' aria-current="page"' : "";
+    return `<button type="button" class="workspace-chip dv-bar__ws ${active ? "active is-active" : ""}" data-scene="${scene.id}" title="${esc(scene.label)}" aria-label="${esc(scene.label)}"${current}><span aria-hidden="true">${scene.num}<span class="jp dv-jp">${scene.jp}</span></span></button>`;
   }).join("");
   $("#dock").innerHTML = scenes.map(scene => {
     const active = scene.id === app.scene;
-    return `<button class="dock-item dv-dock__item ${active ? "active is-active" : ""}" data-scene="${scene.id}" title="${esc(scene.label)}"><span class="jp dv-dock__glyph">${scene.jp}</span><span class="dock-label dv-dock__label">${esc(scene.label)}</span></button>`;
+    const current = active ? ' aria-current="page"' : "";
+    return `<button type="button" class="dock-item dv-dock__item ${active ? "active is-active" : ""}" data-scene="${scene.id}" title="${esc(scene.label)}" aria-label="${esc(scene.label)}"${current}><span class="jp dv-dock__glyph" aria-hidden="true">${scene.jp}</span><span class="dock-label dv-dock__label">${esc(scene.label)}</span></button>`;
   }).join("");
   $$('[data-scene]').forEach(node => node.addEventListener("click", () => setScene(node.dataset.scene)));
 }
