@@ -62,3 +62,45 @@ jobs:
             dist/*-freebsd.txz
           if-no-files-found: warn
           retention-days: 14
+
+  ui-screenshots:
+    name: ui screenshots (xvfb)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install GTK/WebKit + Xvfb
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            xvfb xdotool xauth \
+            python3-gi gir1.2-gtk-3.0 \
+            "gir1.2-webkit2-4.1" \
+            libgtk-3-0 libwebkit2gtk-4.1-0 \
+            fonts-dejavu-core
+
+      - name: Show environment
+        run: |
+          set -euo pipefail
+          Xvfb -help 2>&1 | head -n1 || true
+          python3 -c 'import gi; gi.require_version("Gtk","3.0"); print("gi + Gtk 3.0 OK")'
+          PYTHONPATH=src python3 -c 'from lmdesktopplus.toolkit import select_toolkit; print("toolkit:", select_toolkit())'
+
+      - name: Per-scene screenshot smoke
+        run: ./tests/ui-screenshot.sh --out "$GITHUB_WORKSPACE/ui-screenshots"
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots-${{ github.sha }}
+          path: ui-screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 14

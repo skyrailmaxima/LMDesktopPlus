@@ -30,6 +30,14 @@ else
   printf 'note: node not found; skipping JS syntax checks\n' >&2
 fi
 
+step "ui screenshot smoke (optional)"
+if command -v Xvfb >/dev/null 2>&1 && command -v xdotool >/dev/null 2>&1 \
+   && PYTHONPATH=src python3 -c 'import sys; from lmdesktopplus.toolkit import select_toolkit; sys.exit(0 if select_toolkit() else 1)' >/dev/null 2>&1; then
+  ./tests/ui-screenshot.sh --out /tmp/lmdesktopplus-ui-screenshots
+else
+  printf 'note: Xvfb/xdotool/GTK+WebKit not all present; skipping UI screenshot smoke\n' >&2
+fi
+
 step "installer dry-run (cinnamon-only)"
 ./install.sh --dry-run --cinnamon-only >/tmp/lmdesktopplus-dry-run.log 2>&1
 
