@@ -87,12 +87,12 @@ fi
 XVFB_PID=""
 APP_PID=""
 cleanup() {
-  [[ -n "$APP_PID" ]] && kill "$APP_PID" 2>/dev/null || true
   if [[ "$KEEP" -eq 0 ]]; then
+    [[ -n "$APP_PID" ]] && kill "$APP_PID" 2>/dev/null || true
     [[ -n "$XVFB_PID" ]] && kill "$XVFB_PID" 2>/dev/null || true
     rm -rf "$WORKDIR"
   else
-    echo "left running: DISPLAY=$DISPLAY_NUM  workdir=$WORKDIR"
+    echo "left running: DISPLAY=$DISPLAY_NUM  app_pid=$APP_PID  workdir=$WORKDIR"
   fi
 }
 trap cleanup EXIT
