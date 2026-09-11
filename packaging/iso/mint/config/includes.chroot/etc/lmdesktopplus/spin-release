@@ -1,0 +1,7 @@
+# LMDesktopPlus Mint respin branding marker (informational; does not override
+# /etc/os-release so upstream update tooling keeps working). Custom name avoids
+# Linux Mint trademarks.
+SPIN_NAME="LMDesktopPlus Spin"
+SPIN_FLAVOR="vapor//matrix"
+SPIN_BASE="Linux Mint (Cinnamon) + optional Hyprland session"
+SPIN_URL="https://github.com/skyrailmaxima/LMDesktopPlus"
