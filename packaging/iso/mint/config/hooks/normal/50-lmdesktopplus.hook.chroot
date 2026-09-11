@@ -1,0 +1,25 @@
+#!/bin/sh
+# live-build chroot hook: finalize the LMDesktopPlus vapor//matrix defaults
+# inside the ISO's root filesystem. Runs after packages (incl. the bundled
+# lmdesktopplus-desktop metapackage) are installed.
+set -e
+
+# Rebuild the system dconf database from our seeded defaults.
+if command -v dconf >/dev/null 2>&1; then
+  dconf update || true
+fi
+
+# Register the optional Hyprland session with an absolute Exec (the file is
+# injected by build-iso.sh into /usr/share/wayland-sessions/).
+SESSION=/usr/share/wayland-sessions/lmdesktopplus-hyprland.desktop
+if [ -f "$SESSION" ]; then
+  HYPR="$(command -v Hyprland 2>/dev/null || command -v hyprland 2>/dev/null || echo /usr/bin/Hyprland)"
+  sed -i "s|^Exec=.*|Exec=$HYPR|; s|^TryExec=.*|TryExec=$HYPR|" "$SESSION" || true
+fi
+
+# Refresh desktop/icon/font caches so the shipped autostart + branding apply.
+command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database /usr/share/applications || true
+command -v gtk-update-icon-cache  >/dev/null 2>&1 && gtk-update-icon-cache -f -t /usr/share/icons/hicolor || true
+command -v fc-cache >/dev/null 2>&1 && fc-cache -f || true
+
+exit 0

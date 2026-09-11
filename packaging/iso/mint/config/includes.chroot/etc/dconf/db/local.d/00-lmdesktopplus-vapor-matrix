@@ -1,0 +1,20 @@
+# vapor//matrix defaults for the LMDesktopPlus Mint respin. Seeded as system
+# dconf defaults (users can still override). The full rice GTK/Hyprland theming
+# is applied per-user by install.sh; here we set the wallpaper + a dark look.
+[org/cinnamon/desktop/background]
+picture-uri='file:///usr/share/backgrounds/lmdesktopplus/vapor-matrix.png'
+picture-options='zoom'
+primary-color='#05060a'
+secondary-color='#05060a'
+
+[org/cinnamon/desktop/interface]
+gtk-theme='Mint-Y-Dark-Aqua'
+icon-theme='Mint-Y-Dark-Aqua'
+cursor-theme='Adwaita'
+
+[org/gnome/desktop/background]
+picture-uri='file:///usr/share/backgrounds/lmdesktopplus/vapor-matrix.png'
+picture-options='zoom'
+
+[org/gnome/desktop/interface]
+color-scheme='prefer-dark'
