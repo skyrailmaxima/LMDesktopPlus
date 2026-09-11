@@ -24,6 +24,10 @@ button, input, select, textarea { font: inherit; }
 button { color: inherit; }
 .hidden { display: none !important; }
 .muted { color: var(--dv-muted); }
+.dv-empty { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 14px; color: var(--dv-muted); font-size: 13px; line-height: 1.5; border: 1px dashed var(--dv-line-soft); border-radius: var(--dv-radius); background: rgba(141, 255, 190, .04); }
+.dv-empty__icon { flex: 0 0 auto; font-size: 13px; opacity: .7; }
+.dv-empty__msg { min-width: 0; }
+.dv-empty--error { color: var(--dv-amber); border-color: rgba(255, 204, 68, .35); background: rgba(255, 204, 68, .06); }
 .mag { color: var(--dv-mag); } .pink { color: var(--dv-pink); } .cyan { color: var(--dv-cyan); }
 .mint { color: var(--dv-mint); } .purple { color: var(--dv-purple); } .amber { color: var(--dv-amber); }
 .green { color: var(--dv-grn); } .white { color: var(--dv-ink); }

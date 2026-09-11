@@ -56,6 +56,15 @@ const $$ = (selector, root=document) => [...root.querySelectorAll(selector)];
 const esc = value => String(value ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
 const clamp = (v, min, max) => Math.max(min, Math.min(max, Number(v) || 0));
 
+// Uniform empty / error placeholder for dynamic panels so adapter fail-soft
+// states read consistently instead of ad-hoc muted paragraphs. `message` is
+// treated as trusted markup (callers pass literals or already-escaped text).
+function emptyState(message, {tone="empty"} = {}) {
+  const isError = tone === "error";
+  const icon = isError ? "!" : "○";
+  return `<p class="dv-empty${isError ? " dv-empty--error" : ""}"><span class="dv-empty__icon" aria-hidden="true">${icon}</span><span class="dv-empty__msg">${message}</span></p>`;
+}
+
 async function api(path, options={}) {
   const opts = {...options, headers:{"X-LMDP-Token":TOKEN, ...(options.headers || {})}};
   if (opts.body && typeof opts.body !== "string") {
@@ -294,7 +303,7 @@ function wallpaperPicker() {
       <small>${esc(wallpaper.source)}</small>
     </button>`;
   }).join("");
-  if (!cards) return '<p class="muted">No wallpapers found. Add PNG, JPG, WebP, or SVG files to ~/.local/share/lmdesktopplus/wallpapers/.</p>';
+  if (!cards) return emptyState("No wallpapers found. Add PNG, JPG, WebP, or SVG files to ~/.local/share/lmdesktopplus/wallpapers/.");
   return `<div class="wallpaper-grid">${cards}</div>`;
 }
 
@@ -515,22 +524,22 @@ function mapProcessRows(processes) {
 function processMonitorPanel() {
   const procs = app.state?.adapters?.processes || {};
   if (!procs.available) {
-    return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><h3>PROCESSES</h3><p class="muted">/proc unavailable.</p></div>`;
+    return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><h3>PROCESSES</h3>${emptyState("/proc unavailable.", {tone:"error"})}</div>`;
   }
   const rows = mapProcessRows(procs.processes);
-  return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><div class="card-title"><h3>TOP PROCESSES</h3><button class="btn dv-btn dv-btn--outline" data-process-refresh>REFRESH</button></div><p class="muted">Terminate is limited to processes owned by your UID. Confirm before SIGTERM.</p><div style="margin-top:12px">${rows || '<p class="muted">No process samples yet.</p>'}</div></div>`;
+  return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><div class="card-title"><h3>TOP PROCESSES</h3><button class="btn dv-btn dv-btn--outline" data-process-refresh>REFRESH</button></div><p class="muted">Terminate is limited to processes owned by your UID. Confirm before SIGTERM.</p><div style="margin-top:12px">${rows || emptyState("No process samples yet.")}</div></div>`;
 }
 
 /** @use: high use — purpose: Monitor user journal panel (HTML-escaped lines) */
 function logsMonitorPanel() {
   const logs = app.state?.adapters?.logs || {};
   if (!logs.available) {
-    return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><h3>USER JOURNAL</h3><p class="muted">journalctl unavailable${logs.last_error ? ` · ${esc(logs.last_error)}` : ""}.</p></div>`;
+    return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><h3>USER JOURNAL</h3>${emptyState(`journalctl unavailable${logs.last_error ? ` · ${esc(logs.last_error)}` : ""}.`, {tone:"error"})}</div>`;
   }
   const body = (logs.lines || [])
     .map((line) => `<div class="muted" style="font-family:var(--dv-font-mono, monospace);font-size:12px;white-space:pre-wrap;word-break:break-word">${esc(line)}</div>`)
     .join("");
-  return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><div class="card-title"><h3>USER JOURNAL</h3><button class="btn dv-btn dv-btn--outline" data-logs-refresh>REFRESH</button></div><p class="muted">Last ${logs.count ?? 0} lines from <span class="cyan">journalctl --user</span> (capped, escaped).</p><div style="margin-top:12px;max-height:280px;overflow:auto">${body || '<p class="muted">No journal lines.</p>'}</div></div>`;
+  return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><div class="card-title"><h3>USER JOURNAL</h3><button class="btn dv-btn dv-btn--outline" data-logs-refresh>REFRESH</button></div><p class="muted">Last ${logs.count ?? 0} lines from <span class="cyan">journalctl --user</span> (capped, escaped).</p><div style="margin-top:12px;max-height:280px;overflow:auto">${body || emptyState("No journal lines.")}</div></div>`;
 }
 
 function setLiveText(binding, value) {
@@ -679,7 +688,7 @@ function renderApps() {
   const vault = app.state.adapters?.vault || {};
   const cards = vault.features
     ? mapVaultFeatureCards(vault, settingsFeatures, caps)
-    : `<p class="muted">Vault adapter unavailable.</p>`;
+    : emptyState("Vault adapter unavailable.", {tone:"error"});
   const note = vault.can_install
     ? "Install requests pkexec apt-get for allowlisted packages only — never silent root."
     : "Install disabled (pkexec/apt-get missing). Feature toggles still persist.";
@@ -739,13 +748,13 @@ function renderDisplaySettings() {
   const audioIcon = assetIcon(audio.muted ? "audio.mute" : "audio.volume");
   const audioControl = audio.available
     ? `<div class="audio-control"><div class="audio-control__header">${audioIcon}<span data-bind="adapters.audio.volume">${audio.muted ? "MUTE " : ""}${volume}%</span><button class="btn dv-btn dv-btn--outline" data-audio-mute data-audio-mute-label>${audio.muted ? "UNMUTE" : "MUTE"}</button></div><input class="dv-slider dv-slider--cyan" type="range" min="0" max="100" value="${volume}" data-audio-volume data-bind="adapters.audio.volume" aria-label="Output volume"><div class="progress dv-progress"><span class="dv-progress__bar" data-bind="adapters.audio.volume" data-bind-mode="width" style="width:${volume}%"></span></div></div>`
-    : `<p class="muted">Audio controls unavailable. Install WirePlumber (wpctl) or PulseAudio tools (pactl).</p>`;
+    : emptyState("Audio controls unavailable. Install WirePlumber (wpctl) or PulseAudio tools (pactl).", {tone:"error"});
   const display = app.state.adapters?.display || {};
   const brightness = clamp(app.displayPendingBrightness ?? display.brightness ?? 0, 1, 100);
   const displayIcon = assetIcon("display.brightness", "audio-icon");
   const displayControl = display.available
     ? `<div class="audio-control"><div class="audio-control__header">${displayIcon}<span data-bind="adapters.display.brightness">${brightness}%</span><span class="badge dv-tag ${display.writable ? "ok dv-tag--mint" : "warn dv-tag--warn"}">${display.writable ? "CONTROL" : "READ ONLY"}</span></div><input class="dv-slider" type="range" min="1" max="100" value="${brightness}" data-display-brightness data-bind="adapters.display.brightness" aria-label="Display brightness" ${display.writable ? "" : "disabled"}><div class="progress dv-progress"><span class="dv-progress__bar" data-bind="adapters.display.brightness" data-bind-mode="width" style="width:${brightness}%"></span></div></div>`
-    : `<p class="muted">Brightness unavailable. Install brightnessctl or expose a readable sysfs backlight device.</p>`;
+    : emptyState("Brightness unavailable. Install brightnessctl or expose a readable sysfs backlight device.", {tone:"error"});
   return `${control("Display brightness",display.backend || "internal panel",displayControl)}
     ${control("Output volume",audio.backend || "default audio sink",audioControl)}
     ${control("Desktop session","One-shot handoff through a real login TTY",sessionHandoffControl())}
@@ -781,7 +790,7 @@ function idleSettingsPanel() {
 function printersSettingsPanel() {
   const printers = app.state?.adapters?.printers || {};
   if (!printers.available) {
-    return `<div class="setting-group" style="margin-top:24px"><h3>Printers</h3><p class="muted">lpstat unavailable${printers.last_error ? ` · ${esc(printers.last_error)}` : ""}. Install CUPS tools.</p>
+    return `<div class="setting-group" style="margin-top:24px"><h3>Printers</h3>${emptyState(`lpstat unavailable${printers.last_error ? ` · ${esc(printers.last_error)}` : ""}. Install CUPS tools.`, {tone:"error"})}
       <div class="button-row"><button class="btn dv-btn dv-btn--outline" type="button" data-printers-open ${printers.can_open ? "" : "disabled"}>OPEN PRINTER SETTINGS</button></div></div>`;
   }
   const rows = (printers.printers || []).map((p) => {
@@ -792,7 +801,7 @@ function printersSettingsPanel() {
   return `<div class="setting-group" style="margin-top:24px"><h3>Printers</h3>
     <div class="button-row"><button class="btn dv-btn dv-btn--outline" type="button" data-printers-refresh>REFRESH</button>
     <button class="btn dv-btn dv-btn--outline" type="button" data-printers-open ${printers.can_open ? "" : "disabled"}>OPEN PRINTER SETTINGS</button></div>
-    <div style="margin-top:12px">${rows || '<p class="muted">No printers reported by lpstat.</p>'}</div></div>`;
+    <div style="margin-top:12px">${rows || emptyState("No printers reported by lpstat.")}</div></div>`;
 }
 
 function renderSettingsTab() {
@@ -808,7 +817,7 @@ function renderNetworkSettings() {
   const active = current.connections?.length ? current.connections.map(c=>`${esc(c.name)} (${esc(c.device)})`).join(", ") : "not connected";
   const networks = app.networkScan?.networks || [];
   const rows = networks.map(n=>`<div class="network-row"><div><strong class="white">${esc(n.ssid)}</strong><div class="muted">${esc(n.security)} · ${esc(n.device)} ${n.active?"· active":""}</div></div><div class="signal"><div class="progress dv-progress"><span class="dv-progress__bar" style="width:${clamp(n.signal,0,100)}%"></span></div><small>${n.signal}%</small></div><button class="btn dv-btn dv-btn--outline" data-connect-ssid="${encodeURIComponent(n.ssid)}">${n.active?"ACTIVE":"CONNECT"}</button></div>`).join("");
-  return `<div class="setting-group"><h3>NetworkManager</h3>${statRow("Active",active)}${statRow("Adapter",current.available?"nmcli":"unavailable")}</div><div class="button-row"><button class="btn primary dv-btn dv-btn--primary" data-network-scan>SCAN WI-FI</button>${current.connections?.filter(c=>c.device).map(c=>`<button class="btn danger dv-btn dv-btn--danger" data-disconnect="${esc(c.device)}">DISCONNECT ${esc(c.device)}</button>`).join("") || ""}</div><div style="margin-top:16px">${app.networkScan ? (rows || `<p class="muted">No networks returned.</p>`) : `<p class="muted">Scan to populate live SSIDs. Passwords are sent directly to nmcli and are not persisted by LMDesktopPlus.</p>`}</div>${vpnSettingsPanel()}${bluetoothSettingsPanel()}`;
+  return `<div class="setting-group"><h3>NetworkManager</h3>${statRow("Active",active)}${statRow("Adapter",current.available?"nmcli":"unavailable")}</div><div class="button-row"><button class="btn primary dv-btn dv-btn--primary" data-network-scan>SCAN WI-FI</button>${current.connections?.filter(c=>c.device).map(c=>`<button class="btn danger dv-btn dv-btn--danger" data-disconnect="${esc(c.device)}">DISCONNECT ${esc(c.device)}</button>`).join("") || ""}</div><div style="margin-top:16px">${app.networkScan ? (rows || emptyState("No networks returned.")) : emptyState("Scan to populate live SSIDs. Passwords are sent directly to nmcli and are not persisted by LMDesktopPlus.")}</div>${vpnSettingsPanel()}${bluetoothSettingsPanel()}`;
 }
 
 function mapVpnConnectionRows(connections) {
@@ -824,10 +833,10 @@ function vpnSettingsPanel() {
   const vpn = app.state?.adapters?.vpn || {};
   const icon = assetIcon("vpn", "session-icon");
   if (!vpn.available) {
-    return `<div class="setting-group" style="margin-top:24px"><h3>VPN</h3>${icon}<p class="muted">nmcli unavailable. Install NetworkManager.</p>${vpn.last_error ? `<p class="muted">${esc(vpn.last_error)}</p>` : ""}</div>`;
+    return `<div class="setting-group" style="margin-top:24px"><h3>VPN</h3>${icon}${emptyState(`nmcli unavailable. Install NetworkManager.${vpn.last_error ? ` · ${esc(vpn.last_error)}` : ""}`, {tone:"error"})}</div>`;
   }
   const connections = mapVpnConnectionRows(vpn.connections);
-  return `<div class="setting-group" style="margin-top:24px"><h3>VPN</h3><div class="audio-control__header">${icon}<span class="badge dv-tag ${vpn.active_count ? "ok dv-tag--mint" : "dv-tag--cyan"}">${vpn.active_count || 0} active</span></div><div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" data-vpn-refresh>REFRESH</button></div><div style="margin-top:16px">${connections || '<p class="muted">No VPN or WireGuard profiles found. Credentials stay in NetworkManager — LMDesktopPlus never stores them.</p>'}</div></div>`;
+  return `<div class="setting-group" style="margin-top:24px"><h3>VPN</h3><div class="audio-control__header">${icon}<span class="badge dv-tag ${vpn.active_count ? "ok dv-tag--mint" : "dv-tag--cyan"}">${vpn.active_count || 0} active</span></div><div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" data-vpn-refresh>REFRESH</button></div><div style="margin-top:16px">${connections || emptyState("No VPN or WireGuard profiles found. Credentials stay in NetworkManager — LMDesktopPlus never stores them.")}</div></div>`;
 }
 
 function mapBluetoothDeviceRows(devices) {
@@ -843,13 +852,13 @@ function bluetoothSettingsPanel() {
   const bt = app.state?.adapters?.bluetooth || {};
   const icon = assetIcon("bluetooth", "session-icon");
   if (!bt.available) {
-    return `<div class="setting-group" style="margin-top:24px"><h3>Bluetooth</h3>${icon}<p class="muted">bluetoothctl unavailable. Install bluez / bluez-utils.</p>${bt.last_error ? `<p class="muted">${esc(bt.last_error)}</p>` : ""}</div>`;
+    return `<div class="setting-group" style="margin-top:24px"><h3>Bluetooth</h3>${icon}${emptyState(`bluetoothctl unavailable. Install bluez / bluez-utils.${bt.last_error ? ` · ${esc(bt.last_error)}` : ""}`, {tone:"error"})}</div>`;
   }
   const powerBadge = bt.powered
     ? '<span class="badge ok dv-tag dv-tag--mint" data-bind="adapters.bluetooth.powered">POWERED</span>'
     : '<span class="badge warn dv-tag dv-tag--warn" data-bind="adapters.bluetooth.powered">OFF</span>';
   const devices = mapBluetoothDeviceRows(bt.devices);
-  return `<div class="setting-group" style="margin-top:24px"><h3>Bluetooth</h3><div class="audio-control__header">${icon}${powerBadge}</div><div class="button-row" style="margin-top:12px"><button class="btn primary dv-btn dv-btn--primary" data-bt-power="${bt.powered ? "off" : "on"}">${bt.powered ? "POWER OFF" : "POWER ON"}</button><button class="btn dv-btn dv-btn--outline" data-bt-scan>SCAN (5s)</button></div><div style="margin-top:16px">${devices || '<p class="muted">No known devices. Scan to discover nearby Bluetooth devices.</p>'}</div></div>`;
+  return `<div class="setting-group" style="margin-top:24px"><h3>Bluetooth</h3><div class="audio-control__header">${icon}${powerBadge}</div><div class="button-row" style="margin-top:12px"><button class="btn primary dv-btn dv-btn--primary" data-bt-power="${bt.powered ? "off" : "on"}">${bt.powered ? "POWER OFF" : "POWER ON"}</button><button class="btn dv-btn dv-btn--outline" data-bt-scan>SCAN (5s)</button></div><div style="margin-top:16px">${devices || emptyState("No known devices. Scan to discover nearby Bluetooth devices.")}</div></div>`;
 }
 
 function notificationsSettingsPanel() {
@@ -869,7 +878,7 @@ function clipboardSettingsPanel() {
   const clip = app.state?.adapters?.clipboard || {};
   const icon = assetIcon("clipboard", "session-icon");
   if (!clip.available) {
-    return control("Clipboard", "Install wl-clipboard (Wayland) or xclip (X11)", `<p class="muted">${icon} Clipboard tools unavailable.</p>`);
+    return control("Clipboard", "Install wl-clipboard (Wayland) or xclip (X11)", emptyState(`${icon} Clipboard tools unavailable.`, {tone:"error"}));
   }
   const preview = clip.preview ? esc(clip.preview) : "<span class=\"muted\">empty</span>";
   return `${control("Clipboard peek", `${clip.backend}${clip.truncated ? " · truncated" : ""}`, `<div class="audio-control__header">${icon}<code class="value" data-bind="adapters.clipboard.preview" style="max-width:28rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${preview}</code></div>`)}
@@ -881,7 +890,7 @@ function captureSettingsPanel() {
   const cap = app.state?.adapters?.capture || {};
   const icon = assetIcon("camera", "session-icon");
   if (!cap.available) {
-    return control("Screenshots", "Install grim/slurp (Hyprland) or gnome-screenshot (Cinnamon)", `<p class="muted">${icon} Screenshot tools unavailable.</p>`);
+    return control("Screenshots", "Install grim/slurp (Hyprland) or gnome-screenshot (Cinnamon)", emptyState(`${icon} Screenshot tools unavailable.`, {tone:"error"}));
   }
   const regionDisabled = cap.region_available ? "" : "disabled";
   return `${control("Screenshots", `${cap.backend} · ${esc(cap.save_dir || "~/Pictures/lmdesktopplus")}`, `<div class="button-row">${icon}<button class="btn primary dv-btn dv-btn--primary" data-capture="full">FULL</button><button class="btn dv-btn dv-btn--outline" data-capture="region" ${regionDisabled}>REGION</button><button class="btn dv-btn dv-btn--outline" data-capture-folder>OPEN FOLDER</button></div>${cap.last_path ? `<p class="muted" style="margin-top:8px">Last: ${esc(cap.last_path)}</p>` : ""}`)}`;
@@ -902,10 +911,10 @@ function storageSettingsPanel() {
   const storage = app.state?.adapters?.storage || {};
   const icon = assetIcon("usb", "session-icon");
   if (!storage.available) {
-    return `<div class="setting-group" style="margin-top:24px"><h3>Removable storage</h3>${icon}<p class="muted">lsblk unavailable.</p>${storage.last_error ? `<p class="muted">${esc(storage.last_error)}</p>` : ""}</div>`;
+    return `<div class="setting-group" style="margin-top:24px"><h3>Removable storage</h3>${icon}${emptyState(`lsblk unavailable.${storage.last_error ? ` · ${esc(storage.last_error)}` : ""}`, {tone:"error"})}</div>`;
   }
   const devices = mapStorageDeviceRows(storage.devices, storage.can_mount);
-  return `<div class="setting-group" style="margin-top:24px"><h3>Removable storage</h3><div class="audio-control__header">${icon}<span class="muted">${storage.can_mount ? "udisksctl" : "read-only · install udisks2"}</span></div><div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" data-storage-refresh>REFRESH</button></div><div style="margin-top:16px">${devices || '<p class="muted">No removable USB/MMC volumes detected.</p>'}</div></div>`;
+  return `<div class="setting-group" style="margin-top:24px"><h3>Removable storage</h3><div class="audio-control__header">${icon}<span class="muted">${storage.can_mount ? "udisksctl" : "read-only · install udisks2"}</span></div><div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" data-storage-refresh>REFRESH</button></div><div style="margin-top:16px">${devices || emptyState("No removable USB/MMC volumes detected.")}</div></div>`;
 }
 
 /** Map one peer row into an editable roster card (retune / melt / spawn). */
@@ -947,7 +956,7 @@ function renderAgentSettings() {
     <label class="dv-toggle" style="margin-top:8px"><input type="checkbox" id="peer-forge-network" checked><span class="dv-track"></span><span style="margin-left:9px">network</span></label>
     <div class="button-row" style="margin-top:14px"><button class="btn primary dv-btn dv-btn--primary" type="button" data-peer-forge>FORGE</button></div>
   </div>`;
-  return `${forge}<div class="setting-group" style="margin-top:24px"><h3>Roster</h3><div class="grid two">${cards || '<p class="muted">No peers in roster.</p>'}</div><div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" data-action="open-config">OPEN CONFIG FOLDER</button></div></div>`;
+  return `${forge}<div class="setting-group" style="margin-top:24px"><h3>Roster</h3><div class="grid two">${cards || emptyState("No peers in roster.")}</div><div class="button-row" style="margin-top:16px"><button class="btn dv-btn dv-btn--outline" data-action="open-config">OPEN CONFIG FOLDER</button></div></div>`;
 }
 
 function mapNeonChordRows(chords, order) {
@@ -976,7 +985,7 @@ function renderNeonChords() {
     .map(([combo, act]) => `<div class="list-row"><span class="badge dv-tag">${esc(combo)}</span><span class="value">${esc(act)}</span></div>`)
     .join("");
   if (!kb.available) {
-    return `<p class="muted">Vapor//matrix chord editor unavailable.</p><div class="setting-group" style="margin-top:24px"><h3>Agent surface</h3>${agentRows}</div>`;
+    return `${emptyState("Vapor//matrix chord editor unavailable.", {tone:"error"})}<div class="setting-group" style="margin-top:24px"><h3>Agent surface</h3>${agentRows}</div>`;
   }
   const rows = mapNeonChordRows(kb.chords || {}, kb.chord_order || []);
   const sourced = kb.sourced
@@ -991,7 +1000,7 @@ function renderAbout() {
   const updateIcon = assetIcon("update", "session-icon");
   const updatePanel = updates.available
     ? `<div class="setting-group"><h3>Updates</h3><div class="audio-control__header">${updateIcon}<span data-bind="adapters.updates.count">${updates.count ?? 0} upgradable</span></div><div class="button-row" style="margin-top:12px"><button class="btn dv-btn dv-btn--outline" data-updates-refresh>REFRESH</button><button class="btn primary dv-btn dv-btn--primary" data-updates-open ${updates.mintupdate_available?"":"disabled"}>OPEN MINT UPDATE</button></div></div>`
-    : `<div class="setting-group"><h3>Updates</h3><p class="muted">${updateIcon} apt unavailable${updates.last_error ? ` · ${esc(updates.last_error)}` : ""}.</p></div>`;
+    : `<div class="setting-group"><h3>Updates</h3>${emptyState(`${updateIcon} apt unavailable${updates.last_error ? ` · ${esc(updates.last_error)}` : ""}.`, {tone:"error"})}</div>`;
   return `${updatePanel}<div class="grid two" style="margin-top:16px">${panel("LMDesktopPlus", `${statRow("Version",app.state.version)}${statRow("API","loopback-only + per-launch token")}${statRow("Frontend","plain HTML/CSS/JavaScript")}${statRow("Host shell",id.session)}${statRow("Python",id.python)}`)}${panel("BOUNDARIES", `<p class="muted">This UI manages the current user session. It does not expose a remote management port, store Wi-Fi passwords, or accept arbitrary shell commands over the API.</p><p class="muted">Power operations remain disabled until explicitly enabled. Bubblewrap adds useful filesystem isolation for agents but is not equivalent to a virtual machine.</p>`)}</div>`;
 }
 
