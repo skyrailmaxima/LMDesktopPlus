@@ -1,0 +1,13 @@
+# Packages preinstalled into the LMDesktopPlus FreeBSD install image.
+# Fed to `poudriere image -f` (one package per line, '#' comments ignored).
+#
+# The desktop metaport pulls the full vapor//matrix peer set + the control
+# center from the local poudriere repo (see packaging/freebsd/poudriere/):
+lmdesktopplus-desktop
+# X server + session launcher (not a UI RUN_DEPEND, but needed to display it):
+xorg
+xinit
+# Desktop integration bus:
+dbus
+# Wallpaper setter used by the vapor//matrix .xinitrc:
+feh

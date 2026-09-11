@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# PROVIDE: lmdp_autologin
+# REQUIRE: LOGIN
+# KEYWORD: firstboot
+#
+# First-boot wiring for the LMDesktopPlus vapor//matrix FreeBSD spin: enable an
+# autologin getty on the primary console (ttyv0) as root, so root's .profile can
+# start X and launch the control center. Runs once (firstboot), then is inert.
+. /etc/rc.subr
+
+name="lmdp_autologin"
+rcvar="lmdp_autologin_enable"
+start_cmd="lmdp_autologin_start"
+: "${lmdp_autologin_enable:=YES}"
+
+lmdp_autologin_start()
+{
+	# Add an 'al' (autologin) gettytab capability that logs in root, unless
+	# it is already present.
+	if ! grep -q '^al[|:]' /etc/gettytab 2>/dev/null; then
+		cat >> /etc/gettytab <<'GETTYTAB'
+
+al|Autologin console:\
+	:al=root:tc=Pc:
+GETTYTAB
+	fi
+
+	# Point ttyv0 at the autologin getty and mark it on/secure.
+	if grep -q '^ttyv0' /etc/ttys; then
+		sed -i '' -E \
+			's|^ttyv0[[:space:]].*|ttyv0	"/usr/libexec/getty al"	xterm	on	secure|' \
+			/etc/ttys
+		# Ask init to re-read /etc/ttys.
+		kill -HUP 1 2>/dev/null || true
+	fi
+}
+
+load_rc_config "$name"
+run_rc_command "$1"
