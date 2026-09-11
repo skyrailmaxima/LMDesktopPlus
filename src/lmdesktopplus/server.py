@@ -460,6 +460,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             "index.html",
             "app.js",
             "bindings.js",
+            "store.js",
             "style.css",
             "digitalvapor.css",
             "digitalvapor.js",

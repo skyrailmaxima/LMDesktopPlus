@@ -96,11 +96,20 @@ jobs:
       - name: Per-scene screenshot smoke
         run: ./tests/ui-screenshot.sh --out "$GITHUB_WORKSPACE/ui-screenshots"
 
+      - name: Responsive small-window smoke
+        run: |
+          ./tests/ui-screenshot.sh \
+            --out "$GITHUB_WORKSPACE/ui-screenshots/narrow" \
+            --geom 720x940x24 --window 700x900 \
+            --scenes "desktop monitor settings apps"
+
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ui-screenshots-${{ github.sha }}
-          path: ui-screenshots/*.png
+          path: |
+            ui-screenshots/*.png
+            ui-screenshots/narrow/*.png
           if-no-files-found: warn
           retention-days: 14

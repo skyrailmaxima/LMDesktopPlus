@@ -9,6 +9,17 @@
     return document.createTextNode(String(value ?? ""));
   }
 
+  // Users who ask their OS for reduced motion should never get an animated
+  // canvas. Guard with matchMedia (falling back to "motion allowed" when the
+  // API is missing) so the rain can honour the preference and react to live
+  // changes to it.
+  const motionQuery = typeof window.matchMedia === "function"
+    ? window.matchMedia("(prefers-reduced-motion: reduce)")
+    : null;
+  DV.prefersReducedMotion = function prefersReducedMotion() {
+    return Boolean(motionQuery && motionQuery.matches);
+  };
+
   DV.rain = function rain(canvas, options = {}) {
     if (!(canvas instanceof HTMLCanvasElement)) return () => {};
     if (rainStops.has(canvas)) return rainStops.get(canvas);
@@ -21,6 +32,7 @@
     const accents = ["#ff2e97", "#01cdfe", "#b967ff", "#ff71ce"];
     let drops = [];
     let frame = 0;
+    let running = false;
 
     function resize() {
       const ratio = Math.max(1, window.devicePixelRatio || 1);
@@ -55,12 +67,61 @@
       frame = requestAnimationFrame(draw);
     }
 
-    resize();
-    window.addEventListener("resize", resize);
-    draw();
-    const stop = () => {
+    // One calm, non-animated frame: a dim wash plus a sparse static glyph field
+    // so the backdrop still reads as "vapor//matrix" without any motion.
+    function paintStatic() {
+      const width = canvas.clientWidth || window.innerWidth;
+      const height = canvas.clientHeight || window.innerHeight;
+      context.fillStyle = "#05060a";
+      context.fillRect(0, 0, width, height);
+      context.font = `${fontSize}px ${getComputedStyle(document.documentElement).getPropertyValue("--dv-mono") || "monospace"}`;
+      context.fillStyle = "rgba(0,255,112,0.16)";
+      const rows = Math.max(1, Math.floor(height / fontSize));
+      for (let i = 0; i < drops.length; i += 2) {
+        const glyph = glyphs[(i * 7) % glyphs.length];
+        const y = ((i * 53) % rows) * fontSize + fontSize;
+        context.fillText(glyph, i * fontSize, y);
+      }
+    }
+
+    function startLoop() {
+      if (running) return;
+      running = true;
+      draw();
+    }
+
+    function stopLoop() {
+      running = false;
       cancelAnimationFrame(frame);
-      window.removeEventListener("resize", resize);
+    }
+
+    function apply() {
+      resize();
+      if (DV.prefersReducedMotion()) {
+        stopLoop();
+        paintStatic();
+      } else {
+        startLoop();
+      }
+    }
+
+    const onResize = () => {
+      resize();
+      if (DV.prefersReducedMotion()) paintStatic();
+    };
+
+    apply();
+    window.addEventListener("resize", onResize);
+    if (motionQuery && typeof motionQuery.addEventListener === "function") {
+      motionQuery.addEventListener("change", apply);
+    }
+
+    const stop = () => {
+      stopLoop();
+      window.removeEventListener("resize", onResize);
+      if (motionQuery && typeof motionQuery.removeEventListener === "function") {
+        motionQuery.removeEventListener("change", apply);
+      }
       rainStops.delete(canvas);
     };
     rainStops.set(canvas, stop);
