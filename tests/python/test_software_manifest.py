@@ -5,8 +5,11 @@ import importlib.util
 import unittest
 from pathlib import Path
 
+import json
+
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PY = ROOT / "packaging" / "manifest.py"
+ORIGINS_JSON = ROOT / "packaging" / "freebsd" / "pkg-origins.json"
 
 
 def _load_module():
@@ -72,6 +75,20 @@ class SoftwareManifestTests(unittest.TestCase):
         bsd = set(self.m.freebsd_packages(self.components))
         for linux_only in ("network-manager", "bubblewrap", "bluez", "mintupdate"):
             self.assertNotIn(linux_only, bsd)
+
+    def test_freebsd_origins_cover_every_pkg(self):
+        raw = json.loads(ORIGINS_JSON.read_text(encoding="utf-8"))
+        origins = raw.get("origins", raw)
+        # Must not raise (every FreeBSD pkg has an origin mapping).
+        lines = self.m.freebsd_run_depends(self.components, origins)
+        self.assertEqual(len(lines), len(self.m.freebsd_packages(self.components)))
+        self.assertIn("webkit2-gtk>0:www/webkit2-gtk@40", lines)
+        self.assertIn("kitty>0:x11/kitty", lines)
+        self.assertIn("py-gobject3>0:devel/py-gobject3", lines)
+
+    def test_freebsd_run_depends_raises_on_missing_origin(self):
+        with self.assertRaises(KeyError):
+            self.m.freebsd_run_depends(self.components, {})
 
 
 if __name__ == "__main__":

@@ -54,6 +54,23 @@ Same as Linux:
 ~/.local/bin/lmdesktopplus --browser
 ```
 
+## Full desktop metaport + local pkg repo
+
+For a full FreeBSD spin (Phase 4/6) the whole peer set is expressed as a
+generated metaport driven by [`packaging/software-manifest.json`](software-manifest.md):
+
+```bash
+# Generate x11-wm/lmdesktopplus-desktop (RUN_DEPENDS = UI port + peers)
+./packaging/build-freebsd-metaport.sh /path/to/overlay/x11-wm/lmdesktopplus-desktop
+
+# Build a local poudriere pkg repo (FreeBSD host only; prints a plan elsewhere)
+./packaging/freebsd/poudriere/build-repo.sh
+# then: pkg install lmdesktopplus-desktop
+```
+
+`pkg-origins.json` maps each manifest FreeBSD package to its ports origin;
+Linux-only peers (NetworkManager, bubblewrap, BlueZ, Mint Update) are omitted.
+
 ## Out of scope (Linux rice)
 
 - `./install.sh` Mint Cinnamon/Hyprland theming

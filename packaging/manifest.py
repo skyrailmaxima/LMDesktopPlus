@@ -77,6 +77,25 @@ def freebsd_packages(components: list[dict]) -> list[str]:
     return [c["freebsd"] for c in components if c.get("source") == "distro" and c.get("freebsd")]
 
 
+def freebsd_run_depends(components: list[dict], origins: dict[str, str]) -> list[str]:
+    """RUN_DEPENDS lines (``pkg>0:origin``) for the FreeBSD metaport.
+
+    Raises if a FreeBSD package has no origin mapping, so the origins file must
+    stay in sync with the manifest.
+    """
+    lines: list[str] = []
+    missing: list[str] = []
+    for pkg in freebsd_packages(components):
+        origin = origins.get(pkg)
+        if not origin:
+            missing.append(pkg)
+            continue
+        lines.append(f"{pkg}>0:{origin}")
+    if missing:
+        raise KeyError(f"no FreeBSD origin for: {', '.join(sorted(set(missing)))}")
+    return lines
+
+
 def _cmd_check(components: list[dict], _args) -> int:
     errors = _check(components)
     if errors:
@@ -102,6 +121,14 @@ def _cmd_freebsd(components: list[dict], _args) -> int:
     return 0
 
 
+def _cmd_freebsd_run_depends(components: list[dict], args) -> int:
+    raw = json.loads(Path(args.origins).read_text(encoding="utf-8"))
+    origins = raw.get("origins", raw) if isinstance(raw, dict) else raw
+    for line in freebsd_run_depends(components, origins):
+        print(line)
+    return 0
+
+
 def _cmd_list(components: list[dict], args) -> int:
     rows = [c for c in components if not args.tier or c.get("tier") == args.tier]
     width = max((len(c["id"]) for c in rows), default=0)
@@ -122,6 +149,8 @@ def main(argv: list[str] | None = None) -> int:
     p_field.add_argument("field", choices=sorted(MAIN_FIELD_TIERS))
     sub.add_parser("deb-metapackage-depends", help="print the full metapackage Depends set")
     sub.add_parser("freebsd-packages", help="print the FreeBSD pkg set")
+    p_frd = sub.add_parser("freebsd-run-depends", help="print metaport RUN_DEPENDS lines")
+    p_frd.add_argument("--origins", required=True, help="pkg-origins.json map")
     p_list = sub.add_parser("list", help="human-readable component table")
     p_list.add_argument("--tier", choices=VALID_TIERS)
 
@@ -133,6 +162,7 @@ def main(argv: list[str] | None = None) -> int:
         "deb-field": _cmd_deb_field,
         "deb-metapackage-depends": _cmd_deb_metapackage,
         "freebsd-packages": _cmd_freebsd,
+        "freebsd-run-depends": _cmd_freebsd_run_depends,
         "list": _cmd_list,
     }
     return dispatch[args.command](components, args)

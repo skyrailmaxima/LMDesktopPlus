@@ -88,6 +88,21 @@ if dpkg-deb --contents "$META_PATH" | grep -q 'usr/lib/lmdesktopplus'; then
   exit 1
 fi
 
+step "FreeBSD desktop metaport"
+META_MK="$(./packaging/build-freebsd-metaport.sh /tmp/lmdesktopplus-freebsd-metaport)"
+grep -q '^PORTNAME=	lmdesktopplus-desktop$' "$META_MK"
+grep -q 'USES=		metaport' "$META_MK"
+grep -q 'lmdesktopplus>0:x11-wm/lmdesktopplus' "$META_MK"
+for origin in x11/kitty www/webkit2-gtk@40 x11-wm/hyprland x11-fonts/jetbrains-mono; do
+  grep -q "$origin" "$META_MK" || { echo "metaport missing origin $origin" >&2; exit 1; }
+done
+# Linux-only peers must not leak into the FreeBSD metaport.
+if grep -Eq 'network-manager|bubblewrap|mintupdate' "$META_MK"; then
+  echo "Linux-only peer leaked into FreeBSD metaport" >&2
+  exit 1
+fi
+sh -n ./packaging/freebsd/poudriere/build-repo.sh
+
 step "FreeBSD UI package stage"
 ./packaging/build-freebsd-ui.sh >/tmp/lmdesktopplus-freebsd-path.txt
 FREEBSD_PATH="$(cat /tmp/lmdesktopplus-freebsd-path.txt)"

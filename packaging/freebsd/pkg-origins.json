@@ -1,0 +1,38 @@
+{
+  "_comment": [
+    "FreeBSD-specific companion to packaging/software-manifest.json: maps each",
+    "manifest 'freebsd' pkg name to its ports origin (category/portname), used to",
+    "generate the lmdesktopplus-desktop metaport RUN_DEPENDS. Origins are",
+    "best-effort against a recent ports tree; correct here if a port moves.",
+    "Must cover every distro component that has a non-null 'freebsd' entry",
+    "(enforced by tests + packaging/build-freebsd-metaport.sh)."
+  ],
+  "origins": {
+    "python3": "lang/python3",
+    "py-gobject3": "devel/py-gobject3",
+    "gtk3": "x11-toolkits/gtk30",
+    "webkit2-gtk": "www/webkit2-gtk@40",
+    "kitty": "x11/kitty",
+    "rofi": "x11/rofi",
+    "tmux": "sysutils/tmux",
+    "btop": "sysutils/btop",
+    "playerctl": "audio/playerctl",
+    "hyprland": "x11-wm/hyprland",
+    "waybar": "x11/waybar",
+    "starship": "shells/starship",
+    "polkit": "sysutils/polkit",
+    "grim": "graphics/grim",
+    "slurp": "graphics/slurp",
+    "wl-clipboard": "x11/wl-clipboard",
+    "xclip": "x11/xclip",
+    "libnotify": "devel/libnotify",
+    "cups": "print/cups",
+    "swayidle": "x11/swayidle",
+    "mpvpaper": "multimedia/mpvpaper",
+    "curl": "ftp/curl",
+    "wget": "ftp/wget",
+    "git": "devel/git",
+    "swaybg": "x11/swaybg",
+    "jetbrains-mono": "x11-fonts/jetbrains-mono"
+  }
+}
