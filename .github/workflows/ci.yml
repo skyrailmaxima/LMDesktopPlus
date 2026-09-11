@@ -3,9 +3,15 @@ name: CI
 on:
   push:
     branches: [main, feature/lmdesktopplus]
+    tags: ["v*"]
   pull_request:
     branches: [main, feature/lmdesktopplus]
   workflow_dispatch:
+    inputs:
+      build_images:
+        description: "Also build the Mint ISO + FreeBSD image (heavy, gated)"
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -113,3 +119,140 @@ jobs:
             ui-screenshots/narrow/*.png
           if-no-files-found: warn
           retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Gated heavy image builds. These only run on version tags (v*) or a manual
+  # dispatch with build_images=true, because they bootstrap full base systems.
+  # ---------------------------------------------------------------------------
+  mint-iso:
+    name: mint respin iso (gated)
+    needs: test
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.build_images)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install live-build + packaging tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends live-build dpkg-dev xz-utils
+
+      - name: Assembly gate (--check)
+        run: ./packaging/iso/mint/build-iso.sh --check
+
+      - name: Build Mint respin ISO
+        run: sudo --preserve-env=LB_DISTRIBUTION,LB_MIRROR,LB_ARCHIVE_AREAS ./packaging/iso/mint/build-iso.sh --build
+
+      - name: Checksum
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum lmdesktopplus-mint-*.iso > lmdesktopplus-mint.iso.sha256
+          cat lmdesktopplus-mint.iso.sha256
+
+      - name: Upload ISO
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mint-iso-${{ github.sha }}
+          path: |
+            dist/lmdesktopplus-mint-*.iso
+            dist/lmdesktopplus-mint.iso.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  freebsd-image:
+    name: freebsd install image (gated)
+    needs: test
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.build_images)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Assembly gate (--check on the Linux host)
+        run: ./packaging/freebsd/image/build-image.sh --check
+
+      - name: Build image in a FreeBSD VM
+        uses: vmactions/freebsd-vm@v1
+        with:
+          usesh: true
+          release: "14.2"
+          prepare: |
+            pkg install -y poudriere python3
+          run: |
+            set -e
+            ./packaging/freebsd/poudriere/build-repo.sh
+            ./packaging/freebsd/image/build-image.sh --build
+            cd dist && sha256 -r lmdesktopplus-freebsd-*.img > lmdesktopplus-freebsd.img.sha256 || \
+              sha256sum lmdesktopplus-freebsd-*.img > lmdesktopplus-freebsd.img.sha256
+
+      - name: Upload image
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: freebsd-image-${{ github.sha }}
+          path: |
+            dist/lmdesktopplus-freebsd-*.img
+            dist/lmdesktopplus-freebsd.img.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Tag release: publish the small artifacts (.deb / metapackage / FreeBSD pkg)
+  # and the image checksums. Large images are hosted externally (see
+  # docs/release.md); the release body links them by checksum.
+  # ---------------------------------------------------------------------------
+  release:
+    name: release (tag)
+    needs: [test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends dpkg-dev xz-utils
+
+      - name: Build small artifacts (deb + metapackage + FreeBSD pkg)
+        run: |
+          set -euo pipefail
+          ./packaging/build-deb.sh
+          ./packaging/build-deb-metapackage.sh
+          ./packaging/build-freebsd-ui.sh
+          (cd dist && sha256sum lmdesktopplus*_all.deb lmdesktopplus-*-freebsd.txz > SHA256SUMS)
+          cat dist/SHA256SUMS
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            dist/lmdesktopplus_*_all.deb
+            dist/lmdesktopplus-desktop_*_all.deb
+            dist/lmdesktopplus-*-freebsd.txz
+            dist/SHA256SUMS

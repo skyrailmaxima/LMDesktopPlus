@@ -14,6 +14,9 @@ step "common helpers"
 step "frontend assets"
 ./tests/frontend-assets.sh
 
+step "ci workflow lint"
+./tests/ci-workflow.sh
+
 step "stow mode"
 ./tests/stow-mode.sh
 
