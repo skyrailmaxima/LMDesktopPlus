@@ -31,6 +31,7 @@ const app = {
   locked: true,
   scene: initialScene(),
   settingsTab: "appearance",
+  editingLayout: null,
   state: null,
   assets: new AssetMap(),
   store: new LiveStore({debug: DEV_MODE}),
@@ -242,7 +243,8 @@ async function poll() {
     const active = document.activeElement;
     const editing = active && ["INPUT","SELECT","TEXTAREA"].includes(active.tagName);
     const transientOpen = Boolean(document.querySelector(".dv-dialog-backdrop.is-open, .dv-dropdown.is-open, .dv-menu[data-dv-live]"));
-    if (!app.locked && !editing && !transientOpen) renderScene(false, changedPaths);
+    const layoutEditing = app.editingLayout === app.scene;
+    if (!app.locked && !editing && !transientOpen && !layoutEditing) renderScene(false, changedPaths);
   } catch (error) {
     toast("Backend unavailable", error.message, true);
   } finally {
@@ -419,6 +421,45 @@ function syncGreetingRotation() {
     const el = $(".scene-heading .dv-disp");
     if (el) el.textContent = resolveGreeting();
   }, secs * 1000);
+}
+
+// --- Tile layout customization (customization.layouts.<scene>) --------------
+// The tile framework (tiles.js) renders scenes; these helpers read/persist the
+// per-scene layout and drive button-based reorder/hide/view-switch + an
+// "Edit layout" mode that pauses diff re-renders (see the poll() guard).
+function sceneLayout(sceneId) {
+  const layouts = customization().layouts || {};
+  return layouts[sceneId] && typeof layouts[sceneId] === "object" ? layouts[sceneId] : {};
+}
+
+function isEditingLayout(sceneId) { return app.editingLayout === sceneId; }
+
+function toggleLayoutEdit(sceneId) {
+  app.editingLayout = isEditingLayout(sceneId) ? null : sceneId;
+  renderScene(true);
+}
+
+async function saveLayout(sceneId, layout) {
+  return savePatch({ customization: { layouts: { [sceneId]: layout } } }, `layout.${sceneId}`);
+}
+
+function moveTile(sceneId, tileId, direction) {
+  const order = window.LMDPTiles.computeReorder(
+    window.LMDPTiles.currentOrder(sceneId, sceneLayout(sceneId)), tileId, direction
+  );
+  return saveLayout(sceneId, { ...sceneLayout(sceneId), order });
+}
+
+function toggleTileHidden(sceneId, tileId) {
+  const layout = sceneLayout(sceneId);
+  const hidden = window.LMDPTiles.toggleInList(layout.hidden, tileId);
+  return saveLayout(sceneId, { ...layout, hidden });
+}
+
+function setTileView(sceneId, tileId, viewId) {
+  const layout = sceneLayout(sceneId);
+  const views = { ...(layout.views || {}), [tileId]: viewId };
+  return saveLayout(sceneId, { ...layout, views });
 }
 
 function corners() {
@@ -1838,6 +1879,10 @@ const SCENE_BINDINGS = [
   { sel: "[data-greeting-messages]", type: "change", run: (el) => saveGreetingMessages(el.value) },
   { sel: "[data-greeting-mode]", run: (el) => saveGreetingMode(el.dataset.greetingMode) },
   { sel: "[data-text-key]", type: "change", run: (el) => saveTextOverride(el.dataset.textKey, el.value) },
+  { sel: "[data-layout-edit]", run: (el) => toggleLayoutEdit(el.dataset.layoutEdit) },
+  { sel: "[data-tile-view]", run: (el) => { const [tile, view] = el.dataset.tileView.split(":"); setTileView(app.scene, tile, view); } },
+  { sel: "[data-tile-move]", run: (el) => { const [tile, dir] = el.dataset.tileMove.split(":"); moveTile(app.scene, tile, dir); } },
+  { sel: "[data-tile-hide]", run: (el) => toggleTileHidden(app.scene, el.dataset.tileHide) },
   { sel: "[data-audio-volume]", type: "input", run: (el) => queueAudioVolume(el.value) },
   { sel: "[data-audio-mute]", run: () => toggleAudioMute() },
   { sel: "[data-display-brightness]", type: "input", run: (el) => queueDisplayBrightness(el.value) },

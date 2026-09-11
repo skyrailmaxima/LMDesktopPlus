@@ -213,3 +213,13 @@ select.dv-input { appearance: auto; }
   .network-row { grid-template-columns: 1fr auto; }
   .network-row .signal { grid-column: 1 / -1; width: 100%; }
 }
+
+/* Tile framework (tiles.js): per-tile view switch + edit-mode controls. */
+.tile-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.tile-head h2 { margin: 0; }
+.tile-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tile-viewswitch { display: inline-flex; }
+.tile-viewswitch .dv-seg__opt { padding: 3px 9px; font-size: 11px; }
+.tile-edit { display: inline-flex; gap: 4px; }
+.tile-edit .dv-btn { padding: 2px 8px; font-size: 12px; line-height: 1.4; }
+.tile.tile--hidden { opacity: .45; outline: 1px dashed color-mix(in srgb, var(--dv-accent) 55%, transparent); }
