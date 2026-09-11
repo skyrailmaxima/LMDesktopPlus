@@ -121,4 +121,21 @@ function registerSample(T) {
   console.log("ok  renderTiles markup + edit-mode controls");
 }
 
+// Case 8: per-tile span emits a grid-column style; the same id can live on two
+// scenes without collision.
+{
+  const T = loadTiles();
+  T.reset();
+  const v = { id: "only", label: "Only", render: () => "x" };
+  T.register({ id: "cpu", scene: "desktop", title: "CPU", span: 1, views: [v] });
+  T.register({ id: "wide", scene: "desktop", title: "Wide", span: 4, views: [v] });
+  T.register({ id: "cpu", scene: "monitor", title: "CPU", span: 3, views: [v] });
+  sameList(T.tilesForScene("desktop").map((t) => t.id), ["cpu", "wide"], "desktop keeps its own cpu tile");
+  sameList(T.tilesForScene("monitor").map((t) => t.id), ["cpu"], "monitor has an independent cpu tile");
+  const html = T.renderTiles("desktop", null, {});
+  assert.ok(html.includes("grid-column:span 4"), "span>1 emits grid-column style");
+  assert.ok(!/data-tile-id="cpu"[^>]*grid-column/.test(html), "span 1 tile has no grid-column style");
+  console.log("ok  per-tile span + per-scene id independence");
+}
+
 console.log("tiles tests OK");

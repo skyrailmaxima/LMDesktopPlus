@@ -198,12 +198,14 @@ select.dv-input { appearance: auto; }
   .workspace-chip .jp { display: none; }
   .workspace-chip { padding: 3px 6px; }
   .grid.three, .grid.four { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .grid.six { grid-template-columns: repeat(3,minmax(0,1fr)); }
 }
 @media (max-width: 760px) {
   .scene { padding: 18px 14px 92px; }
   .topbar.dv-bar { padding: 0 6px; }
   .status-strip span:nth-child(-n+3) { display: none; }
-  .grid.two, .grid.three, .grid.four { grid-template-columns: 1fr; }
+  .grid.two, .grid.three, .grid.four, .grid.six { grid-template-columns: 1fr; }
+  .tile[style] { grid-column: auto !important; }
   .settings-layout { grid-template-columns: 1fr; }
   .settings-nav { display: flex; overflow-x: auto; position: static; }
   .settings-tab { width: auto; white-space: nowrap; }
@@ -223,3 +225,14 @@ select.dv-input { appearance: auto; }
 .tile-edit { display: inline-flex; gap: 4px; }
 .tile-edit .dv-btn { padding: 2px 8px; font-size: 12px; line-height: 1.4; }
 .tile.tile--hidden { opacity: .45; outline: 1px dashed color-mix(in srgb, var(--dv-accent) 55%, transparent); }
+.tile-caption { font-size: 12px; letter-spacing: .06em; margin-bottom: 8px; }
+.tile-spark { margin-top: 8px; }
+.tile-spark .chart { height: 60px; }
+
+/* Six-column grid used by the Monitor tile layout (tiles span 2/3/6). */
+.grid.six { grid-template-columns: repeat(6, minmax(0,1fr)); }
+
+/* Semicircle gauge (desktop KPI gauge view). */
+.gauge { display: block; width: 100%; max-width: 190px; height: auto; margin: 2px auto 6px; }
+.gauge-track { stroke: color-mix(in srgb, var(--dv-accent) 22%, transparent); stroke-width: 9; }
+.gauge-value { stroke: var(--dv-accent); stroke-width: 9; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--dv-accent) 45%, transparent)); }
