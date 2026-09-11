@@ -13,16 +13,19 @@
 (function (global) {
   "use strict";
 
-  const registry = new Map(); // tileId -> definition
-  const sceneOrder = [];      // registration order (stable fallback ordering)
+  // Registration-ordered list of tile definitions. Tile ids are unique per
+  // scene (not globally), so the same id — e.g. "cpu" — can appear on both the
+  // Desktop and Monitor scenes without collision.
+  const defs = [];
 
   /**
    * Register a tile.
    * def = {
-   *   id: string (slug),
+   *   id: string (slug, unique within its scene),
    *   scene: string,
    *   title: string,
    *   accent?: boolean,
+   *   span?: number (grid columns to span; default 1),
    *   default?: viewId,
    *   views: [{ id: slug, label: string, render: (ctx) => htmlString }]
    * }
@@ -31,18 +34,18 @@
     if (!def || !def.id || !def.scene || !Array.isArray(def.views) || !def.views.length) {
       throw new Error("LMDPTiles.register requires {id, scene, views:[...]}");
     }
-    if (!registry.has(def.id)) sceneOrder.push(def.id);
-    registry.set(def.id, def);
+    const at = defs.findIndex((d) => d.scene === def.scene && d.id === def.id);
+    if (at >= 0) defs[at] = def;
+    else defs.push(def);
     return def;
   }
 
   function reset() {
-    registry.clear();
-    sceneOrder.length = 0;
+    defs.length = 0;
   }
 
   function tilesForScene(scene) {
-    return sceneOrder.map((id) => registry.get(id)).filter((t) => t && t.scene === scene);
+    return defs.filter((d) => d.scene === scene);
   }
 
   function viewIds(tile) {
@@ -126,8 +129,9 @@
     const controls = (viewSwitch || editControls) ? `<div class="tile-controls">${viewSwitch}${editControls}</div>` : "";
     const accent = tile.accent ? "dv-card--mag" : "";
     const hiddenClass = hidden ? "tile--hidden" : "";
+    const span = Number(tile.span) > 1 ? ` style="grid-column:span ${Math.floor(tile.span)}"` : "";
     const body = view.render(ctx);
-    return `<section class="panel card dv-panel dv-card tile ${accent} ${hiddenClass}" data-tile-id="${esc(tile.id)}">`
+    return `<section class="panel card dv-panel dv-card tile ${accent} ${hiddenClass}" data-tile-id="${esc(tile.id)}"${span}>`
       + corners()
       + `<div class="tile-head"><h2 class="dv-card__title">${esc(tile.title)}</h2>${controls}</div>`
       + `<div class="tile-body">${body}</div>`
@@ -164,6 +168,5 @@
     renderTiles,
     renderTile,
     editButton,
-    registry,
   };
 })(typeof window !== "undefined" ? window : globalThis);
