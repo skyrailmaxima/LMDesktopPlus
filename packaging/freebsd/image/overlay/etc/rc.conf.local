@@ -1,0 +1,5 @@
+# LMDesktopPlus FreeBSD spin defaults. Sourced after /etc/rc.conf, so this is
+# additive and does not clobber the base image's generated rc.conf.
+dbus_enable="YES"
+# The vapor//matrix session (ttyv0 autologin -> startx -> control center) is
+# wired once on first boot by /usr/local/etc/rc.d/lmdp_autologin.

@@ -1,0 +1,7 @@
+# LMDesktopPlus FreeBSD spin branding marker (informational; does not override
+# /etc/os-release or FreeBSD version files, so base update tooling keeps
+# working). Custom name asserts no third-party trademarks.
+SPIN_NAME="LMDesktopPlus Spin (FreeBSD)"
+SPIN_FLAVOR="vapor//matrix"
+SPIN_BASE="FreeBSD + Xorg + GTK/WebKit control center"
+SPIN_URL="https://github.com/skyrailmaxima/LMDesktopPlus"

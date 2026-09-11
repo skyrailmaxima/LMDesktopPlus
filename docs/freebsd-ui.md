@@ -71,6 +71,23 @@ generated metaport driven by [`packaging/software-manifest.json`](software-manif
 `pkg-origins.json` maps each manifest FreeBSD package to its ports origin;
 Linux-only peers (NetworkManager, bubblewrap, BlueZ, Mint Update) are omitted.
 
+## Full install image (Phase 6)
+
+A bootable FreeBSD image that comes up into the control center is scripted under
+[`packaging/freebsd/image/`](../packaging/freebsd/image/README.md) via
+`poudriere image` (preinstalls `lmdesktopplus-desktop` + the Xorg/GTK/WebKit
+stack from the local repo, autostarts the UI on ttyv0, applies the vapor//matrix
+look + trademark-safe branding):
+
+```bash
+# Any host: assemble + validate the image overlay/package list.
+./packaging/freebsd/image/build-image.sh --check
+# FreeBSD host: build the local repo, then the image.
+sudo ./packaging/freebsd/poudriere/build-repo.sh
+sudo ./packaging/freebsd/image/build-image.sh --build
+# -> dist/lmdesktopplus-freebsd-<ver>.img
+```
+
 ## Out of scope (Linux rice)
 
 - `./install.sh` Mint Cinnamon/Hyprland theming
