@@ -45,6 +45,9 @@ else
   printf 'note: Xvfb/xdotool/GTK+WebKit not all present; skipping UI screenshot smoke\n' >&2
 fi
 
+step "software manifest"
+python3 packaging/manifest.py check
+
 step "installer dry-run (cinnamon-only)"
 ./install.sh --dry-run --cinnamon-only >/tmp/lmdesktopplus-dry-run.log 2>&1
 

@@ -3,6 +3,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$ROOT/pyproject.toml" | head -n1)"
 [[ -n "$VERSION" ]] || { echo "Unable to read project version" >&2; exit 1; }
+# Dependency sets come from the canonical software manifest (single source of
+# truth shared with the desktop metapackage + FreeBSD metaport).
+MANIFEST="$ROOT/packaging/manifest.py"
+DEPENDS="$(python3 "$MANIFEST" deb-field Depends)"
+RECOMMENDS="$(python3 "$MANIFEST" deb-field Recommends)"
+SUGGESTS="$(python3 "$MANIFEST" deb-field Suggests)"
 ARCH="all"
 PKG="lmdesktopplus"
 BUILD="$ROOT/build/deb/${PKG}_${VERSION}_${ARCH}"
@@ -64,9 +70,9 @@ Section: utils
 Priority: optional
 Architecture: $ARCH
 Maintainer: LMDesktopPlus contributors
-Depends: python3 (>= 3.10), python3-gi, gir1.2-gtk-3.0, gir1.2-webkit2-4.1 | gir1.2-webkit2-4.0, network-manager
-Recommends: kitty, rofi, tmux, btop, playerctl, bubblewrap
-Suggests: hyprland, waybar, bluez, starship, policykit-1, grim, slurp, wl-clipboard, xclip, libnotify-bin, mintupdate, cups-client, system-config-printer, swayidle, mpvpaper
+Depends: $DEPENDS
+Recommends: $RECOMMENDS
+Suggests: $SUGGESTS
 Description: Digitalvapor machine UI for Linux Mint
  A local vapor//matrix control center for real system metrics, application launchers,
  persistent appearance settings, NetworkManager, media controls, scoped agent
