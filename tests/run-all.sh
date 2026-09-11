@@ -103,6 +103,9 @@ if grep -Eq 'network-manager|bubblewrap|mintupdate' "$META_MK"; then
 fi
 sh -n ./packaging/freebsd/poudriere/build-repo.sh
 
+step "Mint respin ISO (staging assembly gate)"
+./tests/iso-mint.sh
+
 step "FreeBSD UI package stage"
 ./packaging/build-freebsd-ui.sh >/tmp/lmdesktopplus-freebsd-path.txt
 FREEBSD_PATH="$(cat /tmp/lmdesktopplus-freebsd-path.txt)"
