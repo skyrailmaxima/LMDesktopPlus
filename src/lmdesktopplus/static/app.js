@@ -372,6 +372,9 @@ const DEFAULT_TITLES = {
   settings: "SYSTEM SETTINGS", kit: "DIGITALVAPOR KIT",
 };
 
+// Mirrors config.GREETING_MODES; keep in sync with the backend validator.
+const GREETING_MODES = ["static", "sequential", "random", "time"];
+
 function customization() { return app.state?.settings?.customization || {}; }
 function defaultTitleFor(id) { return DEFAULT_TITLES[id] || ""; }
 

@@ -45,6 +45,9 @@ grep -q 'const SETTINGS_TABS' "$STATIC/app.js"
 grep -q 'const SCENE_BINDINGS' "$STATIC/app.js"
 grep -q 'function renderPersonalizeSettings' "$STATIC/app.js"
 grep -q 'function resolveGreeting' "$STATIC/app.js"
+# GREETING_MODES must be defined in the frontend (used by renderPersonalizeSettings);
+# it previously lived only in config.py, which threw a ReferenceError on the tab.
+grep -q 'const GREETING_MODES' "$STATIC/app.js"
 grep -q 'data-greeting-messages' "$STATIC/app.js"
 grep -q 'data-greeting-mode' "$STATIC/app.js"
 grep -q 'data-text-key' "$STATIC/app.js"

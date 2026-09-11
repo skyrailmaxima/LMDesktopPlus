@@ -104,4 +104,45 @@ function makeResolver({ greeting, greetingIndex = 0, random = 0, hour = 12 }) {
   console.log("ok  time mode -> hour buckets");
 }
 
+// Case 6: renderPersonalizeSettings executes end-to-end. This guards against
+// ReferenceErrors from constants that live only in config.py (e.g. the
+// GREETING_MODES regression, which silently blanked the Personalize tab). We
+// pull the REAL GREETING_MODES declaration out of app.js so an absent/renamed
+// constant makes this test throw, and stub only generic utilities.
+{
+  const modesMatch = source.match(/const GREETING_MODES\s*=\s*\[[^\]]*\];/);
+  assert.ok(modesMatch, "GREETING_MODES must be declared in app.js");
+  const renderSrc = extractFunction("renderPersonalizeSettings");
+
+  const sandbox = {
+    // Real constant under test, injected verbatim from app.js below.
+    customization: () => ({
+      greeting: { messages: ["ALPHA", "BETA"], mode: "sequential", rotate_seconds: 30 },
+      text: { "monitor.subtitle": "CUSTOM SUB" },
+    }),
+    DEFAULT_TITLES: { desktop: "VAPOR//MATRIX", monitor: "SYSTEM MONITOR" },
+    defaultTitleFor: (id) => ({ desktop: "VAPOR//MATRIX", monitor: "SYSTEM MONITOR" }[id] || ""),
+    control: (label, note, widget) => `<row>${label}:${note}:${widget}</row>`,
+    esc: (s) => String(s),
+    clamp: (n, lo, hi) => Math.max(lo, Math.min(hi, n)),
+    Object,
+    Array,
+    Number,
+    console,
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(
+    `${modesMatch[0]}\n${renderSrc}\nglobalThis.__render = renderPersonalizeSettings;`,
+    sandbox,
+    { filename: "app.js#renderPersonalizeSettings" }
+  );
+  const html = sandbox.__render();
+  assert.ok(/data-greeting-messages/.test(html), "renders the greeting textarea");
+  assert.ok(/ALPHA\nBETA/.test(html), "greeting textarea seeded with saved messages");
+  assert.ok(/active[^>]*data-greeting-mode="sequential"/.test(html), "active mode reflects saved mode");
+  assert.ok(/data-text-key="monitor.subtitle"/.test(html), "renders per-scene subtitle input");
+  assert.ok(/CUSTOM SUB/.test(html), "subtitle input seeded with saved override");
+  console.log("ok  renderPersonalizeSettings executes (GREETING_MODES defined)");
+}
+
 console.log("greeting tests OK");
