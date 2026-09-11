@@ -32,11 +32,13 @@ if command -v node >/dev/null 2>&1; then
   node --check src/lmdesktopplus/static/digitalvapor.js
   node --check src/lmdesktopplus/static/bindings.js
   node --check src/lmdesktopplus/static/store.js
+  node --check src/lmdesktopplus/static/tiles.js
   node --check src/lmdesktopplus/static/app.js
 
   step "node behaviour tests"
   node tests/js/reduced-motion.test.js
   node tests/js/greeting.test.js
+  node tests/js/tiles.test.js
 else
   printf 'note: node not found; skipping JS syntax checks\n' >&2
 fi
@@ -73,6 +75,7 @@ grep -q 'digitalvapor.css' "$DEB_CONTENTS"
 grep -q 'digitalvapor.js' "$DEB_CONTENTS"
 grep -q 'bindings.js' "$DEB_CONTENTS"
 grep -q 'store.js' "$DEB_CONTENTS"
+grep -q 'tiles.js' "$DEB_CONTENTS"
 grep -q 'usr/lib/lmdesktopplus/assets/wallpapers/vapor-matrix.svg' "$DEB_CONTENTS"
 grep -q 'usr/lib/lmdesktopplus/assets/wallpapers/vapor-matrix.png' "$DEB_CONTENTS"
 grep -q 'usr/share/lmdesktopplus/autostart/lmdesktopplus.desktop' "$DEB_CONTENTS"

@@ -31,6 +31,7 @@ const app = {
   locked: true,
   scene: initialScene(),
   settingsTab: "appearance",
+  editingLayout: null,
   state: null,
   assets: new AssetMap(),
   store: new LiveStore({debug: DEV_MODE}),
@@ -242,7 +243,8 @@ async function poll() {
     const active = document.activeElement;
     const editing = active && ["INPUT","SELECT","TEXTAREA"].includes(active.tagName);
     const transientOpen = Boolean(document.querySelector(".dv-dialog-backdrop.is-open, .dv-dropdown.is-open, .dv-menu[data-dv-live]"));
-    if (!app.locked && !editing && !transientOpen) renderScene(false, changedPaths);
+    const layoutEditing = app.editingLayout === app.scene;
+    if (!app.locked && !editing && !transientOpen && !layoutEditing) renderScene(false, changedPaths);
   } catch (error) {
     toast("Backend unavailable", error.message, true);
   } finally {
@@ -370,6 +372,9 @@ const DEFAULT_TITLES = {
   settings: "SYSTEM SETTINGS", kit: "DIGITALVAPOR KIT",
 };
 
+// Mirrors config.GREETING_MODES; keep in sync with the backend validator.
+const GREETING_MODES = ["static", "sequential", "random", "time"];
+
 function customization() { return app.state?.settings?.customization || {}; }
 function defaultTitleFor(id) { return DEFAULT_TITLES[id] || ""; }
 
@@ -421,6 +426,45 @@ function syncGreetingRotation() {
   }, secs * 1000);
 }
 
+// --- Tile layout customization (customization.layouts.<scene>) --------------
+// The tile framework (tiles.js) renders scenes; these helpers read/persist the
+// per-scene layout and drive button-based reorder/hide/view-switch + an
+// "Edit layout" mode that pauses diff re-renders (see the poll() guard).
+function sceneLayout(sceneId) {
+  const layouts = customization().layouts || {};
+  return layouts[sceneId] && typeof layouts[sceneId] === "object" ? layouts[sceneId] : {};
+}
+
+function isEditingLayout(sceneId) { return app.editingLayout === sceneId; }
+
+function toggleLayoutEdit(sceneId) {
+  app.editingLayout = isEditingLayout(sceneId) ? null : sceneId;
+  renderScene(true);
+}
+
+async function saveLayout(sceneId, layout) {
+  return savePatch({ customization: { layouts: { [sceneId]: layout } } }, `layout.${sceneId}`);
+}
+
+function moveTile(sceneId, tileId, direction) {
+  const order = window.LMDPTiles.computeReorder(
+    window.LMDPTiles.currentOrder(sceneId, sceneLayout(sceneId)), tileId, direction
+  );
+  return saveLayout(sceneId, { ...sceneLayout(sceneId), order });
+}
+
+function toggleTileHidden(sceneId, tileId) {
+  const layout = sceneLayout(sceneId);
+  const hidden = window.LMDPTiles.toggleInList(layout.hidden, tileId);
+  return saveLayout(sceneId, { ...layout, hidden });
+}
+
+function setTileView(sceneId, tileId, viewId) {
+  const layout = sceneLayout(sceneId);
+  const views = { ...(layout.views || {}), [tileId]: viewId };
+  return saveLayout(sceneId, { ...layout, views });
+}
+
 function corners() {
   return '<i class="dv-corner tl"></i><i class="dv-corner tr"></i><i class="dv-corner bl"></i><i class="dv-corner br"></i>';
 }
@@ -453,20 +497,29 @@ function renderScene(force=false, changedPaths=[]) {
   app.renderer.mount(app.scene, (renderers[app.scene] || renderDesktop)());
 }
 
+// Desktop KPI tile bodies. Each view keeps the same data-live spans so
+// patchDesktopBindings() updates the number in every view; sparkline/gauge add
+// a chart/arc that patchDesktopBindings also refreshes (patch-everything, the
+// helpers skip markers absent from the active view).
+function kpiBody(binding, valueHtml, detailBinding, detailHtml, widthBinding, widthPct) {
+  const bar = widthBinding ? `<div class="progress dv-progress"><span class="dv-progress__bar" data-live="${widthBinding}" style="width:${clamp(widthPct,0,100)}%"></span></div>` : "";
+  return `<div class="kpi"><span data-live="${binding}">${valueHtml}</span><small data-live="${detailBinding}">${detailHtml}</small></div>${bar}`;
+}
+
 function renderDesktop() {
   const s = app.state, m = s.metrics, id = s.identity;
-  const agents = s.agents.map(agentCard).join("");
   const media = s.media || {};
   const gpu = m.gpu?.percent == null ? "n/a" : `${Math.round(m.gpu.percent)}%`;
-  return heading("機械界面", resolveGreeting(), sceneText("desktop", "subtitle", `${id.user}@${id.hostname} · ${id.os}`)) + `
-    <div class="grid four">
-      ${panel("CPU", `<div class="kpi"><span data-live="desktop.cpu.percent">${Math.round(m.cpu.percent)}</span><small data-live="desktop.cpu.detail">% · ${m.cpu.count} threads</small></div><div class="progress dv-progress"><span class="dv-progress__bar" data-live="desktop.cpu.width" style="width:${clamp(m.cpu.percent,0,100)}%"></span></div>`)}
-      ${panel("MEMORY", `<div class="kpi"><span data-live="desktop.memory.percent">${Math.round(m.memory.percent)}</span><small data-live="desktop.memory.detail">% · ${humanBytes(m.memory.used)}</small></div><div class="progress dv-progress"><span class="dv-progress__bar" data-live="desktop.memory.width" style="width:${clamp(m.memory.percent,0,100)}%"></span></div>`)}
-      ${panel("GPU", `<div class="kpi"><span data-live="desktop.gpu.percent">${gpu}</span><small data-live="desktop.gpu.name">${esc(m.gpu?.name || "unavailable")}</small></div><div class="progress dv-progress"><span class="dv-progress__bar" data-live="desktop.gpu.width" style="width:${clamp(m.gpu?.percent || 0,0,100)}%"></span></div>`)}
-      ${panel("UPTIME", `<div class="kpi"><span data-live="desktop.uptime">${humanDuration(m.uptime_seconds)}</span><small data-live="desktop.load">load ${m.load_average.map(x=>Number(x).toFixed(2)).join(" · ")}</small></div>`)}
-    </div>
-    <div class="grid two" style="margin-top:16px">
-      ${panel("QUICK LAUNCH", `<div class="button-row">
+  const ctx = { s, m, id, media, gpu };
+  const editing = isEditingLayout("desktop");
+  const actions = window.LMDPTiles.editButton("desktop", editing);
+  return heading("機械界面", resolveGreeting(), sceneText("desktop", "subtitle", `${id.user}@${id.hostname} · ${id.os}`), actions)
+    + window.LMDPTiles.renderTiles("desktop", ctx, { layout: sceneLayout("desktop"), editing, gridClass: "grid four tile-grid--desktop" });
+}
+
+function quickLaunchBody(ctx) {
+  const s = ctx.s;
+  return `<div class="button-row">
         <button class="btn primary dv-btn dv-btn--primary" data-launch="terminal">OPEN KITTY</button>
         <button class="btn dv-btn dv-btn--outline" data-launch="tmux">TMUX DEV</button>
         <button class="btn dv-btn dv-btn--outline" data-launch="editor">EDITOR</button>
@@ -475,11 +528,13 @@ function renderDesktop() {
         <button class="btn dv-btn dv-btn--outline" data-launch="monitor">BTOP</button>
         <button class="btn dv-btn dv-btn--outline" data-capture="full">SCREENSHOT</button>
         <button class="btn dv-btn dv-btn--outline" data-capture="region">REGION</button>
-      </div><div style="margin-top:14px">${sessionHandoffControl()}</div><div class="terminal" style="margin-top:14px;min-height:160px"><span class="green">root@vaporframe</span> <span class="muted">~</span>\n<span class="mint">❯</span> <span class="cmd">agent ls --scope</span>\n${s.agents.map(a=>`<span class="out">${esc(a.name.padEnd(8))} → ${esc(a.home)}  ${a.available?"ready":"missing"}</span>`).join("\n")}\n<span class="mint">❯</span> <span class="cursor"></span></div>`, "accent")}
-      ${panel("NOW PLAYING", `<div class="card-title"><div><div class="kpi" data-live="desktop.media.title" style="font-size:24px">${esc(media.title || "No active player")}</div><div class="muted" data-live="desktop.media.artist">${esc(media.artist || "playerctl")}${media.album ? ` · ${esc(media.album)}` : ""}</div></div><span class="badge dv-tag ${media.status==="Playing"?"ok dv-tag--mint":"off dv-tag--off"}" data-live="desktop.media.status">${esc(media.status || "Stopped")}</span></div><div class="button-row"><button class="btn dv-btn dv-btn--outline" data-media="previous">◀</button><button class="btn primary dv-btn dv-btn--primary" data-media="play-pause">▶ / Ⅱ</button><button class="btn dv-btn dv-btn--outline" data-media="next">▶</button></div>
-      <div style="margin-top:18px">${liveStatRow("desktop.network.down","Network down",humanBytes(m.network.down_bps,true))}${liveStatRow("desktop.network.up","Network up",humanBytes(m.network.up_bps,true))}${liveStatRow("desktop.disk","Disk",`${Math.round(m.disk.percent)}% · ${humanBytes(m.disk.free)} free`)}</div>`)}
-    </div>
-    <div class="grid three" style="margin-top:16px">${agents}</div>`;
+      </div><div style="margin-top:14px">${sessionHandoffControl()}</div><div class="terminal" style="margin-top:14px;min-height:160px"><span class="green">root@vaporframe</span> <span class="muted">~</span>\n<span class="mint">❯</span> <span class="cmd">agent ls --scope</span>\n${s.agents.map(a=>`<span class="out">${esc(a.name.padEnd(8))} → ${esc(a.home)}  ${a.available?"ready":"missing"}</span>`).join("\n")}\n<span class="mint">❯</span> <span class="cursor"></span></div>`;
+}
+
+function nowPlayingBody(ctx) {
+  const m = ctx.m, media = ctx.media;
+  return `<div class="card-title"><div><div class="kpi" data-live="desktop.media.title" style="font-size:24px">${esc(media.title || "No active player")}</div><div class="muted" data-live="desktop.media.artist">${esc(media.artist || "playerctl")}${media.album ? ` · ${esc(media.album)}` : ""}</div></div><span class="badge dv-tag ${media.status==="Playing"?"ok dv-tag--mint":"off dv-tag--off"}" data-live="desktop.media.status">${esc(media.status || "Stopped")}</span></div><div class="button-row"><button class="btn dv-btn dv-btn--outline" data-media="previous">◀</button><button class="btn primary dv-btn dv-btn--primary" data-media="play-pause">▶ / Ⅱ</button><button class="btn dv-btn dv-btn--outline" data-media="next">▶</button></div>
+      <div style="margin-top:18px">${liveStatRow("desktop.network.down","Network down",humanBytes(m.network.down_bps,true))}${liveStatRow("desktop.network.up","Network up",humanBytes(m.network.up_bps,true))}${liveStatRow("desktop.disk","Disk",`${Math.round(m.disk.percent)}% · ${humanBytes(m.disk.free)} free`)}</div>`;
 }
 
 function statRow(label, value) { return `<div class="stat-row"><span class="label">${esc(label)}</span><span class="value">${esc(value)}</span></div>`; }
@@ -553,25 +608,35 @@ function chartSvg(values, maxValue=100, binding="") {
   return `<svg class="chart"${marker} viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><g class="chart-grid"><line x1="0" y1="27" x2="560" y2="27"/><line x1="0" y1="55" x2="560" y2="55"/><line x1="0" y1="82" x2="560" y2="82"/></g><polygon class="chart-area" points="${area}"/><polyline class="chart-line" points="${points}"/></svg>`;
 }
 
+// Semicircle gauge used by desktop KPI tiles (gauge view). The arc path is a
+// half circle of radius GAUGE_R; the value arc encodes percent via
+// stroke-dasharray (arc length = π·r). patchGauge() updates it live.
+const GAUGE_R = 52;
+const GAUGE_C = Math.PI * GAUGE_R;
+function gaugeSvg(percent, binding="") {
+  const dash = `${(clamp(percent, 0, 100) / 100 * GAUGE_C).toFixed(1)} ${GAUGE_C.toFixed(1)}`;
+  const marker = binding ? ` data-live-gauge="${binding}"` : "";
+  const d = `M8 62 A ${GAUGE_R} ${GAUGE_R} 0 0 1 112 62`;
+  return `<svg class="gauge"${marker} viewBox="0 0 120 70" preserveAspectRatio="xMidYMid meet"><path class="gauge-track" d="${d}" fill="none"/><path class="gauge-value" d="${d}" fill="none" stroke-linecap="round" stroke-dasharray="${dash}"/></svg>`;
+}
+function patchGauge(binding, percent) {
+  const arc = $(`[data-live-gauge="${binding}"] .gauge-value`, $("#scene"));
+  if (!arc) return;
+  arc.setAttribute("stroke-dasharray", `${(clamp(percent, 0, 100) / 100 * GAUGE_C).toFixed(1)} ${GAUGE_C.toFixed(1)}`);
+}
+
+function monitorCoreBars(m) {
+  return (m.cpu.cores || []).map(v=>`<div class="core-bar" title="${Math.round(v)}%" style="height:${Math.max(3,clamp(v,0,100))}%"></div>`).join("");
+}
+
 function renderMonitor() {
-  const m=app.state.metrics;
-  const temp = m.temperatures?.[0];
+  const m = app.state.metrics;
   const maxNet = Math.max(1024*1024, ...app.history.down, ...app.history.up);
-  const cores = (m.cpu.cores || []).map(v=>`<div class="core-bar" title="${Math.round(v)}%" style="height:${Math.max(3,clamp(v,0,100))}%"></div>`).join("");
-  return sceneHeading("monitor", "監視系", "SYSTEM MONITOR", "Live values are sampled from /proc, sysfs, and vendor tools when available.", `<button class="btn dv-btn dv-btn--outline" data-launch="monitor">OPEN BTOP</button>`) + `
-    <div class="grid two">
-      ${panel(`<span data-live="monitor.cpu.title">CPU · ${Math.round(m.cpu.percent)}%</span>`, `${chartSvg(app.history.cpu,100,"cpu")}<div class="core-grid" data-live-cores>${cores}</div>`, "accent")}
-      ${panel(`<span data-live="monitor.memory.title">MEMORY · ${Math.round(m.memory.percent)}%</span>`, `${chartSvg(app.history.ram,100,"ram")}${liveStatRow("monitor.memory.used","Used",humanBytes(m.memory.used))}${liveStatRow("monitor.memory.available","Available",humanBytes(m.memory.available))}`)}
-      ${panel(`<span data-live="monitor.gpu.title">GPU · ${m.gpu.percent == null ? "n/a" : Math.round(m.gpu.percent)+"%"}</span>`, `${chartSvg(app.history.gpu,100,"gpu")}${liveStatRow("monitor.gpu.name","Device",m.gpu.name || "unavailable")}${liveStatRow("monitor.gpu.vram","VRAM",formatGpuVram(m.gpu))}${liveStatRow("monitor.gpu.temperature","Temperature",m.gpu.temperature_c != null ? `${m.gpu.temperature_c} °C` : "n/a")}`)}
-      ${panel("NETWORK", `${chartSvg(app.history.down,maxNet,"network")}${liveStatRow("monitor.network.down","Download",humanBytes(m.network.down_bps,true))}${liveStatRow("monitor.network.up","Upload",humanBytes(m.network.up_bps,true))}`)}
-    </div>
-    <div class="grid three" style="margin-top:16px">
-      ${panel("DISK", `<div class="kpi"><span data-live="monitor.disk.percent">${Math.round(m.disk.percent)}</span><small>% used</small></div><div class="progress dv-progress"><span class="dv-progress__bar" data-live="monitor.disk.width" style="width:${clamp(m.disk.percent,0,100)}%"></span></div>${liveStatRow("monitor.disk.free","Free",humanBytes(m.disk.free))}`)}
-      ${panel("THERMALS", `<div data-live-thermals>${m.temperatures?.length ? m.temperatures.slice(0,6).map(t=>statRow(t.label,`${t.celsius} °C`)).join("") : `<p class="muted">No readable thermal zones.</p>`}</div>`)}
-      ${panel("POWER", `<div data-live-power>${m.battery ? `${statRow("Battery",`${m.battery.percent}%`)}${statRow("Status",m.battery.status)}` : `<div class="kpi" style="font-size:30px">AC<small>no battery detected</small></div>`}</div>`)}
-    </div>
-    ${processMonitorPanel()}
-    ${logsMonitorPanel()}`;
+  const ctx = { m, maxNet, cores: monitorCoreBars(m) };
+  const editing = isEditingLayout("monitor");
+  const actions = `<button class="btn dv-btn dv-btn--outline" data-launch="monitor">OPEN BTOP</button>${window.LMDPTiles.editButton("monitor", editing)}`;
+  return sceneHeading("monitor", "監視系", "SYSTEM MONITOR", "Live values are sampled from /proc, sysfs, and vendor tools when available.", actions)
+    + window.LMDPTiles.renderTiles("monitor", ctx, { layout: sceneLayout("monitor"), editing, gridClass: "grid six tile-grid--monitor" });
 }
 
 function mapProcessRows(processes) {
@@ -583,25 +648,27 @@ function mapProcessRows(processes) {
   }).join("");
 }
 
+// Inner body for the Monitor "TOP PROCESSES" tile (tiles.js supplies the panel
+// wrapper + head).
 function processMonitorPanel() {
   const procs = app.state?.adapters?.processes || {};
   if (!procs.available) {
-    return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><h3>PROCESSES</h3>${emptyState("/proc unavailable.", {tone:"error"})}</div>`;
+    return emptyState("/proc unavailable.", {tone:"error"});
   }
   const rows = mapProcessRows(procs.processes);
-  return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><div class="card-title"><h3>TOP PROCESSES</h3><button class="btn dv-btn dv-btn--outline" data-process-refresh>REFRESH</button></div><p class="muted">Terminate is limited to processes owned by your UID. Confirm before SIGTERM.</p><div style="margin-top:12px">${rows || emptyState("No process samples yet.")}</div></div>`;
+  return `<div class="button-row" style="justify-content:flex-end"><button class="btn dv-btn dv-btn--outline" data-process-refresh>REFRESH</button></div><p class="muted">Terminate is limited to processes owned by your UID. Confirm before SIGTERM.</p><div style="margin-top:12px">${rows || emptyState("No process samples yet.")}</div>`;
 }
 
 /** @use: high use — purpose: Monitor user journal panel (HTML-escaped lines) */
 function logsMonitorPanel() {
   const logs = app.state?.adapters?.logs || {};
   if (!logs.available) {
-    return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><h3>USER JOURNAL</h3>${emptyState(`journalctl unavailable${logs.last_error ? ` · ${esc(logs.last_error)}` : ""}.`, {tone:"error"})}</div>`;
+    return emptyState(`journalctl unavailable${logs.last_error ? ` · ${esc(logs.last_error)}` : ""}.`, {tone:"error"});
   }
   const body = (logs.lines || [])
     .map((line) => `<div class="muted" style="font-family:var(--dv-font-mono, monospace);font-size:12px;white-space:pre-wrap;word-break:break-word">${esc(line)}</div>`)
     .join("");
-  return `<div class="panel card dv-panel dv-card" style="margin-top:16px"><div class="card-title"><h3>USER JOURNAL</h3><button class="btn dv-btn dv-btn--outline" data-logs-refresh>REFRESH</button></div><p class="muted">Last ${logs.count ?? 0} lines from <span class="cyan">journalctl --user</span> (capped, escaped).</p><div style="margin-top:12px;max-height:280px;overflow:auto">${body || emptyState("No journal lines.")}</div></div>`;
+  return `<div class="button-row" style="justify-content:flex-end"><button class="btn dv-btn dv-btn--outline" data-logs-refresh>REFRESH</button></div><p class="muted">Last ${logs.count ?? 0} lines from <span class="cyan">journalctl --user</span> (capped, escaped).</p><div style="margin-top:12px;max-height:280px;overflow:auto">${body || emptyState("No journal lines.")}</div>`;
 }
 
 function setLiveText(binding, value) {
@@ -665,6 +732,14 @@ function patchDesktopBindings(changedPaths) {
     mediaStatus.classList.toggle("dv-tag--off", !playing);
   }
   patchSessionBinding();
+  // Desktop KPI tiles in sparkline/gauge view: refresh the chart/arc in place.
+  // These markers only exist for the active view; the helpers no-op otherwise.
+  patchChart("desktop-cpu", app.history.cpu);
+  patchChart("desktop-mem", app.history.ram);
+  patchChart("desktop-gpu", app.history.gpu);
+  patchGauge("desktop-cpu", m.cpu.percent);
+  patchGauge("desktop-mem", m.memory.percent);
+  patchGauge("desktop-gpu", m.gpu?.percent || 0);
   return true;
 }
 
@@ -720,6 +795,85 @@ function patchMonitorBindings(changedPaths=[]) {
 app.renderer.register("desktop", ["metrics","media","adapters.session","agents","identity","assets"], patchDesktopBindings);
 app.renderer.register("monitor", ["metrics","adapters.processes"], patchMonitorBindings);
 app.renderer.register("terminal", ["agents"], () => false);
+
+// Register Desktop + Monitor tiles with the framework (tiles.js). Each view's
+// render(ctx) returns the panel BODY; tiles.js wraps it with the panel chrome +
+// head (view switch / edit controls). All data-live* markers are preserved so
+// patchDesktopBindings / patchMonitorBindings keep updating in place.
+function registerTiles() {
+  const T = window.LMDPTiles;
+  if (!T) return;
+  T.reset();
+
+  // ---- Desktop -------------------------------------------------------------
+  T.register({ id: "cpu", scene: "desktop", title: "CPU", default: "kpi", views: [
+    { id: "kpi", label: "Number", render: (c) => kpiBody("desktop.cpu.percent", Math.round(c.m.cpu.percent), "desktop.cpu.detail", `% · ${c.m.cpu.count} threads`, "desktop.cpu.width", c.m.cpu.percent) },
+    { id: "sparkline", label: "Trend", render: (c) => kpiBody("desktop.cpu.percent", Math.round(c.m.cpu.percent), "desktop.cpu.detail", `% · ${c.m.cpu.count} threads`) + `<div class="tile-spark">${chartSvg(app.history.cpu,100,"desktop-cpu")}</div>` },
+    { id: "gauge", label: "Gauge", render: (c) => `${gaugeSvg(c.m.cpu.percent,"desktop-cpu")}${kpiBody("desktop.cpu.percent", Math.round(c.m.cpu.percent), "desktop.cpu.detail", `% · ${c.m.cpu.count} threads`)}` },
+  ] });
+  T.register({ id: "memory", scene: "desktop", title: "MEMORY", default: "kpi", views: [
+    { id: "kpi", label: "Number", render: (c) => kpiBody("desktop.memory.percent", Math.round(c.m.memory.percent), "desktop.memory.detail", `% · ${humanBytes(c.m.memory.used)}`, "desktop.memory.width", c.m.memory.percent) },
+    { id: "sparkline", label: "Trend", render: (c) => kpiBody("desktop.memory.percent", Math.round(c.m.memory.percent), "desktop.memory.detail", `% · ${humanBytes(c.m.memory.used)}`) + `<div class="tile-spark">${chartSvg(app.history.ram,100,"desktop-mem")}</div>` },
+    { id: "gauge", label: "Gauge", render: (c) => `${gaugeSvg(c.m.memory.percent,"desktop-mem")}${kpiBody("desktop.memory.percent", Math.round(c.m.memory.percent), "desktop.memory.detail", `% · ${humanBytes(c.m.memory.used)}`)}` },
+  ] });
+  T.register({ id: "gpu", scene: "desktop", title: "GPU", default: "kpi", views: [
+    { id: "kpi", label: "Number", render: (c) => kpiBody("desktop.gpu.percent", c.gpu, "desktop.gpu.name", esc(c.m.gpu?.name || "unavailable"), "desktop.gpu.width", c.m.gpu?.percent || 0) },
+    { id: "sparkline", label: "Trend", render: (c) => kpiBody("desktop.gpu.percent", c.gpu, "desktop.gpu.name", esc(c.m.gpu?.name || "unavailable")) + `<div class="tile-spark">${chartSvg(app.history.gpu,100,"desktop-gpu")}</div>` },
+    { id: "gauge", label: "Gauge", render: (c) => `${gaugeSvg(c.m.gpu?.percent || 0,"desktop-gpu")}${kpiBody("desktop.gpu.percent", c.gpu, "desktop.gpu.name", esc(c.m.gpu?.name || "unavailable"))}` },
+  ] });
+  T.register({ id: "uptime", scene: "desktop", title: "UPTIME", views: [
+    { id: "kpi", label: "Number", render: (c) => kpiBody("desktop.uptime", humanDuration(c.m.uptime_seconds), "desktop.load", `load ${c.m.load_average.map(x=>Number(x).toFixed(2)).join(" · ")}`) },
+  ] });
+  T.register({ id: "quicklaunch", scene: "desktop", title: "QUICK LAUNCH", accent: true, span: 2, views: [
+    { id: "panel", label: "Panel", render: (c) => quickLaunchBody(c) },
+  ] });
+  T.register({ id: "nowplaying", scene: "desktop", title: "NOW PLAYING", span: 2, views: [
+    { id: "panel", label: "Panel", render: (c) => nowPlayingBody(c) },
+  ] });
+  T.register({ id: "agents", scene: "desktop", title: "AGENT SESSIONS", span: 4, views: [
+    { id: "panel", label: "Panel", render: (c) => `<div class="grid three">${c.s.agents.map(agentCard).join("")}</div>` },
+  ] });
+
+  // ---- Monitor -------------------------------------------------------------
+  const cpuCaption = (c) => `<div class="tile-caption dv-muted" data-live="monitor.cpu.title">CPU · ${Math.round(c.m.cpu.percent)}%</div>`;
+  T.register({ id: "cpu", scene: "monitor", title: "CPU", accent: true, span: 3, default: "chart", views: [
+    { id: "chart", label: "Chart", render: (c) => `${cpuCaption(c)}${chartSvg(app.history.cpu,100,"cpu")}<div class="core-grid" data-live-cores>${c.cores}</div>` },
+    { id: "compact", label: "Compact", render: (c) => `${cpuCaption(c)}<div class="core-grid" data-live-cores>${c.cores}</div>` },
+  ] });
+  const memCaption = (c) => `<div class="tile-caption dv-muted" data-live="monitor.memory.title">MEMORY · ${Math.round(c.m.memory.percent)}%</div>`;
+  const memRows = (c) => `${liveStatRow("monitor.memory.used","Used",humanBytes(c.m.memory.used))}${liveStatRow("monitor.memory.available","Available",humanBytes(c.m.memory.available))}`;
+  T.register({ id: "memory", scene: "monitor", title: "MEMORY", span: 3, default: "chart", views: [
+    { id: "chart", label: "Chart", render: (c) => `${memCaption(c)}${chartSvg(app.history.ram,100,"ram")}${memRows(c)}` },
+    { id: "compact", label: "Compact", render: (c) => `${memCaption(c)}${memRows(c)}` },
+  ] });
+  const gpuCaption = (c) => `<div class="tile-caption dv-muted" data-live="monitor.gpu.title">GPU · ${c.m.gpu.percent == null ? "n/a" : Math.round(c.m.gpu.percent)+"%"}</div>`;
+  const gpuRows = (c) => `${liveStatRow("monitor.gpu.name","Device",c.m.gpu.name || "unavailable")}${liveStatRow("monitor.gpu.vram","VRAM",formatGpuVram(c.m.gpu))}${liveStatRow("monitor.gpu.temperature","Temperature",c.m.gpu.temperature_c != null ? `${c.m.gpu.temperature_c} °C` : "n/a")}`;
+  T.register({ id: "gpu", scene: "monitor", title: "GPU", span: 3, default: "chart", views: [
+    { id: "chart", label: "Chart", render: (c) => `${gpuCaption(c)}${chartSvg(app.history.gpu,100,"gpu")}${gpuRows(c)}` },
+    { id: "compact", label: "Compact", render: (c) => `${gpuCaption(c)}${gpuRows(c)}` },
+  ] });
+  const netRows = (c) => `${liveStatRow("monitor.network.down","Download",humanBytes(c.m.network.down_bps,true))}${liveStatRow("monitor.network.up","Upload",humanBytes(c.m.network.up_bps,true))}`;
+  T.register({ id: "network", scene: "monitor", title: "NETWORK", span: 3, default: "chart", views: [
+    { id: "chart", label: "Chart", render: (c) => `${chartSvg(app.history.down,c.maxNet,"network")}${netRows(c)}` },
+    { id: "compact", label: "Compact", render: (c) => netRows(c) },
+  ] });
+  T.register({ id: "disk", scene: "monitor", title: "DISK", span: 2, views: [
+    { id: "panel", label: "Panel", render: (c) => `<div class="kpi"><span data-live="monitor.disk.percent">${Math.round(c.m.disk.percent)}</span><small>% used</small></div><div class="progress dv-progress"><span class="dv-progress__bar" data-live="monitor.disk.width" style="width:${clamp(c.m.disk.percent,0,100)}%"></span></div>${liveStatRow("monitor.disk.free","Free",humanBytes(c.m.disk.free))}` },
+  ] });
+  T.register({ id: "thermals", scene: "monitor", title: "THERMALS", span: 2, views: [
+    { id: "panel", label: "Panel", render: (c) => `<div data-live-thermals>${c.m.temperatures?.length ? c.m.temperatures.slice(0,6).map(t=>statRow(t.label,`${t.celsius} °C`)).join("") : `<p class="muted">No readable thermal zones.</p>`}</div>` },
+  ] });
+  T.register({ id: "power", scene: "monitor", title: "POWER", span: 2, views: [
+    { id: "panel", label: "Panel", render: (c) => `<div data-live-power>${c.m.battery ? `${statRow("Battery",`${c.m.battery.percent}%`)}${statRow("Status",c.m.battery.status)}` : `<div class="kpi" style="font-size:30px">AC<small>no battery detected</small></div>`}</div>` },
+  ] });
+  T.register({ id: "processes", scene: "monitor", title: "TOP PROCESSES", span: 6, views: [
+    { id: "panel", label: "Panel", render: () => processMonitorPanel() },
+  ] });
+  T.register({ id: "logs", scene: "monitor", title: "USER JOURNAL", span: 6, views: [
+    { id: "panel", label: "Panel", render: () => logsMonitorPanel() },
+  ] });
+}
+registerTiles();
 
 /** @use: high use — purpose: map FEATURE_PACKAGES vault rows into Apps cards */
 function mapVaultFeatureCards(vault, settingsFeatures, caps) {
@@ -1838,6 +1992,10 @@ const SCENE_BINDINGS = [
   { sel: "[data-greeting-messages]", type: "change", run: (el) => saveGreetingMessages(el.value) },
   { sel: "[data-greeting-mode]", run: (el) => saveGreetingMode(el.dataset.greetingMode) },
   { sel: "[data-text-key]", type: "change", run: (el) => saveTextOverride(el.dataset.textKey, el.value) },
+  { sel: "[data-layout-edit]", run: (el) => toggleLayoutEdit(el.dataset.layoutEdit) },
+  { sel: "[data-tile-view]", run: (el) => { const [tile, view] = el.dataset.tileView.split(":"); setTileView(app.scene, tile, view); } },
+  { sel: "[data-tile-move]", run: (el) => { const [tile, dir] = el.dataset.tileMove.split(":"); moveTile(app.scene, tile, dir); } },
+  { sel: "[data-tile-hide]", run: (el) => toggleTileHidden(app.scene, el.dataset.tileHide) },
   { sel: "[data-audio-volume]", type: "input", run: (el) => queueAudioVolume(el.value) },
   { sel: "[data-audio-mute]", run: () => toggleAudioMute() },
   { sel: "[data-display-brightness]", type: "input", run: (el) => queueDisplayBrightness(el.value) },

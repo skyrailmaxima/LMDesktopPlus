@@ -461,6 +461,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             "app.js",
             "bindings.js",
             "store.js",
+            "tiles.js",
             "style.css",
             "digitalvapor.css",
             "digitalvapor.js",
