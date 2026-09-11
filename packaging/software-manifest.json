@@ -1,0 +1,62 @@
+{
+  "_comment": [
+    "Canonical 'all packaged software' manifest for LMDesktopPlus (Phase 4).",
+    "Single source of truth for the peer software the UI drives fail-soft, the",
+    "rice packages, and the vapor//matrix fonts. Consumed by:",
+    "  - packaging/manifest.py (parser + CLI)",
+    "  - packaging/build-deb.sh          (main lmdesktopplus Depends/Recommends/Suggests)",
+    "  - packaging/build-deb-metapackage.sh (lmdesktopplus-desktop: Depends on the full set)",
+    "  - packaging/freebsd metaport tooling (RUN_DEPENDS / pkg set)",
+    "Fields per component:",
+    "  id          stable logical name",
+    "  tier        core | recommended | optional | rice | font",
+    "  source      distro (from the OS package manager) | ofl-fetch (fetched font)",
+    "  debian      apt dependency spec (may include a version and '|' alternates), or null",
+    "  freebsd     FreeBSD pkg name, or null when not applicable to FreeBSD",
+    "  category    grouping for humans/docs",
+    "  description short human description",
+    "Tier -> Debian control field for the MAIN lmdesktopplus package:",
+    "  core -> Depends, recommended -> Recommends, optional -> Suggests.",
+    "The lmdesktopplus-desktop metapackage Depends on every component whose",
+    "source is 'distro' (so an ISO preinstall == installing one metapackage)."
+  ],
+  "components": [
+    {"id": "python3", "tier": "core", "source": "distro", "debian": "python3 (>= 3.10)", "freebsd": "python3", "category": "runtime", "description": "Python 3 interpreter for the control center"},
+    {"id": "pygobject", "tier": "core", "source": "distro", "debian": "python3-gi", "freebsd": "py-gobject3", "category": "runtime", "description": "PyGObject / GObject-Introspection bindings"},
+    {"id": "gtk3", "tier": "core", "source": "distro", "debian": "gir1.2-gtk-3.0", "freebsd": "gtk3", "category": "runtime", "description": "GTK 3 typelib for the native shell"},
+    {"id": "webkit2", "tier": "core", "source": "distro", "debian": "gir1.2-webkit2-4.1 | gir1.2-webkit2-4.0", "freebsd": "webkit2-gtk", "category": "runtime", "description": "WebKitGTK typelib for the embedded window (else --browser)"},
+    {"id": "networkmanager", "tier": "core", "source": "distro", "debian": "network-manager", "freebsd": null, "category": "network", "description": "NetworkManager backend (Linux only)"},
+
+    {"id": "kitty", "tier": "recommended", "source": "distro", "debian": "kitty", "freebsd": "kitty", "category": "terminal", "description": "Primary terminal used by the rice + agent sessions"},
+    {"id": "rofi", "tier": "recommended", "source": "distro", "debian": "rofi", "freebsd": "rofi", "category": "launcher", "description": "Application/agent launcher"},
+    {"id": "tmux", "tier": "recommended", "source": "distro", "debian": "tmux", "freebsd": "tmux", "category": "terminal", "description": "Terminal multiplexer for agent workspaces"},
+    {"id": "btop", "tier": "recommended", "source": "distro", "debian": "btop", "freebsd": "btop", "category": "monitor", "description": "System monitor peer"},
+    {"id": "playerctl", "tier": "recommended", "source": "distro", "debian": "playerctl", "freebsd": "playerctl", "category": "media", "description": "MPRIS media control"},
+    {"id": "bubblewrap", "tier": "recommended", "source": "distro", "debian": "bubblewrap", "freebsd": null, "category": "agents", "description": "Filesystem sandbox for scoped agents (Linux only)"},
+
+    {"id": "hyprland", "tier": "optional", "source": "distro", "debian": "hyprland", "freebsd": "hyprland", "category": "session", "description": "Optional Wayland compositor session"},
+    {"id": "waybar", "tier": "optional", "source": "distro", "debian": "waybar", "freebsd": "waybar", "category": "session", "description": "Status bar for the Hyprland session"},
+    {"id": "bluez", "tier": "optional", "source": "distro", "debian": "bluez", "freebsd": null, "category": "bluetooth", "description": "BlueZ Bluetooth stack (Linux only)"},
+    {"id": "starship", "tier": "optional", "source": "distro", "debian": "starship", "freebsd": "starship", "category": "terminal", "description": "Shell prompt used by the rice"},
+    {"id": "polkit", "tier": "optional", "source": "distro", "debian": "policykit-1", "freebsd": "polkit", "category": "system", "description": "PolicyKit for privileged vault installs"},
+    {"id": "grim", "tier": "optional", "source": "distro", "debian": "grim", "freebsd": "grim", "category": "capture", "description": "Wayland screenshot backend"},
+    {"id": "slurp", "tier": "optional", "source": "distro", "debian": "slurp", "freebsd": "slurp", "category": "capture", "description": "Wayland region selector"},
+    {"id": "wl-clipboard", "tier": "optional", "source": "distro", "debian": "wl-clipboard", "freebsd": "wl-clipboard", "category": "clipboard", "description": "Wayland clipboard tools"},
+    {"id": "xclip", "tier": "optional", "source": "distro", "debian": "xclip", "freebsd": "xclip", "category": "clipboard", "description": "X11 clipboard tool"},
+    {"id": "libnotify", "tier": "optional", "source": "distro", "debian": "libnotify-bin", "freebsd": "libnotify", "category": "notifications", "description": "notify-send for desktop notifications"},
+    {"id": "mintupdate", "tier": "optional", "source": "distro", "debian": "mintupdate", "freebsd": null, "category": "updates", "description": "Mint Update integration (Mint only)"},
+    {"id": "cups-client", "tier": "optional", "source": "distro", "debian": "cups-client", "freebsd": "cups", "category": "printers", "description": "lpstat/lp printer tooling"},
+    {"id": "system-config-printer", "tier": "optional", "source": "distro", "debian": "system-config-printer", "freebsd": null, "category": "printers", "description": "Printer settings GUI (Linux only)"},
+    {"id": "swayidle", "tier": "optional", "source": "distro", "debian": "swayidle", "freebsd": "swayidle", "category": "idle", "description": "Idle daemon for the Hyprland session"},
+    {"id": "mpvpaper", "tier": "optional", "source": "distro", "debian": "mpvpaper", "freebsd": "mpvpaper", "category": "wallpaper", "description": "Live video wallpaper backend"},
+
+    {"id": "curl", "tier": "rice", "source": "distro", "debian": "curl", "freebsd": "curl", "category": "tooling", "description": "Download tool used by installer/font fetch"},
+    {"id": "wget", "tier": "rice", "source": "distro", "debian": "wget", "freebsd": "wget", "category": "tooling", "description": "Fallback download tool"},
+    {"id": "git", "tier": "rice", "source": "distro", "debian": "git", "freebsd": "git", "category": "tooling", "description": "Version control used by the rice"},
+    {"id": "swaybg", "tier": "rice", "source": "distro", "debian": "swaybg", "freebsd": "swaybg", "category": "wallpaper", "description": "Static wallpaper backend for the Hyprland session"},
+
+    {"id": "jetbrains-mono", "tier": "font", "source": "distro", "debian": "fonts-jetbrains-mono", "freebsd": "jetbrains-mono", "category": "font", "description": "Primary monospace UI font"},
+    {"id": "dotgothic16", "tier": "font", "source": "ofl-fetch", "debian": null, "freebsd": null, "category": "font", "description": "Japanese pixel display font (fetched via scripts/fetch-fonts.sh, OFL)"},
+    {"id": "zen-dots", "tier": "font", "source": "ofl-fetch", "debian": null, "freebsd": null, "category": "font", "description": "Display accent font (fetched via scripts/fetch-fonts.sh, OFL)"}
+  ]
+}

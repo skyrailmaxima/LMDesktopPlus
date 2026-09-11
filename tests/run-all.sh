@@ -45,6 +45,9 @@ else
   printf 'note: Xvfb/xdotool/GTK+WebKit not all present; skipping UI screenshot smoke\n' >&2
 fi
 
+step "software manifest"
+python3 packaging/manifest.py check
+
 step "installer dry-run (cinnamon-only)"
 ./install.sh --dry-run --cinnamon-only >/tmp/lmdesktopplus-dry-run.log 2>&1
 
@@ -69,6 +72,36 @@ grep -q 'store.js' "$DEB_CONTENTS"
 grep -q 'usr/lib/lmdesktopplus/assets/wallpapers/vapor-matrix.svg' "$DEB_CONTENTS"
 grep -q 'usr/lib/lmdesktopplus/assets/wallpapers/vapor-matrix.png' "$DEB_CONTENTS"
 grep -q 'usr/share/lmdesktopplus/autostart/lmdesktopplus.desktop' "$DEB_CONTENTS"
+
+step "Debian desktop metapackage"
+./packaging/build-deb-metapackage.sh >/tmp/lmdesktopplus-metadeb-path.txt
+META_PATH="$(cat /tmp/lmdesktopplus-metadeb-path.txt)"
+META_INFO="/tmp/lmdesktopplus-metadeb-info.txt"
+dpkg-deb --info "$META_PATH" > "$META_INFO"
+grep -q '^ Package: lmdesktopplus-desktop' "$META_INFO"
+grep -Eq '^ Depends: lmdesktopplus \(>= ' "$META_INFO"
+for pkg in kitty rofi hyprland fonts-jetbrains-mono swaybg; do
+  grep -q "$pkg" "$META_INFO" || { echo "metapackage missing $pkg" >&2; exit 1; }
+done
+if dpkg-deb --contents "$META_PATH" | grep -q 'usr/lib/lmdesktopplus'; then
+  echo "metapackage should not ship application payload" >&2
+  exit 1
+fi
+
+step "FreeBSD desktop metaport"
+META_MK="$(./packaging/build-freebsd-metaport.sh /tmp/lmdesktopplus-freebsd-metaport)"
+grep -q '^PORTNAME=	lmdesktopplus-desktop$' "$META_MK"
+grep -q 'USES=		metaport' "$META_MK"
+grep -q 'lmdesktopplus>0:x11-wm/lmdesktopplus' "$META_MK"
+for origin in x11/kitty www/webkit2-gtk@40 x11-wm/hyprland x11-fonts/jetbrains-mono; do
+  grep -q "$origin" "$META_MK" || { echo "metaport missing origin $origin" >&2; exit 1; }
+done
+# Linux-only peers must not leak into the FreeBSD metaport.
+if grep -Eq 'network-manager|bubblewrap|mintupdate' "$META_MK"; then
+  echo "Linux-only peer leaked into FreeBSD metaport" >&2
+  exit 1
+fi
+sh -n ./packaging/freebsd/poudriere/build-repo.sh
 
 step "FreeBSD UI package stage"
 ./packaging/build-freebsd-ui.sh >/tmp/lmdesktopplus-freebsd-path.txt
