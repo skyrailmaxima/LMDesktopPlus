@@ -9,7 +9,13 @@
 #
 # Usage:
 #   ./tests/ui-screenshot.sh [--out DIR] [--scenes "desktop monitor ..."]
-#                            [--keep] [--display :N]
+#                            [--keep] [--display :N] [--geom WxHxD]
+#                            [--window WxH]
+#
+# --geom drives the Xvfb screen size. --window pre-seeds the shell's saved
+# window geometry (ui-state.json); use a narrow value (e.g. --window 700x880)
+# to capture the responsive small-window layout, since there is no window
+# manager to resize the mapped window for us.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -20,14 +26,17 @@ SCENES="desktop terminal monitor apps settings kit"
 KEEP=0
 DISPLAY_NUM=""
 GEOM="1366x900x24"
+WINDOW=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --out) OUT="$2"; shift 2 ;;
     --scenes) SCENES="$2"; shift 2 ;;
     --display) DISPLAY_NUM="$2"; shift 2 ;;
+    --geom) GEOM="$2"; shift 2 ;;
+    --window) WINDOW="$2"; shift 2 ;;
     --keep) KEEP=1; shift ;;
-    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -62,6 +71,18 @@ export XDG_CACHE_HOME="$WORKDIR/cache"
 export XDG_RUNTIME_DIR="$WORKDIR/run"
 mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME" "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
+
+# Pre-seed the saved window geometry so the shell restores a specific size.
+# Without a window manager the mapped window keeps its own size regardless of
+# the Xvfb screen, so this is how we exercise the responsive small-window CSS.
+if [[ -n "$WINDOW" ]]; then
+  WIN_W="${WINDOW%x*}"
+  WIN_H="${WINDOW#*x}"
+  mkdir -p "$XDG_DATA_HOME/lmdesktopplus"
+  cat > "$XDG_DATA_HOME/lmdesktopplus/ui-state.json" <<JSON
+{"scene":"desktop","window":{"width":${WIN_W},"height":${WIN_H},"maximized":false}}
+JSON
+fi
 
 XVFB_PID=""
 APP_PID=""
@@ -172,11 +193,25 @@ else
 fi
 
 # The lock screen unlocks on a click anywhere; a real pointer click (XTEST)
-# reaches WebKit where synthetic --window events do not.
+# reaches WebKit where synthetic --window events do not. If the click misses
+# (window mapped off the expected origin, etc.), fall back to the desktop
+# hotkey via focus+key, which also unlocks and selects the desktop scene.
+unlock_ok=0
 xdotool mousemove "$CX" "$CY" click 1
 sleep 1.5
 capture "$OUT/01-desktop.png"
 if nonblank "$OUT/01-desktop.png" && differs "$OUT/00-lock.png" "$OUT/01-desktop.png"; then
+  unlock_ok=1
+else
+  xdotool windowfocus "$WID" 2>/dev/null || true
+  xdotool key 1
+  sleep 1.5
+  capture "$OUT/01-desktop.png"
+  if nonblank "$OUT/01-desktop.png" && differs "$OUT/00-lock.png" "$OUT/01-desktop.png"; then
+    unlock_ok=1
+  fi
+fi
+if [[ "$unlock_ok" -eq 1 ]]; then
   echo "OK   unlocked desktop renders (differs from lock screen)"
 else
   echo "FAIL unlock did not render the desktop (still locked/blank?)" >&2; fail=1
