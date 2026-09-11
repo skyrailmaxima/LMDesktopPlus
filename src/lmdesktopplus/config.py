@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,22 @@ ACCENTS = {
     "green": "#00ff70",
     "amber": "#ffcc44",
 }
+
+# Scenes that may carry user text/layout overrides. Mirrors the `scenes` array in
+# static/app.js; unknown scenes are dropped on validation (fail-soft).
+KNOWN_SCENES = (
+    "desktop", "terminal", "tmux", "editor", "browser", "rofi",
+    "docs", "monitor", "apps", "settings", "kit",
+)
+GREETING_MODES = ("static", "sequential", "random", "time")
+TEXT_FIELDS = ("title", "subtitle")
+# Bounds for user-editable customization (defensive caps; these are personal
+# preferences, not security-sensitive, so validation is structural + bounded).
+_SLUG_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+_MAX_GREETINGS = 24
+_MAX_TEXT_LEN = 120
+_MAX_TEXT_ENTRIES = 64
+_MAX_TILES = 32
 
 DEFAULT_SETTINGS: dict[str, Any] = {
     "appearance": {
@@ -57,6 +74,17 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "hyprland": False,
         "bluetooth": True,
         "live_wallpaper": True,
+    },
+    # User personalization: editable greeting, scene text overrides, and per-scene
+    # tile layouts. Defaults are inert so an untouched install renders as before.
+    "customization": {
+        "greeting": {
+            "messages": ["VAPOR//MATRIX"],
+            "mode": "static",
+            "rotate_seconds": 0,
+        },
+        "text": {},
+        "layouts": {},
     },
 }
 
@@ -127,4 +155,105 @@ class SettingsStore:
         except (TypeError, ValueError):
             behavior["idle_sleep_minutes"] = 0
         result["features"] = {str(k): bool(v) for k, v in result.get("features", {}).items()}
+        result["customization"] = SettingsStore._validate_customization(
+            result.get("customization", {})
+        )
         return result
+
+    @staticmethod
+    def _clean_str(value: Any, max_len: int = _MAX_TEXT_LEN) -> str | None:
+        if not isinstance(value, str):
+            return None
+        text = value.strip()
+        if not text:
+            return None
+        return text[:max_len]
+
+    @staticmethod
+    def _clean_slug_list(value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        out: list[str] = []
+        for item in value:
+            if isinstance(item, str) and _SLUG_RE.match(item) and item not in out:
+                out.append(item)
+            if len(out) >= _MAX_TILES:
+                break
+        return out
+
+    @staticmethod
+    def _validate_customization(value: Any) -> dict[str, Any]:
+        base = copy.deepcopy(DEFAULT_SETTINGS["customization"])
+        if not isinstance(value, dict):
+            return base
+
+        # --- greeting -------------------------------------------------------
+        greeting = value.get("greeting")
+        if isinstance(greeting, dict):
+            raw_messages = greeting.get("messages")
+            messages: list[str] = []
+            if isinstance(raw_messages, list):
+                for item in raw_messages:
+                    cleaned = SettingsStore._clean_str(item)
+                    if cleaned is not None:
+                        messages.append(cleaned)
+                    if len(messages) >= _MAX_GREETINGS:
+                        break
+            base["greeting"]["messages"] = messages or ["VAPOR//MATRIX"]
+            mode = greeting.get("mode")
+            base["greeting"]["mode"] = mode if mode in GREETING_MODES else "static"
+            try:
+                secs = int(greeting.get("rotate_seconds", 0))
+            except (TypeError, ValueError):
+                secs = 0
+            base["greeting"]["rotate_seconds"] = 0 if secs <= 0 else max(5, min(3600, secs))
+
+        # --- text overrides -------------------------------------------------
+        text = value.get("text")
+        clean_text: dict[str, str] = {}
+        if isinstance(text, dict):
+            for key, val in text.items():
+                if not isinstance(key, str) or "." not in key:
+                    continue
+                scene, _, field = key.partition(".")
+                if scene not in KNOWN_SCENES or field not in TEXT_FIELDS:
+                    continue
+                cleaned = SettingsStore._clean_str(val)
+                if cleaned is None:
+                    continue
+                clean_text[key] = cleaned
+                if len(clean_text) >= _MAX_TEXT_ENTRIES:
+                    break
+        base["text"] = clean_text
+
+        # --- per-scene tile layouts ----------------------------------------
+        layouts = value.get("layouts")
+        clean_layouts: dict[str, Any] = {}
+        if isinstance(layouts, dict):
+            for scene, layout in layouts.items():
+                if scene not in KNOWN_SCENES or not isinstance(layout, dict):
+                    continue
+                entry: dict[str, Any] = {}
+                order = SettingsStore._clean_slug_list(layout.get("order"))
+                if order:
+                    entry["order"] = order
+                hidden = SettingsStore._clean_slug_list(layout.get("hidden"))
+                if hidden:
+                    entry["hidden"] = hidden
+                views_raw = layout.get("views")
+                if isinstance(views_raw, dict):
+                    views: dict[str, str] = {}
+                    for tile, view in views_raw.items():
+                        if (
+                            isinstance(tile, str) and _SLUG_RE.match(tile)
+                            and isinstance(view, str) and _SLUG_RE.match(view)
+                        ):
+                            views[tile] = view
+                        if len(views) >= _MAX_TILES:
+                            break
+                    if views:
+                        entry["views"] = views
+                if entry:
+                    clean_layouts[scene] = entry
+        base["layouts"] = clean_layouts
+        return base

@@ -228,6 +228,7 @@ function applyAppearance() {
   const rain = $("#matrix-rain");
   if (rain) rain.dataset.dvIntensity = String(clamp(settings.rain_intensity, 0, 100));
   document.body.classList.toggle("dv-crt", Boolean(settings.scanlines));
+  syncGreetingRotation();
 }
 async function poll() {
   try {
@@ -359,6 +360,67 @@ function heading(jp, title, sub, actions="") {
   return `<div class="scene-heading"><div><div class="eyebrow dv-kicker dv-jp">${jp}</div><h1 class="dv-disp">${esc(title)}</h1><p class="dv-muted">${esc(sub)}</p></div>${actions}</div>`;
 }
 
+// --- User personalization (customization namespace in settings.json) --------
+// Defaults are inert: greeting = ["VAPOR//MATRIX"], no text overrides, so an
+// untouched install renders exactly as before.
+const DEFAULT_TITLES = {
+  desktop: "VAPOR//MATRIX", terminal: "AGENT SESSIONS", tmux: "TMUX DEV",
+  editor: "WORKSPACE EDITOR", browser: "BROWSER + AGENT PANEL", rofi: "ROFI",
+  docs: "DOTFILES + PACKAGE", monitor: "SYSTEM MONITOR", apps: "APP VAULT",
+  settings: "SYSTEM SETTINGS", kit: "DIGITALVAPOR KIT",
+};
+
+function customization() { return app.state?.settings?.customization || {}; }
+function defaultTitleFor(id) { return DEFAULT_TITLES[id] || ""; }
+
+let greetingIndex = 0;
+function resolveGreeting() {
+  const g = customization().greeting || {};
+  const msgs = Array.isArray(g.messages) && g.messages.length ? g.messages : ["VAPOR//MATRIX"];
+  switch (g.mode) {
+    case "random": return msgs[Math.floor(Math.random() * msgs.length)];
+    case "sequential": return msgs[greetingIndex % msgs.length];
+    case "time": {
+      const h = new Date().getHours();
+      const bucket = h < 5 ? 0 : h < 12 ? 1 : h < 18 ? 2 : 3;
+      return msgs[bucket % msgs.length];
+    }
+    default: return msgs[0];
+  }
+}
+
+function sceneText(sceneId, field, fallback) {
+  const overrides = customization().text || {};
+  const value = overrides[`${sceneId}.${field}`];
+  return (typeof value === "string" && value.trim()) ? value : fallback;
+}
+
+// Scene-aware heading: honors customization.text.<scene>.title/subtitle overrides
+// (desktop title falls back to the resolved greeting rather than a literal).
+function sceneHeading(sceneId, jp, defTitle, defSub, actions="") {
+  return heading(jp, sceneText(sceneId, "title", defTitle), sceneText(sceneId, "subtitle", defSub), actions);
+}
+
+// Rotates the desktop greeting in place when rotate_seconds > 0. No-ops unless
+// the greeting signature changed, so it is safe to call from applyAppearance().
+function syncGreetingRotation() {
+  const g = customization().greeting || {};
+  const msgs = Array.isArray(g.messages) ? g.messages : [];
+  const sig = `${g.mode || "static"}|${g.rotate_seconds || 0}|${msgs.join("\u0001")}`;
+  if (sig === app.greetingSig) return;
+  app.greetingSig = sig;
+  if (app.greetingTimer) { clearInterval(app.greetingTimer); app.greetingTimer = null; }
+  const secs = Number(g.rotate_seconds) || 0;
+  const rotates = secs > 0 && (g.mode === "sequential" || g.mode === "random" || g.mode === "time");
+  if (!rotates) return;
+  app.greetingTimer = setInterval(() => {
+    greetingIndex += 1;
+    if (app.locked || app.scene !== "desktop") return;
+    const el = $(".scene-heading .dv-disp");
+    if (el) el.textContent = resolveGreeting();
+  }, secs * 1000);
+}
+
 function corners() {
   return '<i class="dv-corner tl"></i><i class="dv-corner tr"></i><i class="dv-corner bl"></i><i class="dv-corner br"></i>';
 }
@@ -396,7 +458,7 @@ function renderDesktop() {
   const agents = s.agents.map(agentCard).join("");
   const media = s.media || {};
   const gpu = m.gpu?.percent == null ? "n/a" : `${Math.round(m.gpu.percent)}%`;
-  return heading("機械界面", "VAPOR//MATRIX", `${id.user}@${id.hostname} · ${id.os}`) + `
+  return heading("機械界面", resolveGreeting(), sceneText("desktop", "subtitle", `${id.user}@${id.hostname} · ${id.os}`)) + `
     <div class="grid four">
       ${panel("CPU", `<div class="kpi"><span data-live="desktop.cpu.percent">${Math.round(m.cpu.percent)}</span><small data-live="desktop.cpu.detail">% · ${m.cpu.count} threads</small></div><div class="progress dv-progress"><span class="dv-progress__bar" data-live="desktop.cpu.width" style="width:${clamp(m.cpu.percent,0,100)}%"></span></div>`)}
       ${panel("MEMORY", `<div class="kpi"><span data-live="desktop.memory.percent">${Math.round(m.memory.percent)}</span><small data-live="desktop.memory.detail">% · ${humanBytes(m.memory.used)}</small></div><div class="progress dv-progress"><span class="dv-progress__bar" data-live="desktop.memory.width" style="width:${clamp(m.memory.percent,0,100)}%"></span></div>`)}
@@ -430,14 +492,14 @@ function agentCard(agent) {
 
 function renderAgents() {
   const list = app.state.agents.map(agentCard).join("");
-  return heading("代理端末", "AGENT SESSIONS", "Launch local agents in dedicated homes and selected workspaces.", `<button class="btn dv-btn dv-btn--outline" data-launch="terminal">OPEN RAW TERMINAL</button>`) + `
+  return sceneHeading("terminal", "代理端末", "AGENT SESSIONS", "Launch local agents in dedicated homes and selected workspaces.", `<button class="btn dv-btn dv-btn--outline" data-launch="terminal">OPEN RAW TERMINAL</button>`) + `
     <div class="grid three">${list}</div>
     <section class="panel terminal dv-window dv-window--borderless" style="margin-top:16px"><span class="green">scope policy</span>\n<span class="out">agent home   → ~/.local/share/lmdesktopplus/agents/&lt;name&gt;</span>\n<span class="out">workspace    → configurable, default ~/work</span>\n<span class="out">sandbox      → Bubblewrap when enabled and installed</span>\n<span class="out">network      → per-agent allow/deny flag</span>\n\n<span class="amber">Note:</span> enabling sandboxing isolates filesystem writes; it is not a complete VM boundary.</section>`;
 }
 
 function renderTmux() {
   const cap = capability("tmux");
-  return heading("多重端末", "TMUX DEV", "Attach to the persistent lmdesktopplus session.") + `
+  return sceneHeading("tmux", "多重端末", "TMUX DEV", "Attach to the persistent lmdesktopplus session.") + `
     <div class="grid two">
       ${panel("SESSION", `<div class="kpi">dev<small>tmux new-session -A -s lmdesktopplus</small></div><div class="button-row" style="margin-top:18px"><button class="btn primary dv-btn dv-btn--primary" data-launch="tmux" ${cap.available?"":"disabled"}>ATTACH / CREATE</button></div>${statRow("Executable",cap.path || "not installed")}`, "accent")}
       ${panel("LAYOUT", `<pre class="code-block">┌ agent ──────────┬ tests ──────────┐\n│ claude / aider  │ pytest / cargo  │\n├─────────────────┴─────────────────┤\n│ logs · services · git status      │\n└───────────────────────────────────┘</pre><p class="muted">The launcher leaves your tmux configuration in control and only chooses the stable session name.</p>`)}
@@ -446,7 +508,7 @@ function renderTmux() {
 
 function renderEditor() {
   const cap = capability("editor");
-  return heading("編集環境", "WORKSPACE EDITOR", "Open the best available editor against ~/work.") + `
+  return sceneHeading("editor", "編集環境", "WORKSPACE EDITOR", "Open the best available editor against ~/work.") + `
     <div class="grid two">
       ${panel("DETECTED EDITOR", `<div class="kpi" style="font-size:30px">${esc(cap.path ? cap.path.split("/").pop() : "missing")}</div>${statRow("Path",cap.path || "Install Pulsar, Cursor, VSCodium, VS Code, or Xed")}<div class="button-row" style="margin-top:18px"><button class="btn primary dv-btn dv-btn--primary" data-launch="editor" ${cap.available?"":"disabled"}>OPEN ~/work</button></div>`, "accent")}
       ${panel("PROTOTYPE MAPPING", `<pre class="code-block"><span class="purple">fn</span> spawn_agent(name: &amp;str) {\n  <span class="cyan">home</span> = "~/agents/" + name;\n  scope.mount(home, RW::Agent);\n  scope.mount("~/work", RW::Work);\n}</pre><p class="muted">This concept is implemented by the agent registry and optional Bubblewrap runner rather than an editor-specific mock panel.</p>`)}
@@ -455,7 +517,7 @@ function renderEditor() {
 
 function renderBrowser() {
   const cap = capability("browser");
-  return heading("網接続", "BROWSER + AGENT PANEL", "Launch a browser while keeping agent state visible in the machine UI.") + `
+  return sceneHeading("browser", "網接続", "BROWSER + AGENT PANEL", "Launch a browser while keeping agent state visible in the machine UI.") + `
     <div class="grid two">
       ${panel("BROWSER", `<div class="kpi" style="font-size:30px">${esc(cap.path ? cap.path.split("/").pop() : "missing")}</div><div class="button-row" style="margin-top:18px"><button class="btn primary dv-btn dv-btn--primary" data-launch="browser" ${cap.available?"":"disabled"}>OPEN BROWSER</button></div>${statRow("Backend",cap.path || "not installed")}`, "accent")}
       ${panel("ACTIVE AGENTS", app.state.agents.map(a=>`<div class="list-row"><span><span class="${a.available?"green":"amber"}">●</span> ${esc(a.name)}</span><button class="btn dv-btn dv-btn--outline" data-agent="${esc(a.name)}" ${a.available?"":"disabled"}>SPAWN</button></div>`).join(""))}
@@ -464,7 +526,7 @@ function renderBrowser() {
 
 function renderRofi() {
   const cap = capability("rofi");
-  return heading("起動器", "ROFI", "Use the installed Matrix Rofi theme and desktop application index.") + `
+  return sceneHeading("rofi", "起動器", "ROFI", "Use the installed Matrix Rofi theme and desktop application index.") + `
     <div class="grid two">
       ${panel("APPLICATION LAUNCHER", `<div class="terminal"><span class="mag">墨</span> <span class="muted">search applications</span>\n\n<span class="mint">❯</span> <span class="cmd">rofi -show drun</span>\n<span class="out">kitty</span>\n<span class="out">pulsar / cursor</span>\n<span class="out">system settings</span></div><div class="button-row" style="margin-top:14px"><button class="btn primary dv-btn dv-btn--primary" data-launch="rofi" ${cap.available?"":"disabled"}>OPEN ROFI</button></div>`, "accent")}
       ${panel("STATUS", `${statRow("Available",cap.available?"yes":"no")}${statRow("Path",cap.path || "not installed")}${statRow("Theme","~/.config/rofi/themes/matrix.rasi")}`)}
@@ -473,7 +535,7 @@ function renderRofi() {
 
 function renderDocs() {
   const id = app.state.identity;
-  return heading("構成資料", "DOTFILES + PACKAGE", "The UI package is separate from the desktop rice, but both share one settings and palette model.") + `
+  return sceneHeading("docs", "構成資料", "DOTFILES + PACKAGE", "The UI package is separate from the desktop rice, but both share one settings and palette model.") + `
     <div class="grid two">
       ${panel("CONFIG PATHS", `<pre class="code-block">~/.config/lmdesktopplus/settings.json\n~/.config/lmdesktopplus/agents.json\n~/.config/lmdesktopplus/hypr-generated.conf\n~/.config/lmdesktopplus/hypr-binds.conf\n~/.config/lmdesktopplus/keybinds.json\n~/.config/vapor-matrix.theme\n~/.local/share/lmdesktopplus/agents/</pre><div class="button-row" style="margin-top:14px"><button class="btn dv-btn dv-btn--outline" data-action="open-config">OPEN LMDP CONFIG</button><button class="btn dv-btn dv-btn--outline" data-launch="docs">OPEN ~/.config</button></div>`)}
       ${panel("SYSTEM", `${statRow("Host",`${id.user}@${id.hostname}`)}${statRow("OS",id.os)}${statRow("Kernel",id.kernel)}${statRow("Session",`${id.session} · ${id.session_type}`)}${statRow("Architecture",id.architecture)}${statRow("UI version",app.state.version)}`)}
@@ -496,7 +558,7 @@ function renderMonitor() {
   const temp = m.temperatures?.[0];
   const maxNet = Math.max(1024*1024, ...app.history.down, ...app.history.up);
   const cores = (m.cpu.cores || []).map(v=>`<div class="core-bar" title="${Math.round(v)}%" style="height:${Math.max(3,clamp(v,0,100))}%"></div>`).join("");
-  return heading("監視系", "SYSTEM MONITOR", "Live values are sampled from /proc, sysfs, and vendor tools when available.", `<button class="btn dv-btn dv-btn--outline" data-launch="monitor">OPEN BTOP</button>`) + `
+  return sceneHeading("monitor", "監視系", "SYSTEM MONITOR", "Live values are sampled from /proc, sysfs, and vendor tools when available.", `<button class="btn dv-btn dv-btn--outline" data-launch="monitor">OPEN BTOP</button>`) + `
     <div class="grid two">
       ${panel(`<span data-live="monitor.cpu.title">CPU · ${Math.round(m.cpu.percent)}%</span>`, `${chartSvg(app.history.cpu,100,"cpu")}<div class="core-grid" data-live-cores>${cores}</div>`, "accent")}
       ${panel(`<span data-live="monitor.memory.title">MEMORY · ${Math.round(m.memory.percent)}%</span>`, `${chartSvg(app.history.ram,100,"ram")}${liveStatRow("monitor.memory.used","Used",humanBytes(m.memory.used))}${liveStatRow("monitor.memory.available","Available",humanBytes(m.memory.available))}`)}
@@ -692,16 +754,16 @@ function renderApps() {
   const note = vault.can_install
     ? "Install requests pkexec apt-get for allowlisted packages only — never silent root."
     : "Install disabled (pkexec/apt-get missing). Feature toggles still persist.";
-  return heading("拡張蔵", "APP VAULT", `FEATURE_PACKAGES catalog with capability badges. ${note}`) + `<div class="app-grid">${cards}</div>`;
+  return sceneHeading("apps", "拡張蔵", "APP VAULT", `FEATURE_PACKAGES catalog with capability badges. ${note}`) + `<div class="app-grid">${cards}</div>`;
 }
 
 const settingTabs = [
-  ["appearance","外観","Appearance"],["display","画面","Display"],["network","網","Network"],["agents","代理","Agents"],["keybinds","鍵","Keybinds"],["about","情報","About"]
+  ["appearance","外観","Appearance"],["personalize","個人","Personalize"],["display","画面","Display"],["network","網","Network"],["agents","代理","Agents"],["keybinds","鍵","Keybinds"],["about","情報","About"]
 ];
 
 function renderSettings() {
   const nav = settingTabs.map(([id,jp,label])=>`<button class="settings-tab dv-navitem ${id===app.settingsTab?"active is-active":""}" data-settings-tab="${id}"><span class="jp dv-jp">${jp}</span>${label}</button>`).join("");
-  return heading("設定系", "SYSTEM SETTINGS", "Appearance changes persist immediately and generate GTK/Hyprland overlays.") + `<div class="settings-layout"><nav class="panel settings-nav dv-panel dv-sidepanel">${nav}</nav><section class="panel card dv-panel dv-card">${renderSettingsTab()}</section></div>`;
+  return sceneHeading("settings", "設定系", "SYSTEM SETTINGS", "Appearance changes persist immediately and generate GTK/Hyprland overlays.") + `<div class="settings-layout"><nav class="panel settings-nav dv-panel dv-sidepanel">${nav}</nav><section class="panel card dv-panel dv-card">${renderSettingsTab()}</section></div>`;
 }
 
 /** @use: medium use — purpose: Appearance live matrix wallpaper controls (default off) */
@@ -739,6 +801,37 @@ function renderAppearanceSettings() {
     ${toggleControl("Window gaps","Generated Hyprland overlay","appearance.gaps",ap.gaps)}
     ${toggleControl("Rounded corners","Generated Hyprland overlay","appearance.rounded",ap.rounded)}
     ${toggleControl("Drop shadows","Generated Hyprland overlay","appearance.shadows",ap.shadows)}`;
+}
+
+function renderPersonalizeSettings() {
+  const cust = customization();
+  const greeting = cust.greeting || {};
+  const messages = Array.isArray(greeting.messages) && greeting.messages.length ? greeting.messages : ["VAPOR//MATRIX"];
+  const mode = GREETING_MODES.includes(greeting.mode) ? greeting.mode : "static";
+  const rotate = clamp(Number(greeting.rotate_seconds) || 0, 0, 300);
+  const modeSeg = [["static","Static"],["sequential","Sequence"],["random","Random"],["time","Time of day"]]
+    .map(([id,label])=>`<button class="segment dv-seg__opt ${mode===id?"active":""}" data-greeting-mode="${id}">${label}</button>`).join("");
+  const overrides = cust.text || {};
+  const textRows = Object.keys(DEFAULT_TITLES).map((id) => {
+    const titleVal = typeof overrides[`${id}.title`] === "string" ? overrides[`${id}.title`] : "";
+    const subVal = typeof overrides[`${id}.subtitle`] === "string" ? overrides[`${id}.subtitle`] : "";
+    const titleField = id === "desktop"
+      ? `<span class="muted" style="align-self:center">Set by greeting above</span>`
+      : `<input class="dv-input" data-text-key="${id}.title" value="${esc(titleVal)}" placeholder="${esc(defaultTitleFor(id))}" aria-label="${esc(id)} title">`;
+    return `<div class="control-row"><div><label>${esc(defaultTitleFor(id) || id)}</label><small>${esc(id)}</small></div>`
+      + `<div class="dv-col" style="gap:8px;min-width:260px">${titleField}`
+      + `<input class="dv-input" data-text-key="${id}.subtitle" value="${esc(subVal)}" placeholder="Subtitle" aria-label="${esc(id)} subtitle"></div></div>`;
+  }).join("");
+  return `<div class="setting-group"><h3>Greeting</h3>
+    <p class="muted">The desktop headline (replaces the fixed VAPOR//MATRIX). One message per line; pick how they rotate. A single line stays fixed.</p>
+    <textarea class="dv-input" data-greeting-messages rows="4" style="width:100%;resize:vertical" aria-label="Greeting messages">${esc(messages.join("\n"))}</textarea>
+    ${control("Rotation mode","How the greeting is chosen",`<div class="segmented dv-seg">${modeSeg}</div>`)}
+    ${control("Auto-rotate",rotate>0?`${rotate}s`:"off",`<input class="dv-slider" type="range" min="0" max="300" step="5" value="${rotate}" data-setting="customization.greeting.rotate_seconds" data-number aria-label="Greeting rotation seconds">`)}
+  </div>
+  <div class="setting-group" style="margin-top:24px"><h3>Scene titles</h3>
+    <p class="muted">Override each scene's heading title and subtitle. Clear a field to restore its default.</p>
+    ${textRows}
+  </div>`;
 }
 
 function renderDisplaySettings() {
@@ -1006,6 +1099,7 @@ function renderAbout() {
 
 const SETTINGS_TABS = {
   appearance: renderAppearanceSettings,
+  personalize: renderPersonalizeSettings,
   display: renderDisplaySettings,
   network: renderNetworkSettings,
   agents: renderAgentSettings,
@@ -1016,7 +1110,7 @@ const SETTINGS_TABS = {
 function renderKit() {
   // Stage C/D stories: static chrome samples for each new control (Task 23).
   // Demo toasts only — production wiring stays on Settings / Monitor / Apps scenes.
-  return heading("部品庫", "DIGITALVAPOR KIT", "The live control center now shares one token, component, chrome, and interaction layer.") + `
+  return sceneHeading("kit", "部品庫", "DIGITALVAPOR KIT", "The live control center now shares one token, component, chrome, and interaction layer.") + `
     <div class="grid three">
       ${panel("BUTTONS", `<div class="button-row"><button class="dv-btn dv-btn--primary" data-demo-toast="Primary action">PRIMARY</button><button class="dv-btn dv-btn--outline" data-demo-toast="Outline action">OUTLINE</button><button class="dv-btn dv-btn--ghost" data-demo-toast="Ghost action">GHOST</button><button class="dv-btn dv-btn--danger" data-demo-toast="Danger action">DANGER</button></div>`)}
       ${panel("TAGS + STATES", `<div class="button-row"><span class="dv-tag dv-tag--mag"><span class="dv-tag__dot"></span>agent</span><span class="dv-tag dv-tag--cyan">network</span><span class="dv-tag dv-tag--mint">healthy</span><span class="dv-tag dv-tag--purple">isolated</span><span class="dv-tag dv-tag--warn">degraded</span></div>`)}
@@ -1054,14 +1148,32 @@ function nestedPatch(path, value) {
   return root;
 }
 
-async function saveSetting(path, value) {
+async function savePatch(patch, label) {
   try {
-    const result = await api("/api/v1/settings", {method:"POST", body:{patch:nestedPatch(path,value), apply:true}});
+    const result = await api("/api/v1/settings", {method:"POST", body:{patch, apply:true}});
     app.state.settings = result.settings;
     applyAppearance();
-    toast("Settings saved", path);
+    toast("Settings saved", label);
     renderScene(true);
   } catch (error) { toast("Settings failed",error.message,true); }
+}
+
+async function saveSetting(path, value) { return savePatch(nestedPatch(path, value), path); }
+
+// Greeting/title overrides use flat dotted keys ("desktop.title") that nestedPatch
+// (which splits on ".") cannot express, so they post the customization sub-tree
+// directly. Posting an empty string clears the override (validator drops blanks).
+async function saveTextOverride(key, value) {
+  return savePatch({ customization: { text: { [key]: (value || "").trim() } } }, `text.${key}`);
+}
+
+async function saveGreetingMessages(text) {
+  const messages = String(text || "").split("\n").map((s) => s.trim()).filter(Boolean);
+  return savePatch({ customization: { greeting: { messages: messages.length ? messages : ["VAPOR//MATRIX"] } } }, "greeting");
+}
+
+async function saveGreetingMode(mode) {
+  return savePatch({ customization: { greeting: { mode } } }, "greeting.mode");
 }
 
 async function runAction(action,target="") {
@@ -1723,6 +1835,9 @@ const SCENE_BINDINGS = [
     if (el.hasAttribute("data-number")) value = Number(value);
     saveSetting(el.dataset.setting, value);
   } },
+  { sel: "[data-greeting-messages]", type: "change", run: (el) => saveGreetingMessages(el.value) },
+  { sel: "[data-greeting-mode]", run: (el) => saveGreetingMode(el.dataset.greetingMode) },
+  { sel: "[data-text-key]", type: "change", run: (el) => saveTextOverride(el.dataset.textKey, el.value) },
   { sel: "[data-audio-volume]", type: "input", run: (el) => queueAudioVolume(el.value) },
   { sel: "[data-audio-mute]", run: () => toggleAudioMute() },
   { sel: "[data-display-brightness]", type: "input", run: (el) => queueDisplayBrightness(el.value) },

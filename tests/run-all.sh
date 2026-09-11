@@ -36,6 +36,7 @@ if command -v node >/dev/null 2>&1; then
 
   step "node behaviour tests"
   node tests/js/reduced-motion.test.js
+  node tests/js/greeting.test.js
 else
   printf 'note: node not found; skipping JS syntax checks\n' >&2
 fi
