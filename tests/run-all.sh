@@ -73,6 +73,21 @@ grep -q 'usr/lib/lmdesktopplus/assets/wallpapers/vapor-matrix.svg' "$DEB_CONTENT
 grep -q 'usr/lib/lmdesktopplus/assets/wallpapers/vapor-matrix.png' "$DEB_CONTENTS"
 grep -q 'usr/share/lmdesktopplus/autostart/lmdesktopplus.desktop' "$DEB_CONTENTS"
 
+step "Debian desktop metapackage"
+./packaging/build-deb-metapackage.sh >/tmp/lmdesktopplus-metadeb-path.txt
+META_PATH="$(cat /tmp/lmdesktopplus-metadeb-path.txt)"
+META_INFO="/tmp/lmdesktopplus-metadeb-info.txt"
+dpkg-deb --info "$META_PATH" > "$META_INFO"
+grep -q '^ Package: lmdesktopplus-desktop' "$META_INFO"
+grep -Eq '^ Depends: lmdesktopplus \(>= ' "$META_INFO"
+for pkg in kitty rofi hyprland fonts-jetbrains-mono swaybg; do
+  grep -q "$pkg" "$META_INFO" || { echo "metapackage missing $pkg" >&2; exit 1; }
+done
+if dpkg-deb --contents "$META_PATH" | grep -q 'usr/lib/lmdesktopplus'; then
+  echo "metapackage should not ship application payload" >&2
+  exit 1
+fi
+
 step "FreeBSD UI package stage"
 ./packaging/build-freebsd-ui.sh >/tmp/lmdesktopplus-freebsd-path.txt
 FREEBSD_PATH="$(cat /tmp/lmdesktopplus-freebsd-path.txt)"
