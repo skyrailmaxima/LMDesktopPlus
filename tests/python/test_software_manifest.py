@@ -53,11 +53,28 @@ class SoftwareManifestTests(unittest.TestCase):
         )
 
     def test_metapackage_is_superset_of_main_fields(self):
+        # Every peer the main package references must still be pulled by the
+        # metapackage, either as a hard Depends or (for archive-pinned peers) a
+        # Recommends. apt installs Recommends by default, so a real install
+        # still gets the whole set.
         meta = set(self.m.debian_metapackage_depends(self.components))
+        meta |= set(self.m.debian_metapackage_recommends(self.components))
         for field in ("Depends", "Recommends", "Suggests"):
             entries = [e.strip() for e in self.m.debian_field(self.components, field).split(",")]
             for entry in entries:
-                self.assertIn(entry, meta, f"{entry} missing from metapackage depends")
+                self.assertIn(entry, meta, f"{entry} missing from metapackage depends+recommends")
+
+    def test_mint_only_peer_is_metapackage_recommends_not_depends(self):
+        # Regression: mintupdate lives only in the Mint archive, so hard-
+        # depending on it breaks `lb build` against the Ubuntu archive. It must
+        # be a Recommends instead (still pulled on a real Mint install).
+        depends = self.m.debian_metapackage_depends(self.components)
+        recommends = self.m.debian_metapackage_recommends(self.components)
+        self.assertNotIn("mintupdate", depends)
+        self.assertIn("mintupdate", recommends)
+        # Base-archive peers stay hard Depends so a preinstall still pulls them.
+        for pkg in ("kitty", "hyprland", "fonts-jetbrains-mono", "swaybg"):
+            self.assertIn(pkg, depends)
 
     def test_metapackage_includes_rice_and_fonts(self):
         meta = set(self.m.debian_metapackage_depends(self.components))

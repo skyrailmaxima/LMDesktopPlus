@@ -20,6 +20,11 @@ MANIFEST_PATH = Path(__file__).resolve().parent / "software-manifest.json"
 
 VALID_TIERS = ("core", "recommended", "optional", "rice", "font")
 VALID_SOURCES = ("distro", "ofl-fetch")
+# Optional per-component "archive" marker. A component available only in a
+# specific distro archive (e.g. "mint") is NOT satisfiable in the base Ubuntu
+# archive the respin bootstraps against, so it must not be a hard metapackage
+# Depends (that would fail `lb build`); it becomes a Recommends instead.
+VALID_ARCHIVES = ("mint",)
 
 # Tier -> Debian control field for the MAIN lmdesktopplus package.
 MAIN_FIELD_TIERS = {
@@ -59,6 +64,8 @@ def _check(components: list[dict]) -> list[str]:
             errors.append(f"{where}: distro component has no debian or freebsd package")
         if comp.get("source") == "ofl-fetch" and (comp.get("debian") or comp.get("freebsd")):
             errors.append(f"{where}: ofl-fetch component should not carry a distro package")
+        if "archive" in comp and comp.get("archive") not in VALID_ARCHIVES:
+            errors.append(f"{where}: invalid archive {comp.get('archive')!r}")
     return errors
 
 
@@ -69,8 +76,32 @@ def debian_field(components: list[dict], field: str) -> str:
 
 
 def debian_metapackage_depends(components: list[dict]) -> list[str]:
-    """Every distro-sourced component with a Debian package (all tiers)."""
-    return [c["debian"] for c in components if c.get("source") == "distro" and c.get("debian")]
+    """Distro-sourced Debian packages that are satisfiable in the base archive.
+
+    Every distro component with a Debian package EXCEPT those pinned to a
+    non-base archive (e.g. Mint-only ``mintupdate``). Those are unsatisfiable
+    when the respin bootstraps against the Ubuntu archive, so hard-depending on
+    them breaks ``lb build``; they move to :func:`debian_metapackage_recommends`.
+    """
+    return [
+        c["debian"]
+        for c in components
+        if c.get("source") == "distro" and c.get("debian") and not c.get("archive")
+    ]
+
+
+def debian_metapackage_recommends(components: list[dict]) -> list[str]:
+    """Distro Debian packages pinned to a non-base archive (e.g. Mint-only).
+
+    Kept as metapackage Recommends: a real Mint install still pulls them (apt
+    installs Recommends by default), but building the metapackage / respin
+    against the Ubuntu archive skips the unsatisfiable ones instead of failing.
+    """
+    return [
+        c["debian"]
+        for c in components
+        if c.get("source") == "distro" and c.get("debian") and c.get("archive")
+    ]
 
 
 def freebsd_packages(components: list[dict]) -> list[str]:
@@ -116,6 +147,11 @@ def _cmd_deb_metapackage(components: list[dict], _args) -> int:
     return 0
 
 
+def _cmd_deb_metapackage_recommends(components: list[dict], _args) -> int:
+    print(", ".join(debian_metapackage_recommends(components)))
+    return 0
+
+
 def _cmd_freebsd(components: list[dict], _args) -> int:
     print(" ".join(freebsd_packages(components)))
     return 0
@@ -147,7 +183,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("check", help="validate the manifest")
     p_field = sub.add_parser("deb-field", help="print a main-package control field")
     p_field.add_argument("field", choices=sorted(MAIN_FIELD_TIERS))
-    sub.add_parser("deb-metapackage-depends", help="print the full metapackage Depends set")
+    sub.add_parser("deb-metapackage-depends", help="print the metapackage Depends set (base-archive)")
+    sub.add_parser("deb-metapackage-recommends", help="print the metapackage Recommends set (non-base archive, e.g. Mint-only)")
     sub.add_parser("freebsd-packages", help="print the FreeBSD pkg set")
     p_frd = sub.add_parser("freebsd-run-depends", help="print metaport RUN_DEPENDS lines")
     p_frd.add_argument("--origins", required=True, help="pkg-origins.json map")
@@ -161,6 +198,7 @@ def main(argv: list[str] | None = None) -> int:
         "check": _cmd_check,
         "deb-field": _cmd_deb_field,
         "deb-metapackage-depends": _cmd_deb_metapackage,
+        "deb-metapackage-recommends": _cmd_deb_metapackage_recommends,
         "freebsd-packages": _cmd_freebsd,
         "freebsd-run-depends": _cmd_freebsd_run_depends,
         "list": _cmd_list,
