@@ -32,6 +32,7 @@ const app = {
   scene: initialScene(),
   settingsTab: "appearance",
   editingLayout: null,
+  layoutDraft: null,
   state: null,
   assets: new AssetMap(),
   store: new LiveStore({debug: DEV_MODE}),
@@ -430,7 +431,13 @@ function syncGreetingRotation() {
 // The tile framework (tiles.js) renders scenes; these helpers read/persist the
 // per-scene layout and drive button-based reorder/hide/view-switch + an
 // "Edit layout" mode that pauses diff re-renders (see the poll() guard).
+// While a scene's layout is being edited, `app.layoutDraft` is the authoritative
+// layout: it is applied optimistically on every edit so (a) rapid successive
+// edits chain off each other instead of a stale server snapshot, and (b) the 1s
+// poll (which keeps refreshing app.state for live metrics) cannot clobber an
+// in-flight edit. Outside edit mode the server snapshot is source of truth.
 function sceneLayout(sceneId) {
+  if (app.layoutDraft && app.layoutDraft.scene === sceneId) return app.layoutDraft.layout;
   const layouts = customization().layouts || {};
   return layouts[sceneId] && typeof layouts[sceneId] === "object" ? layouts[sceneId] : {};
 }
@@ -438,31 +445,54 @@ function sceneLayout(sceneId) {
 function isEditingLayout(sceneId) { return app.editingLayout === sceneId; }
 
 function toggleLayoutEdit(sceneId) {
-  app.editingLayout = isEditingLayout(sceneId) ? null : sceneId;
+  if (isEditingLayout(sceneId)) {
+    app.editingLayout = null;
+    app.layoutDraft = null; // hand authority back to the server snapshot / poll
+  } else {
+    app.layoutDraft = { scene: sceneId, layout: { ...sceneLayout(sceneId) } };
+    app.editingLayout = sceneId;
+  }
   renderScene(true);
 }
 
+// Serialize layout POSTs so the server applies edits in click order (last write
+// wins) even when several fire before earlier ones resolve. saveLayout does not
+// reassign app.state — the optimistic draft already reflects the change and may
+// be newer than any single response; the next full poll reconciles on exit.
+let layoutSaveChain = Promise.resolve();
 async function saveLayout(sceneId, layout) {
-  return savePatch({ customization: { layouts: { [sceneId]: layout } } }, `layout.${sceneId}`);
+  try {
+    await api("/api/v1/settings", { method: "POST", body: { patch: { customization: { layouts: { [sceneId]: layout } } }, apply: true } });
+  } catch (error) {
+    toast("Layout save failed", error.message, true);
+  }
+}
+
+function commitLayout(sceneId, layout) {
+  if (app.editingLayout === sceneId) app.layoutDraft = { scene: sceneId, layout };
+  renderScene(true);
+  layoutSaveChain = layoutSaveChain.then(() => saveLayout(sceneId, layout));
+  return layoutSaveChain;
 }
 
 function moveTile(sceneId, tileId, direction) {
+  const current = sceneLayout(sceneId);
   const order = window.LMDPTiles.computeReorder(
-    window.LMDPTiles.currentOrder(sceneId, sceneLayout(sceneId)), tileId, direction
+    window.LMDPTiles.currentOrder(sceneId, current), tileId, direction
   );
-  return saveLayout(sceneId, { ...sceneLayout(sceneId), order });
+  return commitLayout(sceneId, { ...current, order });
 }
 
 function toggleTileHidden(sceneId, tileId) {
   const layout = sceneLayout(sceneId);
   const hidden = window.LMDPTiles.toggleInList(layout.hidden, tileId);
-  return saveLayout(sceneId, { ...layout, hidden });
+  return commitLayout(sceneId, { ...layout, hidden });
 }
 
 function setTileView(sceneId, tileId, viewId) {
   const layout = sceneLayout(sceneId);
   const views = { ...(layout.views || {}), [tileId]: viewId };
-  return saveLayout(sceneId, { ...layout, views });
+  return commitLayout(sceneId, { ...layout, views });
 }
 
 function corners() {

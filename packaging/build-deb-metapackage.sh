@@ -11,7 +11,11 @@ VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$ROOT/pyproject.toml" | head 
 MANIFEST="$ROOT/packaging/manifest.py"
 SET_DEPENDS="$(python3 "$MANIFEST" deb-metapackage-depends)"
 [[ -n "$SET_DEPENDS" ]] || { echo "manifest produced no metapackage depends" >&2; exit 1; }
-# The metapackage pins the control center itself, then the full peer set.
+# Archive-pinned peers (e.g. Mint-only mintupdate) are unsatisfiable in the base
+# Ubuntu archive the respin bootstraps against, so they ride as Recommends: a
+# real Mint install still pulls them, but `lb build` no longer fails on them.
+SET_RECOMMENDS="$(python3 "$MANIFEST" deb-metapackage-recommends)"
+# The metapackage pins the control center itself, then the full base-archive set.
 DEPENDS="lmdesktopplus (>= $VERSION), $SET_DEPENDS"
 
 ARCH="all"
@@ -40,7 +44,8 @@ Section: metapackages
 Priority: optional
 Architecture: $ARCH
 Maintainer: LMDesktopPlus contributors
-Depends: $DEPENDS
+Depends: $DEPENDS${SET_RECOMMENDS:+
+Recommends: $SET_RECOMMENDS}
 Description: LMDesktopPlus vapor//matrix desktop (full software set)
  Metapackage that installs the LMDesktopPlus control center together with the
  complete vapor//matrix software set: terminals, launcher, monitors, media,

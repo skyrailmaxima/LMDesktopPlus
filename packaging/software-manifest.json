@@ -13,12 +13,17 @@
     "  source      distro (from the OS package manager) | ofl-fetch (fetched font)",
     "  debian      apt dependency spec (may include a version and '|' alternates), or null",
     "  freebsd     FreeBSD pkg name, or null when not applicable to FreeBSD",
+    "  archive     optional; distro archive a package is exclusive to (e.g. 'mint').",
+    "              Such packages are unsatisfiable in the base Ubuntu archive the",
+    "              respin bootstraps against, so they become metapackage Recommends",
+    "              (still pulled on a real Mint install) instead of hard Depends.",
     "  category    grouping for humans/docs",
     "  description short human description",
     "Tier -> Debian control field for the MAIN lmdesktopplus package:",
     "  core -> Depends, recommended -> Recommends, optional -> Suggests.",
-    "The lmdesktopplus-desktop metapackage Depends on every component whose",
-    "source is 'distro' (so an ISO preinstall == installing one metapackage)."
+    "The lmdesktopplus-desktop metapackage Depends on every distro component",
+    "satisfiable in the base archive and Recommends the archive-pinned ones (so",
+    "an ISO preinstall == installing one metapackage, without a failed build)."
   ],
   "components": [
     {"id": "python3", "tier": "core", "source": "distro", "debian": "python3 (>= 3.10)", "freebsd": "python3", "category": "runtime", "description": "Python 3 interpreter for the control center"},
@@ -44,7 +49,7 @@
     {"id": "wl-clipboard", "tier": "optional", "source": "distro", "debian": "wl-clipboard", "freebsd": "wl-clipboard", "category": "clipboard", "description": "Wayland clipboard tools"},
     {"id": "xclip", "tier": "optional", "source": "distro", "debian": "xclip", "freebsd": "xclip", "category": "clipboard", "description": "X11 clipboard tool"},
     {"id": "libnotify", "tier": "optional", "source": "distro", "debian": "libnotify-bin", "freebsd": "libnotify", "category": "notifications", "description": "notify-send for desktop notifications"},
-    {"id": "mintupdate", "tier": "optional", "source": "distro", "debian": "mintupdate", "freebsd": null, "category": "updates", "description": "Mint Update integration (Mint only)"},
+    {"id": "mintupdate", "tier": "optional", "source": "distro", "debian": "mintupdate", "freebsd": null, "archive": "mint", "category": "updates", "description": "Mint Update integration (Mint only)"},
     {"id": "cups-client", "tier": "optional", "source": "distro", "debian": "cups-client", "freebsd": "cups", "category": "printers", "description": "lpstat/lp printer tooling"},
     {"id": "system-config-printer", "tier": "optional", "source": "distro", "debian": "system-config-printer", "freebsd": null, "category": "printers", "description": "Printer settings GUI (Linux only)"},
     {"id": "swayidle", "tier": "optional", "source": "distro", "debian": "swayidle", "freebsd": "swayidle", "category": "idle", "description": "Idle daemon for the Hyprland session"},

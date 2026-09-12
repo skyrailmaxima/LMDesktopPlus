@@ -48,6 +48,11 @@ grep -q 'function resolveGreeting' "$STATIC/app.js"
 # GREETING_MODES must be defined in the frontend (used by renderPersonalizeSettings);
 # it previously lived only in config.py, which threw a ReferenceError on the tab.
 grep -q 'const GREETING_MODES' "$STATIC/app.js"
+# Tile layout edits must be optimistic + serialized (draft held while editing,
+# saves chained) so rapid reorder/hide/view clicks don't race the 1s poll.
+grep -q 'layoutDraft' "$STATIC/app.js"
+grep -q 'layoutSaveChain' "$STATIC/app.js"
+grep -q 'function commitLayout' "$STATIC/app.js"
 grep -q 'data-greeting-messages' "$STATIC/app.js"
 grep -q 'data-greeting-mode' "$STATIC/app.js"
 grep -q 'data-text-key' "$STATIC/app.js"
